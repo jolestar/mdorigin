@@ -18,26 +18,15 @@ It treats markdown as the source of truth, serves raw `.md` directly for agents,
 - relative assets stay next to content
 - the same core works for local Node preview and Cloudflare Workers
 
-## Start here
-
-- [Getting Started](./getting-started.md)
-- [Routing Model](./routing.md)
-- [Directory Indexes](./directory-indexes.md)
-- [Cloudflare Deployment](./cloudflare.md)
+The site below is intentionally organized as directories so the automatic index behavior can act as the primary navigation layer.
 
 <!-- INDEX:START -->
 
-## Articles
-- [Cloudflare Deployment](./cloudflare.md)
-  2026-03-20 · Build a user-project Worker bundle and initialize Wrangler config.
+- [Concepts](./concepts/)
+- [Guides](./guides/)
+- [Reference](./reference/)
 
-- [Directory Indexes](./directory-indexes.md)
-  2026-03-20 · Generate and maintain directory index blocks inside index.md.
-
-- [Getting Started](./getting-started.md)
-  2026-03-20 · Preview content locally, configure a site, and build indexes.
-
-- [Routing Model](./routing.md)
-  2026-03-20 · Understand how markdown, HTML, directory routes, and assets map to URLs.
+- [Why mdorigin exists](./why-mdorigin.md)
+  2026-03-20 · A concise explanation of the markdown-first model and why the project avoids runtime-only content layers.
 
 <!-- INDEX:END -->

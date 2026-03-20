@@ -9,6 +9,9 @@ test('cloudflare worker serves html and hides drafts', async () => {
       siteTitle: 'Worker Test',
       showDate: true,
       showSummary: true,
+      theme: 'paper',
+      topNav: [],
+      showHomeIndex: true,
       stylesheetContent: 'body { font-family: serif; }',
     },
     entries: [

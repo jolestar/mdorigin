@@ -20,6 +20,9 @@ test('buildCloudflareManifest includes entries and site config', async () => {
       siteTitle: 'Manifest Site',
       showDate: true,
       showSummary: true,
+      theme: 'paper',
+      topNav: [],
+      showHomeIndex: true,
     },
   });
 
@@ -40,6 +43,9 @@ test('writeCloudflareBundle writes a user-facing worker entry', async () => {
       siteTitle: 'Bundle Site',
       showDate: true,
       showSummary: true,
+      theme: 'paper',
+      topNav: [],
+      showHomeIndex: true,
     },
   });
 

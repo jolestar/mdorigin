@@ -27,6 +27,9 @@ test('node server serves markdown, html, and assets', async () => {
       siteTitle: 'Node Test',
       showDate: true,
       showSummary: true,
+      theme: 'paper',
+      topNav: [],
+      showHomeIndex: true,
     },
   });
 

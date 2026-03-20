@@ -20,20 +20,8 @@ By default this writes:
 .mdorigin/cloudflare/worker.mjs
 ```
 
-The generated worker imports `mdorigin/cloudflare`, so the consuming project should keep `mdorigin` installed when deploying.
-
 ## Initialize Wrangler config
 
 ```bash
-npm run init:cloudflare -- --dir .
-```
-
-That writes a starter `wrangler.jsonc` pointing at `.mdorigin/cloudflare/worker.mjs`.
-
-## Typical flow
-
-```bash
-npm run build:index -- --root docs/site
-npm run build:cloudflare -- --root docs/site
 npm run init:cloudflare -- --dir .
 ```

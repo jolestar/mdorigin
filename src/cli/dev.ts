@@ -17,6 +17,7 @@ export async function runDevCommand(argv: string[]) {
   const port = args.port ?? 3000;
   const siteConfig = await loadSiteConfig({
     cwd: process.cwd(),
+    rootDir,
     configPath: args.config,
   });
   const server = createNodeServer({

@@ -114,13 +114,34 @@ Optional site config:
 ```json
 {
   "siteTitle": "Example Notes",
+  "siteDescription": "Short description shown in the header.",
   "showDate": true,
   "showSummary": true,
+  "theme": "atlas",
+  "topNav": [
+    { "label": "About", "href": "/about/" },
+    { "label": "Projects", "href": "/projects/" }
+  ],
+  "showHomeIndex": false,
   "stylesheet": "./.theme/site.css"
 }
 ```
 
-Save that as `mdorigin.config.json` in the current working directory. The stylesheet file is read and inlined into rendered HTML for both Node preview and Cloudflare bundles.
+Save that as `<content-root>/mdorigin.config.json`. The loader prefers:
+
+1. `--config`
+2. `<content-root>/mdorigin.config.json`
+3. current working directory `mdorigin.config.json` as a compatibility fallback
+
+The stylesheet file is read and inlined into rendered HTML for both Node preview and Cloudflare bundles.
+
+Built-in themes:
+
+- `paper`: restrained single-column writing theme, inspired by minimal blog defaults such as Jekyll-style reading layouts
+- `atlas`: clean docs-and-blog hybrid with stronger navigation and code presentation
+- `gazette`: warmer editorial layout for essay-style publishing
+
+`topNav` controls a small hand-written global navigation. `showHomeIndex` only affects HTML rendering for `/`: when set to `false`, the root page hides the auto-generated `INDEX:START/END` block, but the raw markdown still keeps it.
 
 ## Build Worker
 

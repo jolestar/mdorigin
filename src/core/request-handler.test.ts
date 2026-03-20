@@ -9,6 +9,9 @@ const TEST_SITE_CONFIG = {
   siteTitle: 'Test Site',
   showDate: true,
   showSummary: true,
+  theme: 'paper' as const,
+  topNav: [],
+  showHomeIndex: true,
 };
 
 test('resolveRequest maps html, markdown, default html, index, and assets', () => {
@@ -194,6 +197,95 @@ test('handleSiteRequest renders README.md as directory homepage fallback', async
   assert.match(String(response.body), /Root Readme/);
 });
 
+test('handleSiteRequest derives top navigation from root directories when topNav is empty', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Root Readme', '---', '', '# Root Readme'].join('\n'),
+    },
+    {
+      path: 'guides/README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Guides', '---', '', '# Guides'].join('\n'),
+    },
+    {
+      path: 'reference/index.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Reference', '---', '', '# Reference'].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/', {
+    draftMode: 'include',
+    siteConfig: {
+      ...TEST_SITE_CONFIG,
+      topNav: [],
+      showHomeIndex: true,
+    },
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(String(response.body), /href="\/guides\/"/);
+  assert.match(String(response.body), />Guides<\/a>/);
+  assert.match(String(response.body), /href="\/reference\/"/);
+  assert.match(String(response.body), />Reference<\/a>/);
+});
+
+test('handleSiteRequest hides home index block in html when showHomeIndex is false', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: [
+        '---',
+        'title: Root Readme',
+        'summary: Root summary',
+        '---',
+        '',
+        '# Root Readme',
+        '',
+        'Intro text.',
+        '',
+        '<!-- INDEX:START -->',
+        '',
+        '- [About](./about/)',
+        '',
+        '<!-- INDEX:END -->',
+      ].join('\n'),
+    },
+  ]);
+
+  const htmlResponse = await handleSiteRequest(store, '/', {
+    draftMode: 'include',
+    siteConfig: {
+      ...TEST_SITE_CONFIG,
+      topNav: [{ label: 'About', href: '/about/' }],
+      showHomeIndex: false,
+    },
+  });
+
+  assert.equal(htmlResponse.status, 200);
+  assert.match(String(htmlResponse.body), /Intro text/);
+  assert.match(String(htmlResponse.body), /href="\/about\/"/);
+  assert.doesNotMatch(String(htmlResponse.body), /<!-- INDEX:START -->/);
+
+  const markdownResponse = await handleSiteRequest(store, '/README.md', {
+    draftMode: 'include',
+    siteConfig: {
+      ...TEST_SITE_CONFIG,
+      topNav: [{ label: 'About', href: '/about/' }],
+      showHomeIndex: false,
+    },
+  });
+
+  assert.match(String(markdownResponse.body), /<!-- INDEX:START -->/);
+});
+
 test('handleSiteRequest respects site config rendering options', async () => {
   const store = new MemoryContentStore([
     {
@@ -216,15 +308,23 @@ test('handleSiteRequest respects site config rendering options', async () => {
     draftMode: 'include',
     siteConfig: {
       siteTitle: 'Configured Site',
+      siteDescription: 'Configured description',
       showDate: false,
       showSummary: false,
+      theme: 'atlas',
+      topNav: [{ label: 'Docs', href: '/docs/' }],
+      showHomeIndex: true,
       stylesheetContent: 'body { color: red; }',
     },
   });
 
   assert.equal(response.status, 200);
   assert.match(String(response.body), /Configured Site/);
-  assert.match(String(response.body), /<style>body \{ color: red; \}<\/style>/);
+  assert.match(String(response.body), /Configured description/);
+  assert.match(String(response.body), /data-theme="atlas"/);
+  assert.match(String(response.body), /href="\/docs\/"/);
+  assert.doesNotMatch(String(response.body), /href="\/guides\/"/);
+  assert.match(String(response.body), /body \{ color: red; \}/);
   assert.doesNotMatch(String(response.body), /Hidden summary/);
   assert.doesNotMatch(String(response.body), /2026-03-20/);
 });
@@ -245,5 +345,6 @@ test('handleSiteRequest renders yaml dates parsed as Date objects', async () => 
   });
 
   assert.equal(response.status, 200);
-  assert.match(String(response.body), /2026-03-20/);
+  assert.match(String(response.body), /<title>Dated Post \| Test Site<\/title>/);
+  assert.match(String(response.body), /<h1>Dated<\/h1>/);
 });

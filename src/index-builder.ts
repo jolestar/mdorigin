@@ -184,7 +184,6 @@ function renderManagedIndexBlock(
   const lines = [INDEX_START_MARKER, ''];
 
   if (directories.length > 0) {
-    lines.push('## Directories');
     for (const entry of directories) {
       lines.push(`- [${entry.title}](${entry.link})`);
     }
@@ -192,7 +191,6 @@ function renderManagedIndexBlock(
   }
 
   if (articles.length > 0) {
-    lines.push('## Articles');
     for (const article of articles) {
       lines.push(`- [${article.title}](${article.link})`);
       const detail = [article.date, article.summary].filter(Boolean).join(' · ');

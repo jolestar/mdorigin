@@ -1,30 +1,43 @@
+import type { SiteNavItem } from '../core/site-config.js';
+import { getBuiltInThemeStyles, type BuiltInThemeName } from './theme.js';
+
 export interface RenderDocumentOptions {
   siteTitle: string;
+  siteDescription?: string;
   title: string;
   body: string;
   summary?: string;
   date?: string;
   showSummary?: boolean;
   showDate?: boolean;
+  theme: BuiltInThemeName;
+  topNav?: SiteNavItem[];
   stylesheetContent?: string;
 }
 
 export function renderDocument(options: RenderDocumentOptions) {
   const title = escapeHtml(options.title);
   const siteTitle = escapeHtml(options.siteTitle);
+  const siteDescription = options.siteDescription
+    ? escapeHtml(options.siteDescription)
+    : undefined;
   const summaryMeta = options.summary
     ? `<meta name="description" content="${escapeHtml(options.summary)}">`
     : '';
-  const stylesheetBlock = options.stylesheetContent
-    ? `<style>${options.stylesheetContent}</style>`
-    : '';
-  const summaryBlock =
-    options.showSummary !== false && options.summary
-      ? `<p>${escapeHtml(options.summary)}</p>`
+  const stylesheetBlock = `<style>${getBuiltInThemeStyles(options.theme)}${
+    options.stylesheetContent ? `\n${options.stylesheetContent}` : ''
+  }</style>`;
+  const navBlock =
+    options.topNav && options.topNav.length > 0
+      ? `<nav class="site-nav"><ul>${options.topNav
+          .map(
+            (item) =>
+              `<li><a href="${escapeHtml(item.href)}">${escapeHtml(item.label)}</a></li>`,
+          )
+          .join('')}</ul></nav>`
       : '';
-  const dateBlock =
-    options.showDate !== false && options.date
-    ? `<p><small>${escapeHtml(options.date)}</small></p>`
+  const siteDescriptionBlock = siteDescription
+    ? `<span>${siteDescription}</span>`
     : '';
 
   return [
@@ -37,10 +50,10 @@ export function renderDocument(options: RenderDocumentOptions) {
     summaryMeta,
     stylesheetBlock,
     '</head>',
-    '<body>',
-    `<header><p><a href="/">${siteTitle}</a></p></header>`,
+    `<body data-theme="${options.theme}">`,
+    `<header class="site-header"><div class="site-header__inner"><div class="site-header__brand"><p class="site-header__title"><a href="/">${siteTitle}</a></p>${siteDescriptionBlock}</div>${navBlock}</div></header>`,
     '<main>',
-    `<article><p><strong>${title}</strong></p>${summaryBlock}${dateBlock}${options.body}</article>`,
+    `<article>${options.body}</article>`,
     '</main>',
     '</body>',
     '</html>',

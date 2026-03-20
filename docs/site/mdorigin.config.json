@@ -1,0 +1,8 @@
+{
+  "siteTitle": "mdorigin",
+  "siteDescription": "Markdown-first publishing for humans and agents.",
+  "showDate": true,
+  "showSummary": true,
+  "theme": "atlas",
+  "showHomeIndex": true
+}

@@ -38,7 +38,6 @@ test('buildManagedIndexBlock renders directories and articles with sorting', asy
 
   const block = await buildManagedIndexBlock(rootDir);
 
-  assert.match(block, /## Directories/);
   assert.match(block, /\[Alpha Notes\]\(\.\/alpha\/\)[\s\S]*\[Zeta Notes\]\(\.\/zeta\/\)/);
   assert.match(block, /\[New Post\]\(\.\/new\.md\)[\s\S]*2025-03-04 · First paragraph summary\./);
   assert.match(block, /\[Old Post\]\(\.\/old\.md\)[\s\S]*2024-01-03 · Old summary/);
@@ -58,12 +57,12 @@ test('upsertManagedIndexBlock replaces existing managed section', () => {
 
   const updated = upsertManagedIndexBlock(
     source,
-    ['<!-- INDEX:START -->', '', '## Articles', '- [Post](./post.md)', '', '<!-- INDEX:END -->'].join('\n'),
+    ['<!-- INDEX:START -->', '', '- [Post](./post.md)', '', '<!-- INDEX:END -->'].join('\n'),
   );
 
   assert.doesNotMatch(updated, /Old content/);
   assert.match(updated, /Trailing note/);
-  assert.match(updated, /## Articles/);
+  assert.match(updated, /\[Post\]\(\.\/post\.md\)/);
 });
 
 test('upsertManagedIndexBlock appends markers when missing', () => {

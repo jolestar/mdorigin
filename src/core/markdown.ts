@@ -50,6 +50,13 @@ export function rewriteMarkdownLinksInHtml(html: string): string {
   );
 }
 
+export function stripManagedIndexBlock(markdown: string): string {
+  return markdown.replace(
+    /\n?<!-- INDEX:START -->[\s\S]*?<!-- INDEX:END -->\n?/g,
+    '\n',
+  ).trimEnd();
+}
+
 function normalizeMeta(data: Record<string, unknown>): ParsedDocumentMeta {
   const meta: ParsedDocumentMeta = { ...data };
 

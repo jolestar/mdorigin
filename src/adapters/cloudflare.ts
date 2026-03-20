@@ -55,6 +55,9 @@ export function createCloudflareWorker(
           siteTitle: 'mdorigin',
           showDate: true,
           showSummary: true,
+          theme: 'paper',
+          topNav: [],
+          showHomeIndex: true,
         },
       });
 

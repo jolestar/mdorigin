@@ -15,6 +15,7 @@ export async function runBuildCloudflareCommand(argv: string[]) {
 
   const siteConfig = await loadSiteConfig({
     cwd: process.cwd(),
+    rootDir: path.resolve(args.root),
     configPath: args.config,
   });
   const result = await writeCloudflareBundle({
