@@ -18,6 +18,12 @@ test('cloudflare worker serves html and hides drafts', async () => {
         mediaType: 'text/markdown; charset=utf-8',
         text: ['---', 'draft: true', '---', '', '# Draft'].join('\n'),
       },
+      {
+        path: 'posts/foo.md',
+        kind: 'text',
+        mediaType: 'text/markdown; charset=utf-8',
+        text: '# Foo',
+      },
     ],
   });
 
@@ -29,4 +35,10 @@ test('cloudflare worker serves html and hides drafts', async () => {
     new Request('https://example.com/draft.html'),
   );
   assert.equal(draftResponse.status, 404);
+
+  const defaultRouteResponse = await worker.fetch(
+    new Request('https://example.com/posts/foo'),
+  );
+  assert.equal(defaultRouteResponse.status, 200);
+  assert.match(await defaultRouteResponse.text(), /<h1>Foo<\/h1>/);
 });

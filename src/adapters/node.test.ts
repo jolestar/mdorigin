@@ -14,6 +14,7 @@ test('node server serves markdown, html, and assets', async () => {
     ['---', 'title: Topic', '---', '', '# Topic'].join('\n'),
     'utf8',
   );
+  await writeFile(path.join(rootDir, 'topic', 'post.md'), '# Post\n', 'utf8');
   await writeFile(path.join(rootDir, 'topic', 'notes.pdf'), Buffer.from([1, 2]));
 
   const server = createNodeServer({
@@ -37,6 +38,12 @@ test('node server serves markdown, html, and assets', async () => {
     );
     assert.equal(markdownResponse.status, 200);
     assert.match(await markdownResponse.text(), /title: Topic/);
+
+    const defaultHtmlResponse = await fetch(
+      `http://127.0.0.1:${address.port}/topic/post`,
+    );
+    assert.equal(defaultHtmlResponse.status, 200);
+    assert.match(await defaultHtmlResponse.text(), /<h1>Post<\/h1>/);
 
     const assetResponse = await fetch(
       `http://127.0.0.1:${address.port}/topic/notes.pdf`,

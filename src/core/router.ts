@@ -64,6 +64,17 @@ export function resolveRequest(pathname: string): ResolvedRequest {
         };
   }
 
+  if (extension === '') {
+    const sourcePath = normalizeContentPath(`${relativePath}.md`);
+    return sourcePath === null
+      ? { kind: 'not-found', requestPath: normalizedRequestPath }
+      : {
+          kind: 'html',
+          requestPath: normalizedRequestPath,
+          sourcePath,
+        };
+  }
+
   const sourcePath = normalizeContentPath(relativePath);
   return sourcePath === null
     ? { kind: 'not-found', requestPath: normalizedRequestPath }

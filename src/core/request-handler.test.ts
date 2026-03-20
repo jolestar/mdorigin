@@ -5,11 +5,16 @@ import { MemoryContentStore } from './content-store.js';
 import { handleSiteRequest } from './request-handler.js';
 import { resolveRequest } from './router.js';
 
-test('resolveRequest maps html, markdown, index, and assets', () => {
+test('resolveRequest maps html, markdown, default html, index, and assets', () => {
   assert.deepEqual(resolveRequest('/'), {
     kind: 'html',
     requestPath: '/',
     sourcePath: 'index.md',
+  });
+  assert.deepEqual(resolveRequest('/topic/post'), {
+    kind: 'html',
+    requestPath: '/topic/post',
+    sourcePath: 'topic/post.md',
   });
   assert.deepEqual(resolveRequest('/topic/'), {
     kind: 'html',
@@ -61,6 +66,12 @@ test('handleSiteRequest renders html and preserves markdown', async () => {
       mediaType: 'image/png',
       bytes: new Uint8Array([1, 2, 3]),
     },
+    {
+      path: 'topic/post.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: '# Post',
+    },
   ]);
 
   const htmlResponse = await handleSiteRequest(store, '/topic/', {
@@ -75,6 +86,12 @@ test('handleSiteRequest renders html and preserves markdown', async () => {
   });
   assert.equal(markdownResponse.status, 200);
   assert.match(String(markdownResponse.body), /^---/m);
+
+  const defaultHtmlResponse = await handleSiteRequest(store, '/topic/post', {
+    draftMode: 'include',
+  });
+  assert.equal(defaultHtmlResponse.status, 200);
+  assert.match(String(defaultHtmlResponse.body), /<h1>Post<\/h1>/);
 });
 
 test('handleSiteRequest filters drafts in exclude mode', async () => {
