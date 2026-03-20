@@ -126,7 +126,8 @@ Save that as `mdorigin.config.json` in the current working directory. The styles
 ## Build Worker
 
 ```bash
-npm run build:worker -- --root example/content/writing
+npm run build:cloudflare -- --root example/content/writing
+npm run init:cloudflare
 ```
 
-This writes a deployable Worker entrypoint to `dist/worker.mjs`.
+This writes a user-project Worker entrypoint to `.mdorigin/cloudflare/worker.mjs` and a starter `wrangler.jsonc` in the current directory. The generated worker imports `mdorigin/cloudflare`, so the consuming project should keep `mdorigin` installed as a dependency when deploying with Wrangler.

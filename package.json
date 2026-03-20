@@ -4,12 +4,19 @@
   "private": true,
   "type": "module",
   "description": "Markdown-first publishing engine with raw Markdown and HTML views.",
+  "bin": {
+    "mdorigin": "./dist/cli/main.js"
+  },
+  "exports": {
+    "./cloudflare": "./dist/cloudflare.js"
+  },
   "scripts": {
-    "dev": "tsx src/cli/dev.ts",
+    "dev": "tsx src/cli/main.ts dev",
     "build": "tsc -p tsconfig.json",
-    "build:worker": "npm run build && node dist/cli/build-worker.js",
+    "build:cloudflare": "tsx src/cli/main.ts build cloudflare",
+    "init:cloudflare": "tsx src/cli/main.ts init cloudflare",
     "check": "tsc --noEmit -p tsconfig.json",
-    "test": "node --test --import tsx src/**/*.test.ts"
+    "test": "node --test --import tsx src/*.test.ts src/**/*.test.ts"
   },
   "engines": {
     "node": ">=20"
