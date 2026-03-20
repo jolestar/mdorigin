@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { ContentEntry, ContentStore } from '../core/content-store.js';
@@ -7,6 +7,8 @@ import {
   getMediaTypeForPath,
   isLikelyTextPath,
   normalizeContentPath,
+  normalizeDirectoryPath,
+  type ContentDirectoryEntry,
 } from '../core/content-store.js';
 import { handleSiteRequest } from '../core/request-handler.js';
 
@@ -49,6 +51,49 @@ export function createFileSystemContentStore(rootDir: string): ContentStore {
           mediaType,
           bytes,
         };
+      } catch (error) {
+        if (isNodeNotFound(error)) {
+          return null;
+        }
+
+        throw error;
+      }
+    },
+    async listDirectory(contentPath: string): Promise<ContentDirectoryEntry[] | null> {
+      const normalizedPath = normalizeDirectoryPath(contentPath);
+      if (normalizedPath === null) {
+        return null;
+      }
+
+      const directoryPath = path.resolve(resolvedRootDir, normalizedPath);
+      if (
+        !directoryPath.startsWith(`${resolvedRootDir}${path.sep}`) &&
+        directoryPath !== resolvedRootDir
+      ) {
+        return null;
+      }
+
+      try {
+        const entries = await readdir(directoryPath, { withFileTypes: true });
+        return entries
+          .filter((entry) => !entry.name.startsWith('.'))
+          .map(
+            (entry): ContentDirectoryEntry => ({
+              name: entry.name,
+              path:
+                normalizedPath === ''
+                  ? entry.name
+                  : `${normalizedPath}/${entry.name}`,
+              kind: entry.isDirectory() ? 'directory' : 'file',
+            }),
+          )
+          .sort((left, right) => {
+            if (left.kind !== right.kind) {
+              return left.kind === 'directory' ? -1 : 1;
+            }
+
+            return left.name.localeCompare(right.name);
+          });
       } catch (error) {
         if (isNodeNotFound(error)) {
           return null;

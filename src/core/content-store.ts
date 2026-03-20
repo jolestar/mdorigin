@@ -10,8 +10,15 @@ export interface ContentEntry {
   bytes?: Uint8Array;
 }
 
+export interface ContentDirectoryEntry {
+  name: string;
+  path: string;
+  kind: 'file' | 'directory';
+}
+
 export interface ContentStore {
   get(contentPath: string): Promise<ContentEntry | null>;
+  listDirectory(contentPath: string): Promise<ContentDirectoryEntry[] | null>;
 }
 
 export class MemoryContentStore implements ContentStore {
@@ -25,6 +32,50 @@ export class MemoryContentStore implements ContentStore {
 
   async get(contentPath: string): Promise<ContentEntry | null> {
     return this.entries.get(contentPath) ?? null;
+  }
+
+  async listDirectory(contentPath: string): Promise<ContentDirectoryEntry[] | null> {
+    const directoryPath = normalizeDirectoryPath(contentPath);
+    if (directoryPath === null) {
+      return null;
+    }
+
+    const prefix = directoryPath === '' ? '' : `${directoryPath}/`;
+    const children = new Map<string, ContentDirectoryEntry>();
+
+    for (const entryPath of this.entries.keys()) {
+      if (!entryPath.startsWith(prefix)) {
+        continue;
+      }
+
+      const remainder = entryPath.slice(prefix.length);
+      if (remainder === '') {
+        continue;
+      }
+
+      const [firstSegment, ...rest] = remainder.split('/');
+      if (firstSegment.startsWith('.')) {
+        continue;
+      }
+
+      if (rest.length === 0) {
+        children.set(firstSegment, {
+          name: firstSegment,
+          path: prefix + firstSegment,
+          kind: 'file',
+        });
+        continue;
+      }
+
+      children.set(firstSegment, {
+        name: firstSegment,
+        path: prefix + firstSegment,
+        kind: 'directory',
+      });
+    }
+
+    const entries = Array.from(children.values()).sort(compareDirectoryEntries);
+    return entries.length > 0 || directoryPath === '' ? entries : null;
   }
 }
 
@@ -73,4 +124,23 @@ export function normalizeContentPath(inputPath: string): string | null {
   }
 
   return resolved;
+}
+
+export function normalizeDirectoryPath(inputPath: string): string | null {
+  if (inputPath === '') {
+    return '';
+  }
+
+  return normalizeContentPath(inputPath);
+}
+
+function compareDirectoryEntries(
+  left: ContentDirectoryEntry,
+  right: ContentDirectoryEntry,
+): number {
+  if (left.kind !== right.kind) {
+    return left.kind === 'directory' ? -1 : 1;
+  }
+
+  return left.name.localeCompare(right.name);
 }

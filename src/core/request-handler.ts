@@ -1,9 +1,13 @@
 import path from 'node:path';
 
-import type { ContentEntry, ContentStore } from './content-store.js';
+import type {
+  ContentDirectoryEntry,
+  ContentEntry,
+  ContentStore,
+} from './content-store.js';
 import { parseMarkdownDocument } from './markdown.js';
 import { resolveRequest } from './router.js';
-import { renderDocument } from '../html/template.js';
+import { escapeHtml, renderDocument } from '../html/template.js';
 
 export interface HandleSiteRequestOptions {
   draftMode: 'include' | 'exclude';
@@ -27,6 +31,10 @@ export async function handleSiteRequest(
 
   const entry = await store.get(resolved.sourcePath);
   if (entry === null) {
+    if (resolved.kind === 'html' && resolved.requestPath.endsWith('/')) {
+      return renderDirectoryListing(store, resolved.requestPath);
+    }
+
     return notFound();
   }
 
@@ -115,4 +123,67 @@ function getDocumentTitle(parsed: Awaited<ReturnType<typeof parseMarkdownDocumen
   return basename === 'index'
     ? path.posix.basename(path.posix.dirname(parsed.sourcePath)) || 'mdorigin'
     : basename;
+}
+
+async function renderDirectoryListing(
+  store: ContentStore,
+  requestPath: string,
+): Promise<SiteResponse> {
+  const directoryPath =
+    requestPath === '/' ? '' : requestPath.slice(1).replace(/\/$/, '');
+  const entries = await store.listDirectory(directoryPath);
+  if (entries === null) {
+    return notFound();
+  }
+
+  const visibleEntries = entries.filter(isVisibleDirectoryEntry);
+  const listItems = visibleEntries
+    .map((entry) => `<li><a href="${getDirectoryEntryHref(requestPath, entry)}">${escapeHtml(getDirectoryEntryLabel(entry))}</a></li>`)
+    .join('');
+
+  const body = [
+    `<h1>${escapeHtml(getDirectoryTitle(requestPath))}</h1>`,
+    visibleEntries.length > 0 ? `<ul>${listItems}</ul>` : '<p>This directory is empty.</p>',
+  ].join('');
+
+  return {
+    status: 200,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+    },
+    body: renderDocument({
+      title: getDirectoryTitle(requestPath),
+      body,
+    }),
+  };
+}
+
+function isVisibleDirectoryEntry(entry: ContentDirectoryEntry): boolean {
+  if (entry.kind === 'directory') {
+    return true;
+  }
+
+  return path.posix.extname(entry.name).toLowerCase() === '.md';
+}
+
+function getDirectoryEntryHref(
+  requestPath: string,
+  entry: ContentDirectoryEntry,
+): string {
+  const basePath = requestPath.endsWith('/') ? requestPath : `${requestPath}/`;
+  if (entry.kind === 'directory') {
+    return `${basePath}${entry.name}/`;
+  }
+
+  return `${basePath}${entry.name.slice(0, -'.md'.length)}`;
+}
+
+function getDirectoryEntryLabel(entry: ContentDirectoryEntry): string {
+  return entry.kind === 'directory'
+    ? `${entry.name}/`
+    : entry.name.slice(0, -'.md'.length);
+}
+
+function getDirectoryTitle(requestPath: string): string {
+  return requestPath === '/' ? 'Index' : requestPath;
 }

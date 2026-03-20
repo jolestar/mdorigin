@@ -114,3 +114,35 @@ test('handleSiteRequest filters drafts in exclude mode', async () => {
   });
   assert.equal(excluded.status, 404);
 });
+
+test('handleSiteRequest renders directory listings when index is missing', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'topic/post.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: '# Post',
+    },
+    {
+      path: 'topic/subtopic/note.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: '# Note',
+    },
+    {
+      path: 'topic/image.png',
+      kind: 'binary',
+      mediaType: 'image/png',
+      bytes: new Uint8Array([1, 2, 3]),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/topic/', {
+    draftMode: 'include',
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(String(response.body), /href="\/topic\/post"/);
+  assert.match(String(response.body), /href="\/topic\/subtopic\/"/);
+  assert.doesNotMatch(String(response.body), /image\.png/);
+});

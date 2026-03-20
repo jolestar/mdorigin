@@ -24,6 +24,18 @@ test('cloudflare worker serves html and hides drafts', async () => {
         mediaType: 'text/markdown; charset=utf-8',
         text: '# Foo',
       },
+      {
+        path: 'browse/entry.md',
+        kind: 'text',
+        mediaType: 'text/markdown; charset=utf-8',
+        text: '# Entry',
+      },
+      {
+        path: 'browse/nested/note.md',
+        kind: 'text',
+        mediaType: 'text/markdown; charset=utf-8',
+        text: '# Note',
+      },
     ],
   });
 
@@ -41,4 +53,10 @@ test('cloudflare worker serves html and hides drafts', async () => {
   );
   assert.equal(defaultRouteResponse.status, 200);
   assert.match(await defaultRouteResponse.text(), /<h1>Foo<\/h1>/);
+
+  const listingResponse = await worker.fetch(
+    new Request('https://example.com/browse/'),
+  );
+  assert.equal(listingResponse.status, 200);
+  assert.match(await listingResponse.text(), /href="\/browse\/entry"/);
 });
