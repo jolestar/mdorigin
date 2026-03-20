@@ -108,6 +108,7 @@ A small TypeScript core that handles:
 npm install
 npm run check
 npm run dev -- --root example/content/writing
+npm run build:index -- --root example/content/writing
 ```
 
 Optional site config:
@@ -131,3 +132,12 @@ npm run init:cloudflare
 ```
 
 This writes a user-project Worker entrypoint to `.mdorigin/cloudflare/worker.mjs` and a starter `wrangler.jsonc` in the current directory. The generated worker imports `mdorigin/cloudflare`, so the consuming project should keep `mdorigin` installed as a dependency when deploying with Wrangler.
+
+## Build Directory Indexes
+
+```bash
+npm run build:index -- --root example/content/writing
+npm run build:index -- --dir example/content/writing
+```
+
+`build index` updates the tool-managed block between `<!-- INDEX:START -->` and `<!-- INDEX:END -->` inside `index.md`. If the markers do not exist, it appends a managed block to the end of the file. The command only updates directories that already contain `index.md`.

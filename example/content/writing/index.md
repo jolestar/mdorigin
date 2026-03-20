@@ -7,3 +7,9 @@ summary: Example content root for mdorigin.
 # Example Home
 
 This is an example mdorigin content tree.
+
+<!-- INDEX:START -->
+
+No entries yet.
+
+<!-- INDEX:END -->

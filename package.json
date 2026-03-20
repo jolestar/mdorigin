@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "tsx src/cli/main.ts dev",
     "build": "tsc -p tsconfig.json",
+    "build:index": "tsx src/cli/main.ts build index",
     "build:cloudflare": "tsx src/cli/main.ts build cloudflare",
     "init:cloudflare": "tsx src/cli/main.ts init cloudflare",
     "check": "tsc --noEmit -p tsconfig.json",
