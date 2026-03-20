@@ -76,7 +76,19 @@ test('handleSiteRequest renders html and preserves markdown', async () => {
       path: 'topic/post.md',
       kind: 'text',
       mediaType: 'text/markdown; charset=utf-8',
-      text: '# Post',
+      text: ['# Post', '', '[Nested](./guide.md)', '', '[Topic Home](./index.md)', '', '[Root Home](../README.md)'].join('\n'),
+    },
+    {
+      path: 'topic/guide.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: '# Guide',
+    },
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: '# Home',
     },
   ]);
 
@@ -102,6 +114,9 @@ test('handleSiteRequest renders html and preserves markdown', async () => {
   assert.equal(defaultHtmlResponse.status, 200);
   assert.match(String(defaultHtmlResponse.body), /<h1>Post<\/h1>/);
   assert.match(String(defaultHtmlResponse.body), /Test Site/);
+  assert.match(String(defaultHtmlResponse.body), /href="\.\/guide"/);
+  assert.match(String(defaultHtmlResponse.body), /href="\.\/"/);
+  assert.match(String(defaultHtmlResponse.body), /href="\.\.\/"/);
 });
 
 test('handleSiteRequest filters drafts in exclude mode', async () => {

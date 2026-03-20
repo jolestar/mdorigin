@@ -23,7 +23,7 @@ export async function parseMarkdownDocument(
   markdown: string,
 ): Promise<ParsedDocument> {
   const parsed = matter(markdown);
-  const html = await renderMarkdown(parsed.content);
+  const html = rewriteMarkdownLinksInHtml(await renderMarkdown(parsed.content));
 
   return {
     sourcePath,
@@ -40,6 +40,14 @@ export async function renderMarkdown(markdown: string): Promise<string> {
     .process(markdown);
 
   return String(output);
+}
+
+export function rewriteMarkdownLinksInHtml(html: string): string {
+  return html.replaceAll(
+    /(<a\b[^>]*?\shref=")([^"]+)(")/g,
+    (_match, prefix: string, href: string, suffix: string) =>
+      `${prefix}${rewriteMarkdownHref(href)}${suffix}`,
+  );
 }
 
 function normalizeMeta(data: Record<string, unknown>): ParsedDocumentMeta {
@@ -66,4 +74,62 @@ function normalizeMeta(data: Record<string, unknown>): ParsedDocumentMeta {
   }
 
   return meta;
+}
+
+function rewriteMarkdownHref(href: string): string {
+  if (shouldPreserveHref(href)) {
+    return href;
+  }
+
+  const [pathPart, hashPart] = splitOnce(href, '#');
+  const [pathname, queryPart] = splitOnce(pathPart, '?');
+
+  if (!pathname.toLowerCase().endsWith('.md')) {
+    return href;
+  }
+
+  const normalizedPath = pathname.replace(/\\/g, '/');
+  const rewrittenPath = rewriteMarkdownPath(normalizedPath);
+  const querySuffix = queryPart !== undefined ? `?${queryPart}` : '';
+  const hashSuffix = hashPart !== undefined ? `#${hashPart}` : '';
+  return `${rewrittenPath}${querySuffix}${hashSuffix}`;
+}
+
+function rewriteMarkdownPath(pathname: string): string {
+  if (pathname.toLowerCase().endsWith('/index.md')) {
+    return pathname.slice(0, -'index.md'.length);
+  }
+
+  if (pathname.toLowerCase() === 'index.md') {
+    return './';
+  }
+
+  if (pathname.toLowerCase().endsWith('/readme.md')) {
+    return pathname.slice(0, -'README.md'.length);
+  }
+
+  if (pathname.toLowerCase() === 'readme.md') {
+    return './';
+  }
+
+  return pathname.slice(0, -'.md'.length);
+}
+
+function shouldPreserveHref(href: string): boolean {
+  return (
+    href.startsWith('#') ||
+    href.startsWith('mailto:') ||
+    href.startsWith('tel:') ||
+    href.startsWith('//') ||
+    /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(href)
+  );
+}
+
+function splitOnce(value: string, separator: string): [string, string | undefined] {
+  const index = value.indexOf(separator);
+  if (index === -1) {
+    return [value, undefined];
+  }
+
+  return [value.slice(0, index), value.slice(index + separator.length)];
 }
