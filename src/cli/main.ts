@@ -6,7 +6,7 @@ async function main() {
   const [command, subcommand, ...rest] = process.argv.slice(2);
 
   if (command === 'dev') {
-    await runDevCommand(rest);
+    await runDevCommand([subcommand, ...rest].filter(isDefined));
     return;
   }
 
@@ -33,3 +33,7 @@ void main().catch((error) => {
   console.error(error instanceof Error ? error.message : String(error));
   process.exitCode = 1;
 });
+
+function isDefined(value: string | undefined): value is string {
+  return value !== undefined;
+}

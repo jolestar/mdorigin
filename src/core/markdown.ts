@@ -53,6 +53,10 @@ function normalizeMeta(data: Record<string, unknown>): ParsedDocumentMeta {
     meta.date = data.date;
   }
 
+  if (data.date instanceof Date && !Number.isNaN(data.date.getTime())) {
+    meta.date = data.date.toISOString().slice(0, 10);
+  }
+
   if (typeof data.summary === 'string') {
     meta.summary = data.summary;
   }

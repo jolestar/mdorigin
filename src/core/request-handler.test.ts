@@ -194,3 +194,22 @@ test('handleSiteRequest respects site config rendering options', async () => {
   assert.doesNotMatch(String(response.body), /Hidden summary/);
   assert.doesNotMatch(String(response.body), /2026-03-20/);
 });
+
+test('handleSiteRequest renders yaml dates parsed as Date objects', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'dated.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Dated Post', 'date: 2026-03-20', '---', '', '# Dated'].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/dated', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(String(response.body), /2026-03-20/);
+});
