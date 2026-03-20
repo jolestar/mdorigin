@@ -5,6 +5,7 @@ import type {
   ContentEntry,
   ContentStore,
 } from './content-store.js';
+import { getDirectoryIndexCandidates } from './directory-index.js';
 import { parseMarkdownDocument } from './markdown.js';
 import type { ResolvedSiteConfig } from './site-config.js';
 import { resolveRequest } from './router.js';
@@ -34,6 +35,15 @@ export async function handleSiteRequest(
   const entry = await store.get(resolved.sourcePath);
   if (entry === null) {
     if (resolved.kind === 'html' && resolved.requestPath.endsWith('/')) {
+      const directoryIndexResponse = await tryRenderAlternateDirectoryIndex(
+        store,
+        resolved.requestPath,
+        options,
+      );
+      if (directoryIndexResponse !== null) {
+        return directoryIndexResponse;
+      }
+
       return renderDirectoryListing(store, resolved.requestPath, options.siteConfig);
     }
 
@@ -198,4 +208,49 @@ function getDirectoryEntryLabel(entry: ContentDirectoryEntry): string {
 
 function getDirectoryTitle(requestPath: string): string {
   return requestPath === '/' ? 'Index' : requestPath;
+}
+
+async function tryRenderAlternateDirectoryIndex(
+  store: ContentStore,
+  requestPath: string,
+  options: HandleSiteRequestOptions,
+): Promise<SiteResponse | null> {
+  const directoryPath =
+    requestPath === '/' ? '' : requestPath.slice(1).replace(/\/$/, '');
+
+  for (const candidatePath of getDirectoryIndexCandidates(directoryPath)) {
+    if (candidatePath === (directoryPath === '' ? 'index.md' : `${directoryPath}/index.md`)) {
+      continue;
+    }
+
+    const entry = await store.get(candidatePath);
+    if (entry === null || entry.kind !== 'text' || entry.text === undefined) {
+      continue;
+    }
+
+    const parsed = await parseMarkdownDocument(candidatePath, entry.text);
+    if (parsed.meta.draft === true && options.draftMode === 'exclude') {
+      return notFound();
+    }
+
+    return {
+      status: 200,
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+      },
+      body: renderDocument({
+        siteTitle: options.siteConfig.siteTitle,
+        title: getDocumentTitle(parsed),
+        body: parsed.html,
+        summary:
+          options.siteConfig.showSummary === false ? undefined : parsed.meta.summary,
+        date: options.siteConfig.showDate === false ? undefined : parsed.meta.date,
+        showSummary: options.siteConfig.showSummary,
+        showDate: options.siteConfig.showDate,
+        stylesheetContent: options.siteConfig.stylesheetContent,
+      }),
+    };
+  }
+
+  return null;
 }

@@ -1,6 +1,7 @@
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { getDirectoryIndexCandidates } from './core/directory-index.js';
 import { parseMarkdownDocument } from './core/markdown.js';
 
 const INDEX_START_MARKER = '<!-- INDEX:START -->';
@@ -78,23 +79,25 @@ async function updateSingleDirectoryIndex(
   directoryPath: string,
   options: UpdateSingleDirectoryIndexOptions,
 ): Promise<string | null> {
-  const indexFilePath = path.join(directoryPath, 'index.md');
-  const indexExists = await pathExists(indexFilePath);
-  if (!indexExists && !options.createIfMissing) {
+  const indexFilePath = await resolveDirectoryIndexFile(directoryPath);
+  if (indexFilePath === null && !options.createIfMissing) {
     return null;
   }
 
-  const existingContent = indexExists ? await readFile(indexFilePath, 'utf8') : '';
+  const targetFilePath = indexFilePath ?? path.join(directoryPath, 'index.md');
+  const existingContent = indexFilePath
+    ? await readFile(indexFilePath, 'utf8')
+    : '';
   const block = await buildManagedIndexBlock(directoryPath);
   const nextContent = upsertManagedIndexBlock(existingContent, block, {
     directoryPath,
   });
 
   if (nextContent !== existingContent) {
-    await writeFile(indexFilePath, nextContent, 'utf8');
+    await writeFile(targetFilePath, nextContent, 'utf8');
   }
 
-  return indexFilePath;
+  return targetFilePath;
 }
 
 export async function buildManagedIndexBlock(directoryPath: string): Promise<string> {
@@ -121,7 +124,7 @@ export async function buildManagedIndexBlock(directoryPath: string): Promise<str
       continue;
     }
 
-    if (entry.name === 'index.md') {
+    if (entry.name === 'index.md' || entry.name === 'README.md') {
       continue;
     }
 
@@ -213,13 +216,13 @@ async function resolveDirectoryTitle(
   directoryPath: string,
   fallbackName: string,
 ): Promise<string> {
-  const indexPath = path.join(directoryPath, 'index.md');
-  if (!(await pathExists(indexPath))) {
+  const indexPath = await resolveDirectoryIndexFile(directoryPath);
+  if (indexPath === null) {
     return fallbackName;
   }
 
   const source = await readFile(indexPath, 'utf8');
-  const parsed = await parseMarkdownDocument('index.md', source);
+  const parsed = await parseMarkdownDocument(path.basename(indexPath), source);
   if (parsed.meta.draft === true) {
     return fallbackName;
   }
@@ -281,6 +284,19 @@ function extractFirstParagraph(markdown: string): string | undefined {
   }
 
   return undefined;
+}
+
+async function resolveDirectoryIndexFile(
+  directoryPath: string,
+): Promise<string | null> {
+  for (const candidate of getDirectoryIndexCandidates('')) {
+    const candidatePath = path.join(directoryPath, candidate);
+    if (await pathExists(candidatePath)) {
+      return candidatePath;
+    }
+  }
+
+  return null;
 }
 
 async function pathExists(filePath: string): Promise<boolean> {

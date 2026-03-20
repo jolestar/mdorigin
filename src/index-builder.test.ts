@@ -101,3 +101,22 @@ test('buildDirectoryIndexes updates existing index files recursively', async () 
   assert.match(postsIndex, /\[Hello\]\(\.\/hello\.md\)/);
   assert.doesNotMatch(postsIndex, /draft/i);
 });
+
+test('buildDirectoryIndexes updates README.md when index.md is missing', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-index-readme-'));
+  await writeFile(path.join(rootDir, 'README.md'), '# Docs Home\n', 'utf8');
+  await writeFile(
+    path.join(rootDir, 'getting-started.md'),
+    ['---', 'title: Getting Started', '---', '', '# Getting Started'].join('\n'),
+    'utf8',
+  );
+
+  const result = await buildDirectoryIndexes({ dir: rootDir });
+
+  assert.equal(result.updatedFiles.length, 1);
+  assert.ok(result.updatedFiles[0]?.endsWith('README.md'));
+
+  const readme = await readFile(path.join(rootDir, 'README.md'), 'utf8');
+  assert.match(readme, /<!-- INDEX:START -->/);
+  assert.match(readme, /\[Getting Started\]\(\.\/getting-started\.md\)/);
+});

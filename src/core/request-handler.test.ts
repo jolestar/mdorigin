@@ -160,6 +160,25 @@ test('handleSiteRequest renders directory listings when index is missing', async
   assert.doesNotMatch(String(response.body), /image\.png/);
 });
 
+test('handleSiteRequest renders README.md as directory homepage fallback', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Root Readme', '---', '', '# Root Readme'].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(String(response.body), /Root Readme/);
+});
+
 test('handleSiteRequest respects site config rendering options', async () => {
   const store = new MemoryContentStore([
     {

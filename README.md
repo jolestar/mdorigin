@@ -14,7 +14,7 @@ It treats markdown as the only source of truth, serves raw `.md` directly for ag
 
 ## Core model
 
-Given a configured content root such as `content/writing/`:
+Given a configured content root such as `docs/site/`:
 
 - `foo.md` -> `/foo.md`
 - `foo.html` -> renders `foo.md`
@@ -30,15 +30,13 @@ Markdown is the source. HTML is a derived view.
 Recommended structure:
 
 ```text
-content/writing/
-  index.md
-  ai/
+docs/site/
+  README.md
+  getting-started.md
+  guides/
     index.md
-  bitcoin/
-    l2/
-      index.md
-      architecture.png
-      notes.pdf
+    cloudflare.md
+    diagram.png
 ```
 
 Example article body:
@@ -107,8 +105,8 @@ A small TypeScript core that handles:
 ```bash
 npm install
 npm run check
-npm run dev -- --root example/content/writing
-npm run build:index -- --root example/content/writing
+npm run dev -- --root docs/site
+npm run build:index -- --root docs/site
 ```
 
 Optional site config:
@@ -127,7 +125,7 @@ Save that as `mdorigin.config.json` in the current working directory. The styles
 ## Build Worker
 
 ```bash
-npm run build:cloudflare -- --root example/content/writing
+npm run build:cloudflare -- --root docs/site
 npm run init:cloudflare
 ```
 
@@ -136,8 +134,8 @@ This writes a user-project Worker entrypoint to `.mdorigin/cloudflare/worker.mjs
 ## Build Directory Indexes
 
 ```bash
-npm run build:index -- --root example/content/writing
-npm run build:index -- --dir example/content/writing
+npm run build:index -- --root docs/site
+npm run build:index -- --dir docs/site
 ```
 
-`build index` updates the tool-managed block between `<!-- INDEX:START -->` and `<!-- INDEX:END -->` inside `index.md`. If the markers do not exist, it appends a managed block to the end of the file. The command only updates directories that already contain `index.md`.
+`build index` updates the tool-managed block between `<!-- INDEX:START -->` and `<!-- INDEX:END -->` inside the directory homepage file. It prefers `index.md`, then falls back to `README.md`. If the markers do not exist, it appends a managed block to the end of the file.
