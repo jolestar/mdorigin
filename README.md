@@ -110,6 +110,19 @@ npm run check
 npm run dev -- --root example/content/writing
 ```
 
+Optional site config:
+
+```json
+{
+  "siteTitle": "Example Notes",
+  "showDate": true,
+  "showSummary": true,
+  "stylesheet": "./.theme/site.css"
+}
+```
+
+Save that as `mdorigin.config.json` in the current working directory. The stylesheet file is read and inlined into rendered HTML for both Node preview and Cloudflare bundles.
+
 ## Build Worker
 
 ```bash

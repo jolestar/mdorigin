@@ -5,6 +5,12 @@ import { createCloudflareWorker } from './cloudflare.js';
 
 test('cloudflare worker serves html and hides drafts', async () => {
   const worker = createCloudflareWorker({
+    siteConfig: {
+      siteTitle: 'Worker Test',
+      showDate: true,
+      showSummary: true,
+      stylesheetContent: 'body { font-family: serif; }',
+    },
     entries: [
       {
         path: 'index.md',
@@ -41,7 +47,10 @@ test('cloudflare worker serves html and hides drafts', async () => {
 
   const homeResponse = await worker.fetch(new Request('https://example.com/'));
   assert.equal(homeResponse.status, 200);
-  assert.match(await homeResponse.text(), /<h1>Hello<\/h1>/);
+  const homeHtml = await homeResponse.text();
+  assert.match(homeHtml, /<h1>Hello<\/h1>/);
+  assert.match(homeHtml, /Worker Test/);
+  assert.match(homeHtml, /font-family: serif/);
 
   const draftResponse = await worker.fetch(
     new Request('https://example.com/draft.html'),

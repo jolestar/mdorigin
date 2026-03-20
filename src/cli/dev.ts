@@ -1,6 +1,7 @@
 import path from 'node:path';
 
 import { createNodeServer } from '../adapters/node.js';
+import { loadSiteConfig } from '../core/site-config.js';
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -12,9 +13,14 @@ async function main() {
 
   const rootDir = path.resolve(args.root);
   const port = args.port ?? 3000;
+  const siteConfig = await loadSiteConfig({
+    cwd: process.cwd(),
+    configPath: args.config,
+  });
   const server = createNodeServer({
     rootDir,
     draftMode: 'include',
+    siteConfig,
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -32,7 +38,7 @@ void main().catch((error) => {
 });
 
 function parseArgs(argv: string[]) {
-  const result: { root?: string; port?: number } = {};
+  const result: { root?: string; port?: number; config?: string } = {};
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -46,6 +52,12 @@ function parseArgs(argv: string[]) {
 
     if (argument === '--port' && nextValue) {
       result.port = Number.parseInt(nextValue, 10);
+      index += 1;
+      continue;
+    }
+
+    if (argument === '--config' && nextValue) {
+      result.config = nextValue;
       index += 1;
     }
   }

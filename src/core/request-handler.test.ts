@@ -5,6 +5,12 @@ import { MemoryContentStore } from './content-store.js';
 import { handleSiteRequest } from './request-handler.js';
 import { resolveRequest } from './router.js';
 
+const TEST_SITE_CONFIG = {
+  siteTitle: 'Test Site',
+  showDate: true,
+  showSummary: true,
+};
+
 test('resolveRequest maps html, markdown, default html, index, and assets', () => {
   assert.deepEqual(resolveRequest('/'), {
     kind: 'html',
@@ -76,6 +82,7 @@ test('handleSiteRequest renders html and preserves markdown', async () => {
 
   const htmlResponse = await handleSiteRequest(store, '/topic/', {
     draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
   });
   assert.equal(htmlResponse.status, 200);
   assert.match(String(htmlResponse.body), /Topic Home/);
@@ -83,15 +90,18 @@ test('handleSiteRequest renders html and preserves markdown', async () => {
 
   const markdownResponse = await handleSiteRequest(store, '/topic/index.md', {
     draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
   });
   assert.equal(markdownResponse.status, 200);
   assert.match(String(markdownResponse.body), /^---/m);
 
   const defaultHtmlResponse = await handleSiteRequest(store, '/topic/post', {
     draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
   });
   assert.equal(defaultHtmlResponse.status, 200);
   assert.match(String(defaultHtmlResponse.body), /<h1>Post<\/h1>/);
+  assert.match(String(defaultHtmlResponse.body), /Test Site/);
 });
 
 test('handleSiteRequest filters drafts in exclude mode', async () => {
@@ -106,11 +116,13 @@ test('handleSiteRequest filters drafts in exclude mode', async () => {
 
   const included = await handleSiteRequest(store, '/draft.html', {
     draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
   });
   assert.equal(included.status, 200);
 
   const excluded = await handleSiteRequest(store, '/draft.md', {
     draftMode: 'exclude',
+    siteConfig: TEST_SITE_CONFIG,
   });
   assert.equal(excluded.status, 404);
 });
@@ -139,10 +151,46 @@ test('handleSiteRequest renders directory listings when index is missing', async
 
   const response = await handleSiteRequest(store, '/topic/', {
     draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
   });
 
   assert.equal(response.status, 200);
   assert.match(String(response.body), /href="\/topic\/post"/);
   assert.match(String(response.body), /href="\/topic\/subtopic\/"/);
   assert.doesNotMatch(String(response.body), /image\.png/);
+});
+
+test('handleSiteRequest respects site config rendering options', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'post.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: [
+        '---',
+        'title: Configured Post',
+        'date: 2026-03-20',
+        'summary: Hidden summary',
+        '---',
+        '',
+        'Body text',
+      ].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/post', {
+    draftMode: 'include',
+    siteConfig: {
+      siteTitle: 'Configured Site',
+      showDate: false,
+      showSummary: false,
+      stylesheetContent: 'body { color: red; }',
+    },
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(String(response.body), /Configured Site/);
+  assert.match(String(response.body), /<style>body \{ color: red; \}<\/style>/);
+  assert.doesNotMatch(String(response.body), /Hidden summary/);
+  assert.doesNotMatch(String(response.body), /2026-03-20/);
 });

@@ -23,6 +23,11 @@ test('node server serves markdown, html, and assets', async () => {
   const server = createNodeServer({
     rootDir,
     draftMode: 'include',
+    siteConfig: {
+      siteTitle: 'Node Test',
+      showDate: true,
+      showSummary: true,
+    },
   });
 
   await new Promise<void>((resolve) => server.listen(0, () => resolve()));

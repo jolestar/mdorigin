@@ -11,10 +11,12 @@ import {
   type ContentDirectoryEntry,
 } from '../core/content-store.js';
 import { handleSiteRequest } from '../core/request-handler.js';
+import type { ResolvedSiteConfig } from '../core/site-config.js';
 
 export interface NodeAdapterOptions {
   rootDir: string;
   draftMode: 'include' | 'exclude';
+  siteConfig: ResolvedSiteConfig;
 }
 
 export function createFileSystemContentStore(rootDir: string): ContentStore {
@@ -116,6 +118,7 @@ export function createNodeRequestListener(options: NodeAdapterOptions) {
       const url = new URL(request.url ?? '/', 'http://localhost');
       const siteResponse = await handleSiteRequest(store, url.pathname, {
         draftMode: options.draftMode,
+        siteConfig: options.siteConfig,
       });
 
       response.statusCode = siteResponse.status;

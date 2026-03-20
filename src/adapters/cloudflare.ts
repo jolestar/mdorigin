@@ -4,6 +4,7 @@ import {
   type ContentEntryKind,
 } from '../core/content-store.js';
 import { handleSiteRequest } from '../core/request-handler.js';
+import type { ResolvedSiteConfig } from '../core/site-config.js';
 
 export interface CloudflareManifestEntry {
   path: string;
@@ -15,6 +16,7 @@ export interface CloudflareManifestEntry {
 
 export interface CloudflareManifest {
   entries: CloudflareManifestEntry[];
+  siteConfig?: ResolvedSiteConfig;
 }
 
 export interface ExportedHandlerLike {
@@ -49,6 +51,11 @@ export function createCloudflareWorker(
       const url = new URL(request.url);
       const siteResponse = await handleSiteRequest(store, url.pathname, {
         draftMode: 'exclude',
+        siteConfig: manifest.siteConfig ?? {
+          siteTitle: 'mdorigin',
+          showDate: true,
+          showSummary: true,
+        },
       });
 
       const headers = new Headers(siteResponse.headers);

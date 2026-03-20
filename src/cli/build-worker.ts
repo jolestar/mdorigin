@@ -7,6 +7,7 @@ import {
   normalizeContentPath,
 } from '../core/content-store.js';
 import type { CloudflareManifestEntry } from '../adapters/cloudflare.js';
+import { loadSiteConfig } from '../core/site-config.js';
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -20,11 +21,19 @@ async function main() {
 
   const rootDir = path.resolve(args.root);
   const outFile = path.resolve(args.out ?? 'dist/worker.mjs');
+  const siteConfig = await loadSiteConfig({
+    cwd: process.cwd(),
+    configPath: args.config,
+  });
   const manifest = await buildManifest(rootDir);
   const workerSource = [
     "import { createCloudflareWorker } from './adapters/cloudflare.js';",
     '',
-    `const manifest = ${JSON.stringify({ entries: manifest }, null, 2)};`,
+    `const manifest = ${JSON.stringify(
+      { entries: manifest, siteConfig },
+      null,
+      2,
+    )};`,
     '',
     'export default createCloudflareWorker(manifest);',
     '',
@@ -95,7 +104,7 @@ void main().catch((error) => {
 });
 
 function parseArgs(argv: string[]) {
-  const result: { root?: string; out?: string } = {};
+  const result: { root?: string; out?: string; config?: string } = {};
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -109,6 +118,12 @@ function parseArgs(argv: string[]) {
 
     if (argument === '--out' && nextValue) {
       result.out = nextValue;
+      index += 1;
+      continue;
+    }
+
+    if (argument === '--config' && nextValue) {
+      result.config = nextValue;
       index += 1;
     }
   }

@@ -6,11 +6,13 @@ import type {
   ContentStore,
 } from './content-store.js';
 import { parseMarkdownDocument } from './markdown.js';
+import type { ResolvedSiteConfig } from './site-config.js';
 import { resolveRequest } from './router.js';
 import { escapeHtml, renderDocument } from '../html/template.js';
 
 export interface HandleSiteRequestOptions {
   draftMode: 'include' | 'exclude';
+  siteConfig: ResolvedSiteConfig;
 }
 
 export interface SiteResponse {
@@ -32,7 +34,7 @@ export async function handleSiteRequest(
   const entry = await store.get(resolved.sourcePath);
   if (entry === null) {
     if (resolved.kind === 'html' && resolved.requestPath.endsWith('/')) {
-      return renderDirectoryListing(store, resolved.requestPath);
+      return renderDirectoryListing(store, resolved.requestPath, options.siteConfig);
     }
 
     return notFound();
@@ -72,10 +74,15 @@ export async function handleSiteRequest(
       'content-type': 'text/html; charset=utf-8',
     },
     body: renderDocument({
+      siteTitle: options.siteConfig.siteTitle,
       title: getDocumentTitle(parsed),
       body: parsed.html,
-      summary: parsed.meta.summary,
-      date: parsed.meta.date,
+      summary:
+        options.siteConfig.showSummary === false ? undefined : parsed.meta.summary,
+      date: options.siteConfig.showDate === false ? undefined : parsed.meta.date,
+      showSummary: options.siteConfig.showSummary,
+      showDate: options.siteConfig.showDate,
+      stylesheetContent: options.siteConfig.stylesheetContent,
     }),
   };
 }
@@ -128,6 +135,7 @@ function getDocumentTitle(parsed: Awaited<ReturnType<typeof parseMarkdownDocumen
 async function renderDirectoryListing(
   store: ContentStore,
   requestPath: string,
+  siteConfig: ResolvedSiteConfig,
 ): Promise<SiteResponse> {
   const directoryPath =
     requestPath === '/' ? '' : requestPath.slice(1).replace(/\/$/, '');
@@ -152,8 +160,12 @@ async function renderDirectoryListing(
       'content-type': 'text/html; charset=utf-8',
     },
     body: renderDocument({
+      siteTitle: siteConfig.siteTitle,
       title: getDirectoryTitle(requestPath),
       body,
+      showSummary: false,
+      showDate: false,
+      stylesheetContent: siteConfig.stylesheetContent,
     }),
   };
 }
