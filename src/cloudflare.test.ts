@@ -23,6 +23,8 @@ test('buildCloudflareManifest includes entries and site config', async () => {
       theme: 'paper',
       topNav: [],
       showHomeIndex: true,
+      siteTitleConfigured: true,
+      siteDescriptionConfigured: false,
     },
   });
 
@@ -46,6 +48,8 @@ test('writeCloudflareBundle writes a user-facing worker entry', async () => {
       theme: 'paper',
       topNav: [],
       showHomeIndex: true,
+      siteTitleConfigured: true,
+      siteDescriptionConfigured: false,
     },
   });
 

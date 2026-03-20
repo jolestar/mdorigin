@@ -1,7 +1,10 @@
 import path from 'node:path';
 
-import { createNodeServer } from '../adapters/node.js';
-import { loadSiteConfig } from '../core/site-config.js';
+import { createFileSystemContentStore, createNodeServer } from '../adapters/node.js';
+import {
+  applySiteConfigFrontmatterDefaults,
+  loadSiteConfig,
+} from '../core/site-config.js';
 
 export async function runDevCommand(argv: string[]) {
   const args = parseArgs(argv);
@@ -15,11 +18,13 @@ export async function runDevCommand(argv: string[]) {
 
   const rootDir = path.resolve(args.root);
   const port = args.port ?? 3000;
-  const siteConfig = await loadSiteConfig({
+  const loadedSiteConfig = await loadSiteConfig({
     cwd: process.cwd(),
     rootDir,
     configPath: args.config,
   });
+  const store = createFileSystemContentStore(rootDir);
+  const siteConfig = await applySiteConfigFrontmatterDefaults(store, loadedSiteConfig);
   const server = createNodeServer({
     rootDir,
     draftMode: 'include',

@@ -58,6 +58,8 @@ export function createCloudflareWorker(
           theme: 'paper',
           topNav: [],
           showHomeIndex: true,
+          siteTitleConfigured: false,
+          siteDescriptionConfigured: false,
         },
       });
 

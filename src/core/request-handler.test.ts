@@ -12,6 +12,8 @@ const TEST_SITE_CONFIG = {
   theme: 'paper' as const,
   topNav: [],
   showHomeIndex: true,
+  siteTitleConfigured: true,
+  siteDescriptionConfigured: false,
 };
 
 test('resolveRequest maps html, markdown, default html, index, and assets', () => {
@@ -322,6 +324,8 @@ test('handleSiteRequest respects site config rendering options', async () => {
       topNav: [{ label: 'Docs', href: '/docs/' }],
       showHomeIndex: true,
       stylesheetContent: 'body { color: red; }',
+      siteTitleConfigured: true,
+      siteDescriptionConfigured: true,
     },
   });
 

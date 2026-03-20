@@ -13,6 +13,8 @@ test('cloudflare worker serves html and hides drafts', async () => {
       topNav: [],
       showHomeIndex: true,
       stylesheetContent: 'body { font-family: serif; }',
+      siteTitleConfigured: true,
+      siteDescriptionConfigured: false,
     },
     entries: [
       {

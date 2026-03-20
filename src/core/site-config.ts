@@ -1,6 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import type { ContentStore } from './content-store.js';
+import { getDirectoryIndexCandidates } from './directory-index.js';
+import { parseMarkdownDocument } from './markdown.js';
 import type { BuiltInThemeName } from '../html/theme.js';
 
 export interface SiteNavItem {
@@ -28,6 +31,8 @@ export interface ResolvedSiteConfig {
   topNav: SiteNavItem[];
   showHomeIndex: boolean;
   stylesheetContent?: string;
+  siteTitleConfigured: boolean;
+  siteDescriptionConfigured: boolean;
 }
 
 export interface LoadSiteConfigOptions {
@@ -81,7 +86,48 @@ export async function loadSiteConfig(
         ? parsedConfig.showHomeIndex
         : normalizeTopNav(parsedConfig.topNav).length === 0,
     stylesheetContent,
+    siteTitleConfigured:
+      typeof parsedConfig.siteTitle === 'string' && parsedConfig.siteTitle !== '',
+    siteDescriptionConfigured:
+      typeof parsedConfig.siteDescription === 'string' &&
+      parsedConfig.siteDescription !== '',
   };
+}
+
+export async function applySiteConfigFrontmatterDefaults(
+  store: ContentStore,
+  siteConfig: ResolvedSiteConfig,
+): Promise<ResolvedSiteConfig> {
+  if (siteConfig.siteTitleConfigured && siteConfig.siteDescriptionConfigured) {
+    return siteConfig;
+  }
+
+  for (const candidatePath of getDirectoryIndexCandidates('')) {
+    const entry = await store.get(candidatePath);
+    if (entry === null || entry.kind !== 'text' || entry.text === undefined) {
+      continue;
+    }
+
+    const parsed = await parseMarkdownDocument(candidatePath, entry.text);
+
+    return {
+      ...siteConfig,
+      siteTitle:
+        siteConfig.siteTitleConfigured
+          ? siteConfig.siteTitle
+          : typeof parsed.meta.title === 'string' && parsed.meta.title !== ''
+            ? parsed.meta.title
+            : siteConfig.siteTitle,
+      siteDescription:
+        siteConfig.siteDescriptionConfigured
+          ? siteConfig.siteDescription
+          : typeof parsed.meta.summary === 'string' && parsed.meta.summary !== ''
+            ? parsed.meta.summary
+            : siteConfig.siteDescription,
+    };
+  }
+
+  return siteConfig;
 }
 
 async function resolveDefaultConfigPath(

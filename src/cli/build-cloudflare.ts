@@ -1,7 +1,11 @@
 import path from 'node:path';
 
+import { createFileSystemContentStore } from '../adapters/node.js';
 import { writeCloudflareBundle } from '../cloudflare.js';
-import { loadSiteConfig } from '../core/site-config.js';
+import {
+  applySiteConfigFrontmatterDefaults,
+  loadSiteConfig,
+} from '../core/site-config.js';
 
 export async function runBuildCloudflareCommand(argv: string[]) {
   const args = parseArgs(argv);
@@ -13,13 +17,16 @@ export async function runBuildCloudflareCommand(argv: string[]) {
     return;
   }
 
-  const siteConfig = await loadSiteConfig({
+  const rootDir = path.resolve(args.root);
+  const loadedSiteConfig = await loadSiteConfig({
     cwd: process.cwd(),
-    rootDir: path.resolve(args.root),
+    rootDir,
     configPath: args.config,
   });
+  const store = createFileSystemContentStore(rootDir);
+  const siteConfig = await applySiteConfigFrontmatterDefaults(store, loadedSiteConfig);
   const result = await writeCloudflareBundle({
-    rootDir: path.resolve(args.root),
+    rootDir,
     outDir: path.resolve(args.out ?? '.mdorigin/cloudflare'),
     siteConfig,
   });

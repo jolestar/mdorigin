@@ -30,6 +30,8 @@ test('node server serves markdown, html, and assets', async () => {
       theme: 'paper',
       topNav: [],
       showHomeIndex: true,
+      siteTitleConfigured: true,
+      siteDescriptionConfigured: false,
     },
   });
 

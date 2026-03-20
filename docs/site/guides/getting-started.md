@@ -31,6 +31,11 @@ That starts a local preview server and serves:
 
 Create `mdorigin.config.json` inside the content root, for example `docs/site/mdorigin.config.json`.
 
+If no config file is present, `mdorigin` falls back to the root homepage frontmatter:
+
+- `title` becomes the default site title
+- `summary` becomes the default site description
+
 If `stylesheet` is set, the CSS file is read and inlined into rendered HTML for both local preview and Cloudflare bundles. By default the loader prefers:
 
 1. `--config`

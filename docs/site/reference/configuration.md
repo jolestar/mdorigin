@@ -17,6 +17,14 @@ Useful fields:
 - `showHomeIndex`
 - `stylesheet`
 
+## Site Metadata
+
+- If `siteTitle` is configured, it is used directly.
+- Otherwise `mdorigin` falls back to the root homepage frontmatter:
+  - `title` -> `siteTitle`
+  - `summary` -> `siteDescription`
+- If neither config nor root homepage frontmatter provides a value, `siteTitle` falls back to `mdorigin`.
+
 ## Navigation
 
 - If `topNav` is configured, `mdorigin` uses it directly.
