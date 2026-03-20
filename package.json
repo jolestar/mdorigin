@@ -1,0 +1,28 @@
+{
+  "name": "mdorigin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Markdown-first publishing engine with raw Markdown and HTML views.",
+  "scripts": {
+    "dev": "tsx src/cli/dev.ts",
+    "build": "tsc -p tsconfig.json",
+    "build:worker": "npm run build && node dist/cli/build-worker.js",
+    "check": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test --import tsx src/**/*.test.ts"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "gray-matter": "^4.0.3",
+    "remark": "^15.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-html": "^16.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}
