@@ -23,8 +23,13 @@ The site below is intentionally organized as directories so the automatic index 
 <!-- INDEX:START -->
 
 - [Concepts](./concepts/)
+  2026-03-20 · Core ideas behind markdown-first publishing, routes, and directory indexes.
+
 - [Guides](./guides/)
+  2026-03-20 · Step-by-step operational guides for previewing, indexing, and deployment.
+
 - [Reference](./reference/)
+  2026-03-20 · Configuration and command reference for mdorigin.
 
 - [Why mdorigin exists](./why-mdorigin.md)
   2026-03-20 · A concise explanation of the markdown-first model and why the project avoids runtime-only content layers.

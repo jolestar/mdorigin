@@ -5,6 +5,7 @@ import type {
   ContentEntry,
   ContentStore,
 } from './content-store.js';
+import { inferDirectoryContentType } from './content-type.js';
 import { getDirectoryIndexCandidates } from './directory-index.js';
 import {
   parseMarkdownDocument,
@@ -312,9 +313,13 @@ async function resolveTopNav(
   const navItems: SiteNavItem[] = [];
 
   for (const entry of directories) {
-    const title = await resolveDirectoryNavTitle(store, entry);
+    const resolved = await resolveDirectoryNav(store, entry);
+    if (resolved.type !== 'page') {
+      continue;
+    }
+
     navItems.push({
-      label: title,
+      label: resolved.title,
       href: `/${entry.name}/`,
     });
   }
@@ -325,10 +330,10 @@ async function resolveTopNav(
   };
 }
 
-async function resolveDirectoryNavTitle(
+async function resolveDirectoryNav(
   store: ContentStore,
   entry: ContentDirectoryEntry,
-): Promise<string> {
+): Promise<{ title: string; type: 'page' | 'post' }> {
   for (const candidatePath of getDirectoryIndexCandidates(entry.path)) {
     const contentEntry = await store.get(candidatePath);
     if (contentEntry === null || contentEntry.kind !== 'text' || contentEntry.text === undefined) {
@@ -336,10 +341,68 @@ async function resolveDirectoryNavTitle(
     }
 
     const parsed = await parseMarkdownDocument(candidatePath, contentEntry.text);
-    if (typeof parsed.meta.title === 'string' && parsed.meta.title !== '') {
-      return parsed.meta.title;
-    }
+    const shape = await inspectDirectoryShape(store, entry.path);
+
+    return {
+      title:
+        typeof parsed.meta.title === 'string' && parsed.meta.title !== ''
+          ? parsed.meta.title
+          : entry.name,
+      type: inferDirectoryContentType(parsed.meta, shape),
+    };
   }
 
-  return entry.name;
+  return {
+    title: entry.name,
+    type: 'page',
+  };
+}
+
+async function inspectDirectoryShape(
+  store: ContentStore,
+  directoryPath: string,
+): Promise<{
+  hasChildDirectories: boolean;
+  hasExtraMarkdownFiles: boolean;
+  hasAssetFiles: boolean;
+}> {
+  const entries = await store.listDirectory(directoryPath);
+  if (entries === null) {
+    return {
+      hasChildDirectories: false,
+      hasExtraMarkdownFiles: false,
+      hasAssetFiles: false,
+    };
+  }
+
+  let hasChildDirectories = false;
+  let hasExtraMarkdownFiles = false;
+  let hasAssetFiles = false;
+
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) {
+      continue;
+    }
+
+    if (entry.kind === 'directory') {
+      hasChildDirectories = true;
+      continue;
+    }
+
+    const extension = path.posix.extname(entry.name).toLowerCase();
+    if (extension === '.md') {
+      if (entry.name !== 'index.md' && entry.name !== 'README.md') {
+        hasExtraMarkdownFiles = true;
+      }
+      continue;
+    }
+
+    hasAssetFiles = true;
+  }
+
+  return {
+    hasChildDirectories,
+    hasExtraMarkdownFiles,
+    hasAssetFiles,
+  };
 }

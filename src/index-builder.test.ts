@@ -21,7 +21,22 @@ test('buildManagedIndexBlock renders directories and articles with sorting', asy
   await mkdir(path.join(rootDir, 'alpha'));
   await writeFile(
     path.join(rootDir, 'alpha', 'index.md'),
-    ['---', 'title: Alpha Notes', '---', '', '# Alpha'].join('\n'),
+    ['---', 'title: Alpha Notes', 'type: page', '---', '', '# Alpha'].join('\n'),
+    'utf8',
+  );
+  await mkdir(path.join(rootDir, 'essay'));
+  await writeFile(
+    path.join(rootDir, 'essay', 'README.md'),
+    [
+      '---',
+      'title: Directory Essay',
+      'type: post',
+      'date: 2025-04-05',
+      'summary: Essay summary',
+      '---',
+      '',
+      '# Essay',
+    ].join('\n'),
     'utf8',
   );
   await writeFile(
@@ -39,8 +54,10 @@ test('buildManagedIndexBlock renders directories and articles with sorting', asy
   const block = await buildManagedIndexBlock(rootDir);
 
   assert.match(block, /\[Alpha Notes\]\(\.\/alpha\/\)[\s\S]*\[Zeta Notes\]\(\.\/zeta\/\)/);
+  assert.match(block, /\[Directory Essay\]\(\.\/essay\/\)[\s\S]*2025-04-05 · Essay summary/);
   assert.match(block, /\[New Post\]\(\.\/new\.md\)[\s\S]*2025-03-04 · First paragraph summary\./);
   assert.match(block, /\[Old Post\]\(\.\/old\.md\)[\s\S]*2024-01-03 · Old summary/);
+  assert.ok(block.indexOf('Directory Essay') < block.indexOf('New Post'));
   assert.ok(block.indexOf('New Post') < block.indexOf('Old Post'));
 });
 
@@ -66,9 +83,18 @@ test('upsertManagedIndexBlock replaces existing managed section', () => {
 });
 
 test('upsertManagedIndexBlock appends markers when missing', () => {
-  const updated = upsertManagedIndexBlock('# Writing\n\nIntro text.\n', '<!-- INDEX:START -->\n\nNo entries yet.\n\n<!-- INDEX:END -->');
+  const updated = upsertManagedIndexBlock('# Writing\n\nIntro text.\n', '<!-- INDEX:START -->\n\n<!-- INDEX:END -->');
   assert.match(updated, /Intro text\.\n\n<!-- INDEX:START -->/);
   assert.match(updated, /<!-- INDEX:END -->\n$/);
+});
+
+test('buildManagedIndexBlock leaves empty directories blank', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-index-empty-'));
+  await writeFile(path.join(rootDir, 'README.md'), '# Empty\n', 'utf8');
+
+  const block = await buildManagedIndexBlock(rootDir);
+
+  assert.equal(block, ['<!-- INDEX:START -->', '', '<!-- INDEX:END -->'].join('\n'));
 });
 
 test('buildDirectoryIndexes updates existing index files recursively', async () => {

@@ -71,18 +71,32 @@ a:hover { color: var(--link-hover); }
   gap: 0.9rem;
   margin: 1rem 0 0;
   padding: 0;
+  align-items: center;
 }
 .site-nav {
   margin-top: 1rem;
   padding-top: 0.85rem;
   border-top: 1px solid var(--border);
 }
+.site-nav li {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+.site-nav li + li {
+  margin-top: 0;
+}
 .site-nav a {
   color: var(--text);
   text-decoration: none;
   font-size: 0.95rem;
+  font-weight: 600;
   text-transform: none;
   letter-spacing: 0;
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
+  padding: 0 0.1rem;
 }
 .site-nav a:hover { text-decoration: underline; }
 main {

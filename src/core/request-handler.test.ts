@@ -209,13 +209,19 @@ test('handleSiteRequest derives top navigation from root directories when topNav
       path: 'guides/README.md',
       kind: 'text',
       mediaType: 'text/markdown; charset=utf-8',
-      text: ['---', 'title: Guides', '---', '', '# Guides'].join('\n'),
+      text: ['---', 'title: Guides', 'type: page', '---', '', '# Guides'].join('\n'),
     },
     {
       path: 'reference/index.md',
       kind: 'text',
       mediaType: 'text/markdown; charset=utf-8',
-      text: ['---', 'title: Reference', '---', '', '# Reference'].join('\n'),
+      text: ['---', 'title: Reference', 'type: page', '---', '', '# Reference'].join('\n'),
+    },
+    {
+      path: 'post/README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Post', 'type: post', 'date: 2026-03-20', '---', '', '# Post'].join('\n'),
     },
   ]);
 
@@ -233,6 +239,7 @@ test('handleSiteRequest derives top navigation from root directories when topNav
   assert.match(String(response.body), />Guides<\/a>/);
   assert.match(String(response.body), /href="\/reference\/"/);
   assert.match(String(response.body), />Reference<\/a>/);
+  assert.doesNotMatch(String(response.body), /href="\/post\/"/);
 });
 
 test('handleSiteRequest hides home index block in html when showHomeIndex is false', async () => {

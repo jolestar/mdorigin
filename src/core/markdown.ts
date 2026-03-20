@@ -8,6 +8,7 @@ export interface ParsedDocumentMeta {
   date?: string;
   summary?: string;
   draft?: boolean;
+  type?: string;
   [key: string]: unknown;
 }
 
@@ -78,6 +79,10 @@ function normalizeMeta(data: Record<string, unknown>): ParsedDocumentMeta {
 
   if (typeof data.draft === 'boolean') {
     meta.draft = data.draft;
+  }
+
+  if (typeof data.type === 'string') {
+    meta.type = data.type;
   }
 
   return meta;

@@ -1,6 +1,7 @@
 import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { inferDirectoryContentType } from './core/content-type.js';
 import { getDirectoryIndexCandidates } from './core/directory-index.js';
 import { parseMarkdownDocument } from './core/markdown.js';
 
@@ -17,6 +18,14 @@ interface ArticleIndexEntry {
 interface DirectoryIndexEntry {
   title: string;
   link: string;
+}
+
+interface ResolvedDirectoryEntry {
+  title: string;
+  type: 'page' | 'post';
+  date?: string;
+  summary?: string;
+  draft: boolean;
 }
 
 export interface BuildIndexOptions {
@@ -112,11 +121,24 @@ export async function buildManagedIndexBlock(directoryPath: string): Promise<str
 
     const fullPath = path.join(directoryPath, entry.name);
     if (entry.isDirectory()) {
-      const title = await resolveDirectoryTitle(fullPath, entry.name);
-      directories.push({
-        title,
-        link: `./${entry.name}/`,
-      });
+      const resolvedEntry = await resolveDirectoryEntry(fullPath, entry.name);
+      if (resolvedEntry.draft) {
+        continue;
+      }
+
+      if (resolvedEntry.type === 'post') {
+        articles.push({
+          title: resolvedEntry.title,
+          date: resolvedEntry.date,
+          summary: resolvedEntry.summary,
+          link: `./${entry.name}/`,
+        });
+      } else {
+        directories.push({
+          title: resolvedEntry.title,
+          link: `./${entry.name}/`,
+        });
+      }
       continue;
     }
 
@@ -201,31 +223,34 @@ function renderManagedIndexBlock(
     }
   }
 
-  if (directories.length === 0 && articles.length === 0) {
-    lines.push('No entries yet.');
-    lines.push('');
-  }
-
   lines.push(INDEX_END_MARKER);
   return lines.join('\n');
 }
 
-async function resolveDirectoryTitle(
+async function resolveDirectoryEntry(
   directoryPath: string,
   fallbackName: string,
-): Promise<string> {
+): Promise<ResolvedDirectoryEntry> {
   const indexPath = await resolveDirectoryIndexFile(directoryPath);
   if (indexPath === null) {
-    return fallbackName;
+    return {
+      title: fallbackName,
+      type: 'page',
+      draft: false,
+    };
   }
 
   const source = await readFile(indexPath, 'utf8');
   const parsed = await parseMarkdownDocument(path.basename(indexPath), source);
-  if (parsed.meta.draft === true) {
-    return fallbackName;
-  }
+  const shape = await inspectDirectoryShape(directoryPath);
 
-  return parsed.meta.title ?? fallbackName;
+  return {
+    title: parsed.meta.title ?? fallbackName,
+    type: inferDirectoryContentType(parsed.meta, shape),
+    date: parsed.meta.date,
+    summary: parsed.meta.summary ?? extractFirstParagraph(parsed.body),
+    draft: parsed.meta.draft === true,
+  };
 }
 
 async function listDirectoriesRecursively(rootDir: string): Promise<string[]> {
@@ -243,6 +268,49 @@ async function listDirectoriesRecursively(rootDir: string): Promise<string[]> {
   }
 
   return directories;
+}
+
+async function inspectDirectoryShape(directoryPath: string): Promise<{
+  hasChildDirectories: boolean;
+  hasExtraMarkdownFiles: boolean;
+  hasAssetFiles: boolean;
+}> {
+  const entries = await readdir(directoryPath, { withFileTypes: true });
+
+  let hasChildDirectories = false;
+  let hasExtraMarkdownFiles = false;
+  let hasAssetFiles = false;
+
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) {
+      continue;
+    }
+
+    if (entry.isDirectory()) {
+      hasChildDirectories = true;
+      continue;
+    }
+
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    const extension = path.extname(entry.name).toLowerCase();
+    if (extension === '.md') {
+      if (entry.name !== 'index.md' && entry.name !== 'README.md') {
+        hasExtraMarkdownFiles = true;
+      }
+      continue;
+    }
+
+    hasAssetFiles = true;
+  }
+
+  return {
+    hasChildDirectories,
+    hasExtraMarkdownFiles,
+    hasAssetFiles,
+  };
 }
 
 function compareArticles(left: ArticleIndexEntry, right: ArticleIndexEntry): number {
