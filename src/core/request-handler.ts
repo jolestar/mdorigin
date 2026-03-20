@@ -10,6 +10,7 @@ import { getDirectoryIndexCandidates } from './directory-index.js';
 import {
   parseMarkdownDocument,
   stripManagedIndexBlock,
+  stripManagedIndexLinks,
 } from './markdown.js';
 import type { ResolvedSiteConfig, SiteNavItem } from './site-config.js';
 import { resolveRequest } from './router.js';
@@ -86,6 +87,11 @@ export async function handleSiteRequest(
   const renderedBody =
     isRootHomeRequest(resolved.requestPath) && !options.siteConfig.showHomeIndex
       ? stripManagedIndexBlock(entry.text)
+      : isRootHomeRequest(resolved.requestPath) && navigation.items.length > 0
+        ? stripManagedIndexLinks(
+            entry.text,
+            new Set(navigation.items.map((item) => item.href)),
+          )
       : entry.text;
   const renderedParsed = renderedBody === entry.text
     ? parsed
@@ -256,6 +262,11 @@ async function tryRenderAlternateDirectoryIndex(
     const renderedBody =
       isRootHomeRequest(requestPath) && !options.siteConfig.showHomeIndex
         ? stripManagedIndexBlock(entry.text)
+        : isRootHomeRequest(requestPath) && navigation.items.length > 0
+          ? stripManagedIndexLinks(
+              entry.text,
+              new Set(navigation.items.map((item) => item.href)),
+            )
         : entry.text;
     const renderedParsed = renderedBody === entry.text
       ? parsed

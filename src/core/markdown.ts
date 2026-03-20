@@ -58,6 +58,42 @@ export function stripManagedIndexBlock(markdown: string): string {
   ).trimEnd();
 }
 
+export function stripManagedIndexLinks(
+  markdown: string,
+  hrefs: ReadonlySet<string>,
+): string {
+  if (hrefs.size === 0) {
+    return markdown;
+  }
+
+  return markdown.replace(
+    /(\n<!-- INDEX:START -->\n)([\s\S]*?)(\n<!-- INDEX:END -->)/,
+    (_match, start: string, content: string, end: string) => {
+      const blocks = content
+        .trim()
+        .split(/\n\s*\n/g)
+        .map((block) => block.trim())
+        .filter((block) => block !== '');
+
+      const keptBlocks = blocks.filter((block) => {
+        const firstLine = block.split('\n', 1)[0] ?? '';
+        const hrefMatch = firstLine.match(/\[[^\]]+\]\(([^)]+)\)/);
+        if (!hrefMatch) {
+          return true;
+        }
+
+        return !hrefs.has(normalizeManagedIndexHref(hrefMatch[1]));
+      });
+
+      if (keptBlocks.length === 0) {
+        return `${start.trimEnd()}\n\n${end.trimStart()}`;
+      }
+
+      return `${start}${keptBlocks.join('\n\n')}\n${end}`;
+    },
+  );
+}
+
 function normalizeMeta(data: Record<string, unknown>): ParsedDocumentMeta {
   const meta: ParsedDocumentMeta = { ...data };
 
@@ -144,4 +180,16 @@ function splitOnce(value: string, separator: string): [string, string | undefine
   }
 
   return [value.slice(0, index), value.slice(index + separator.length)];
+}
+
+function normalizeManagedIndexHref(href: string): string {
+  if (href === './') {
+    return '/';
+  }
+
+  if (href.startsWith('./')) {
+    return `/${href.slice(2)}`;
+  }
+
+  return href;
 }

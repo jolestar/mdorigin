@@ -26,3 +26,5 @@ The managed block is content-only. It no longer inserts headings such as `Direct
 - directory homepage frontmatter can use `type: page` or `type: post` to override the default inference
 
 If a directory has no generated entries, the managed block is left empty instead of emitting placeholder text.
+
+For the root homepage, HTML rendering may hide repeated `page` entries when those same destinations are already shown in the top navigation. The raw markdown remains unchanged.

@@ -295,6 +295,45 @@ test('handleSiteRequest hides home index block in html when showHomeIndex is fal
   assert.match(String(markdownResponse.body), /<!-- INDEX:START -->/);
 });
 
+test('handleSiteRequest hides root index entries that are already present in navigation', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: [
+        '---',
+        'title: Root Readme',
+        '---',
+        '',
+        '# Root Readme',
+        '',
+        '<!-- INDEX:START -->',
+        '',
+        '- [Guides](./guides/)',
+        '  2026-03-20 · Guides summary.',
+        '',
+        '- [Why mdorigin exists](./why-mdorigin.md)',
+        '  2026-03-20 · Post summary.',
+        '',
+        '<!-- INDEX:END -->',
+      ].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/', {
+    draftMode: 'include',
+    siteConfig: {
+      ...TEST_SITE_CONFIG,
+      topNav: [{ label: 'Guides', href: '/guides/' }],
+    },
+  });
+
+  assert.equal(response.status, 200);
+  assert.doesNotMatch(String(response.body), /<a href="\.\/guides\/">Guides<\/a>/);
+  assert.match(String(response.body), /Why mdorigin exists/);
+});
+
 test('handleSiteRequest respects site config rendering options', async () => {
   const store = new MemoryContentStore([
     {

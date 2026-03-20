@@ -31,6 +31,7 @@ Useful fields:
 - If `topNav` is omitted or empty, `mdorigin` derives navigation from the content root's first-level subdirectories.
 - Auto-derived navigation only includes directories treated as `type: page`.
 - Directories treated as `type: post` are excluded from auto-derived top navigation.
+- When the root homepage already has top navigation, the HTML view hides repeated `page` entries from the managed root index block and keeps only the remaining entries, such as posts.
 
 ## Directory Type
 
