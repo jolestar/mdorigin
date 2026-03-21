@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 import { runBuildIndexCommand } from './build-index.js';
 import { runBuildCloudflareCommand } from './build-cloudflare.js';
 import { runDevCommand } from './dev.js';
