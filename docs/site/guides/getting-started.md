@@ -10,8 +10,7 @@ summary: Preview content locally, configure a site, and build indexes.
 ## Install
 
 ```bash
-npm install
-npm run check
+npm install --save-dev mdorigin
 ```
 
 ## Preview a site
@@ -19,7 +18,7 @@ npm run check
 Use a content root such as `docs/site`:
 
 ```bash
-npm run dev -- --root docs/site
+npx mdorigin dev --root docs/site
 ```
 
 That starts a local preview server and serves:
@@ -53,3 +52,9 @@ You can also choose a page structure with `template`:
 ```
 
 Use `document` for docs-style sites and `editorial` for article-led pages.
+
+## Build directory indexes
+
+```bash
+npx mdorigin build index --root docs/site
+```

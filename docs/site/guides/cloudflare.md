@@ -9,10 +9,16 @@ summary: Build a user-project Worker bundle and initialize Wrangler config.
 
 `mdorigin` does not ship a repo-owned `wrangler.toml`. Instead, it generates a Worker bundle for the consuming project.
 
+Install `mdorigin` in the project first:
+
+```bash
+npm install --save-dev mdorigin
+```
+
 ## Build a Worker bundle
 
 ```bash
-npm run build:cloudflare -- --root docs/site
+npx mdorigin build cloudflare --root docs/site
 ```
 
 By default this writes:
@@ -24,5 +30,5 @@ dist/cloudflare/worker.mjs
 ## Initialize Wrangler config
 
 ```bash
-npm run init:cloudflare -- --dir .
+npx mdorigin init cloudflare --dir .
 ```
