@@ -1,24 +1,53 @@
 {
   "name": "mdorigin",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "description": "Markdown-first publishing engine with raw Markdown and HTML views.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jolestar/mdorigin.git"
+  },
+  "homepage": "https://github.com/jolestar/mdorigin#readme",
+  "bugs": {
+    "url": "https://github.com/jolestar/mdorigin/issues"
+  },
+  "keywords": [
+    "markdown",
+    "publishing",
+    "static-site",
+    "cloudflare-workers",
+    "cli"
+  ],
   "bin": {
     "mdorigin": "./dist/cli/main.js"
   },
   "exports": {
-    "./cloudflare": "./dist/cloudflare.js",
-    "./cloudflare-runtime": "./dist/cloudflare-runtime.js"
+    "./cloudflare": {
+      "types": "./dist/cloudflare.d.ts",
+      "default": "./dist/cloudflare.js"
+    },
+    "./cloudflare-runtime": {
+      "types": "./dist/cloudflare-runtime.d.ts",
+      "default": "./dist/cloudflare-runtime.js"
+    }
   },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
   "scripts": {
     "dev": "tsx src/cli/main.ts dev",
-    "build": "tsc -p tsconfig.json",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.json",
     "build:index": "tsx src/cli/main.ts build index",
     "build:cloudflare": "tsx src/cli/main.ts build cloudflare",
     "init:cloudflare": "tsx src/cli/main.ts init cloudflare",
     "check": "tsc --noEmit -p tsconfig.json",
-    "test": "node --test --import tsx src/*.test.ts src/**/*.test.ts"
+    "test": "node --test --import tsx src/*.test.ts src/**/*.test.ts",
+    "prepack": "npm run build",
+    "pack:check": "npm pack --dry-run"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "engines": {
     "node": ">=20"

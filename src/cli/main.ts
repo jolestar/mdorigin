@@ -31,7 +31,7 @@ async function main() {
     '  mdorigin dev --root <content-dir> [--port 3000] [--config mdorigin.config.json]',
     '  mdorigin build index (--root <content-dir> | --dir <content-dir>)',
     '  mdorigin build cloudflare --root <content-dir> [--out ./dist/cloudflare] [--config mdorigin.config.json]',
-    '  mdorigin init cloudflare [--dir .] [--entry ./dist/cloudflare/worker.mjs] [--name mdorigin-site] [--compatibility-date 2026-03-20] [--force]',
+    '  mdorigin init cloudflare [--dir .] [--entry ./dist/cloudflare/worker.mjs] [--name <worker-name>] [--compatibility-date 2026-03-20] [--force]',
   ].join('\n'));
   process.exitCode = 1;
 }
