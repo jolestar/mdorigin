@@ -27,3 +27,9 @@ Main commands:
 - `mdorigin init cloudflare --dir .`
 
 With a project-local install, run the same commands via `npx --no-install mdorigin ...`.
+
+Useful defaults:
+
+- `build cloudflare` writes to `dist/cloudflare/worker.mjs` unless `--out` is provided
+- `init cloudflare` points to `dist/cloudflare/worker.mjs` by default
+- `init cloudflare` derives the Worker name from `siteTitle` when `--name` is omitted

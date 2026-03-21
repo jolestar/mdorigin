@@ -28,6 +28,14 @@ If a directory has no `index.md`, the current runtime can still render a minimal
 
 `/sitemap.xml` emits canonical HTML URLs, not `.md` source URLs. It requires `siteUrl` so the sitemap can use absolute locations.
 
+Rendered HTML also exposes the source markdown path with:
+
+```html
+<link rel="alternate" type="text/markdown" href="/foo.md">
+```
+
+This is a lightweight interoperability hint for agents and tools that want to discover the raw markdown source from the human HTML page.
+
 ## Canonical markdown paths
 
 Directory homepages support both `index.md` and `README.md`, but only one can exist as the real source file for a given directory.

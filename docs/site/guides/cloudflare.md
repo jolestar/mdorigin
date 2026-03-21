@@ -35,6 +35,12 @@ dist/cloudflare/worker.mjs
 mdorigin init cloudflare --dir .
 ```
 
+If `--name` is omitted, `mdorigin` derives the Worker name from the site title.
+
+You can deploy to the default `*.workers.dev` hostname first. A custom domain is optional and can be added later from the user project's Cloudflare setup.
+
+For production deployment, set `siteUrl` in `mdorigin.config.json` so rendered HTML and `/sitemap.xml` can use the correct absolute origin.
+
 After deployment, extensionless routes on the Worker can also return markdown when a client sends:
 
 ```http

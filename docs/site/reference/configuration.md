@@ -24,6 +24,8 @@ Useful fields:
 - `socialLinks`
 - `editLink`
 - `showHomeIndex`
+- `showDate`
+- `showSummary`
 - `stylesheet`
 
 ## Site Metadata
@@ -97,6 +99,8 @@ Built-in social icons currently include:
 - `x`
 - `home`
 
+`footerText` has no implicit default. If you omit it, `mdorigin` does not render footer copy on its own.
+
 ## Template
 
 `mdorigin` currently supports two built-in template variants:
@@ -146,6 +150,12 @@ Rules:
 - lower `order` values come first
 - `order` is used for auto-derived top navigation and for directory index generation
 - when `order` is absent, `mdorigin` falls back to its default sort rules
+
+## Rendering Flags
+
+- `showDate` controls whether parsed markdown dates are surfaced in rendered HTML where the active template uses them
+- `showSummary` controls whether configured summaries are surfaced in rendered HTML where the active template uses them
+- both flags default to `true`
 
 ## Aliases
 

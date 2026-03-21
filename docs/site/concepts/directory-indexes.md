@@ -26,6 +26,13 @@ The managed block is content-only. It no longer inserts headings such as `Direct
 - articles are listed after directories
 - directory homepage frontmatter can use `type: page` or `type: post` to override the default inference
 
+Directories treated as `type: post` are skipped by `build index`.
+
+- `mdorigin` does not inject a managed index block into post bundles such as `post/README.md`
+- this keeps article bundles clean when they only contain a homepage markdown file plus colocated assets
+
 If a directory has no generated entries, the managed block is left empty instead of emitting placeholder text.
 
 For the root homepage, HTML rendering may hide repeated `page` entries when those same destinations are already shown in the top navigation. The raw markdown remains unchanged.
+
+When `template: catalog` is active, the managed index block is rendered as a structured directory-and-article flow in HTML. The raw markdown source still keeps the normal `INDEX:START/END` block.
