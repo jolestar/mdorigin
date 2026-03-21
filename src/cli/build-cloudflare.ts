@@ -11,7 +11,7 @@ export async function runBuildCloudflareCommand(argv: string[]) {
   const args = parseArgs(argv);
   if (!args.root) {
     console.error(
-      'Usage: mdorigin build cloudflare --root <content-dir> [--out ./.mdorigin/cloudflare] [--config mdorigin.config.json]',
+      'Usage: mdorigin build cloudflare --root <content-dir> [--out ./dist/cloudflare] [--config mdorigin.config.json]',
     );
     process.exitCode = 1;
     return;
@@ -27,7 +27,7 @@ export async function runBuildCloudflareCommand(argv: string[]) {
   const siteConfig = await applySiteConfigFrontmatterDefaults(store, loadedSiteConfig);
   const result = await writeCloudflareBundle({
     rootDir,
-    outDir: path.resolve(args.out ?? '.mdorigin/cloudflare'),
+    outDir: path.resolve(args.out ?? 'dist/cloudflare'),
     siteConfig,
   });
 

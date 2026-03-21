@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { readFile } from 'node:fs/promises';
 
 import { initCloudflareProject } from '../cloudflare.js';
 
@@ -7,13 +8,15 @@ export async function runInitCloudflareCommand(argv: string[]) {
   const projectDir = path.resolve(args.dir ?? '.');
   const workerEntry = path.resolve(
     projectDir,
-    args.entry ?? '.mdorigin/cloudflare/worker.mjs',
+    args.entry ?? 'dist/cloudflare/worker.mjs',
   );
+  const siteTitle = args.name ? undefined : await inferSiteTitleFromWorkerEntry(workerEntry);
 
   const result = await initCloudflareProject({
     projectDir,
     workerEntry,
     workerName: args.name,
+    siteTitle,
     compatibilityDate: args.compatibilityDate,
     force: args.force,
   });
@@ -64,4 +67,16 @@ function parseArgs(argv: string[]) {
   }
 
   return result;
+}
+
+async function inferSiteTitleFromWorkerEntry(
+  workerEntry: string,
+): Promise<string | undefined> {
+  try {
+    const source = await readFile(workerEntry, 'utf8');
+    const match = source.match(/"siteTitle":\s*"([^"]+)"/);
+    return match?.[1];
+  } catch {
+    return undefined;
+  }
 }

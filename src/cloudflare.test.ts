@@ -62,7 +62,7 @@ test('writeCloudflareBundle writes a user-facing worker entry', async () => {
 
 test('initCloudflareProject writes wrangler config', async () => {
   const projectDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-init-'));
-  const workerEntry = path.join(projectDir, '.mdorigin', 'cloudflare', 'worker.mjs');
+  const workerEntry = path.join(projectDir, 'dist', 'cloudflare', 'worker.mjs');
 
   const result = await initCloudflareProject({
     projectDir,
@@ -73,5 +73,20 @@ test('initCloudflareProject writes wrangler config', async () => {
 
   const configSource = await readFile(result.configFile, 'utf8');
   assert.match(configSource, /"name": "docs-site"/);
-  assert.match(configSource, /"\.mdorigin\/cloudflare\/worker\.mjs"/);
+  assert.match(configSource, /"dist\/cloudflare\/worker\.mjs"/);
+});
+
+test('initCloudflareProject derives worker name from site title when name is omitted', async () => {
+  const projectDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-init-slug-'));
+  const workerEntry = path.join(projectDir, 'dist', 'cloudflare', 'worker.mjs');
+
+  const result = await initCloudflareProject({
+    projectDir,
+    workerEntry,
+    siteTitle: 'Example Notes',
+    compatibilityDate: '2026-03-20',
+  });
+
+  const configSource = await readFile(result.configFile, 'utf8');
+  assert.match(configSource, /"name": "example-notes"/);
 });

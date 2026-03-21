@@ -18,7 +18,7 @@ npm run build:cloudflare -- --root docs/site
 By default this writes:
 
 ```text
-.mdorigin/cloudflare/worker.mjs
+dist/cloudflare/worker.mjs
 ```
 
 ## Initialize Wrangler config

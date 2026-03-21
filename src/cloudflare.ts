@@ -32,6 +32,7 @@ export interface InitCloudflareProjectOptions {
   projectDir: string;
   workerEntry: string;
   workerName?: string;
+  siteTitle?: string;
   compatibilityDate?: string;
   force?: boolean;
 }
@@ -116,7 +117,10 @@ export async function initCloudflareProject(
     );
   }
 
-  const workerName = options.workerName ?? 'mdorigin-site';
+  const workerName =
+    options.workerName ??
+    slugifyWorkerName(options.siteTitle) ??
+    'mdorigin-site';
   const compatibilityDate = options.compatibilityDate ?? '2026-03-20';
   const wranglerConfig = [
     '{',
@@ -173,4 +177,18 @@ async function pathExists(filePath: string): Promise<boolean> {
 
 function toPosixPath(filePath: string): string {
   return filePath.replaceAll(path.sep, '/');
+}
+
+function slugifyWorkerName(value: string | undefined): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-{2,}/g, '-');
+
+  return slug === '' ? null : slug;
 }
