@@ -46,7 +46,10 @@ a:hover { color: var(--link-hover); }
   padding: 1.25rem 2rem 0;
 }
 .site-header__inner {
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem 1.75rem;
+  align-items: end;
 }
 .site-header__brand { min-width: 0; }
 .site-header__title { margin: 0; }
@@ -69,14 +72,13 @@ a:hover { color: var(--link-hover); }
   display: flex;
   flex-wrap: wrap;
   gap: 0.9rem;
-  margin: 1rem 0 0;
+  margin: 0;
   padding: 0;
   align-items: center;
+  justify-content: flex-end;
 }
 .site-nav {
-  margin-top: 1rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid var(--border);
+  min-width: 0;
 }
 .site-nav li {
   display: flex;
@@ -160,8 +162,17 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
 @media (max-width: 720px) {
   html { font-size: 17px; }
   .site-header, main { padding-left: 1rem; padding-right: 1rem; }
-  .site-nav { margin-top: 0.8rem; }
+  .site-header__inner {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+  .site-nav {
+    margin-top: 0.8rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--border);
+  }
   .site-nav ul { margin-top: 0; }
+  .site-nav ul { justify-content: flex-start; }
   article { padding: 1.3rem; border-radius: 16px; }
 }
 
@@ -438,7 +449,10 @@ a:hover { color: var(--link-hover); }
   padding: 1.25rem 2rem 0;
 }
 .site-header__inner {
-  display: block;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem 2rem;
+  align-items: end;
 }
 .site-header__brand { min-width: 0; }
 .site-header__title { margin: 0; }
@@ -467,9 +481,7 @@ a:hover { color: var(--link-hover); }
   padding: 0;
 }
 .site-nav {
-  margin-top: 1rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid var(--border);
+  min-width: 0;
 }
 .site-nav li {
   display: flex;
@@ -557,7 +569,16 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
 @media (max-width: 720px) {
   html { font-size: 17px; }
   .site-header, main { padding-left: 1rem; padding-right: 1rem; }
-  .site-nav { margin-top: 0.8rem; }
+  .site-header__inner {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+  .site-nav {
+    margin-top: 0.8rem;
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--border);
+  }
+  .site-nav ul { justify-content: flex-start; }
   article { padding: 1.35rem 1.2rem 1.25rem; }
 }
 
