@@ -84,7 +84,7 @@ export async function writeCloudflareBundle(
     rootDir: options.rootDir,
     siteConfig: options.siteConfig,
   });
-  const packageImport = options.packageImport ?? 'mdorigin/cloudflare';
+  const packageImport = options.packageImport ?? 'mdorigin/cloudflare-runtime';
   const workerFile = path.join(outDir, 'worker.mjs');
   const workerSource = [
     `import { createCloudflareWorker } from '${packageImport}';`,

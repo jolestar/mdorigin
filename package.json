@@ -8,7 +8,8 @@
     "mdorigin": "./dist/cli/main.js"
   },
   "exports": {
-    "./cloudflare": "./dist/cloudflare.js"
+    "./cloudflare": "./dist/cloudflare.js",
+    "./cloudflare-runtime": "./dist/cloudflare-runtime.js"
   },
   "scripts": {
     "dev": "tsx src/cli/main.ts dev",

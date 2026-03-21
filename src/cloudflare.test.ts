@@ -56,7 +56,7 @@ test('writeCloudflareBundle writes a user-facing worker entry', async () => {
   });
 
   const workerSource = await readFile(result.workerFile, 'utf8');
-  assert.match(workerSource, /from 'mdorigin\/cloudflare'/);
+  assert.match(workerSource, /from 'mdorigin\/cloudflare-runtime'/);
   assert.match(workerSource, /Bundle Site/);
 });
 
