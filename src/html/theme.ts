@@ -460,6 +460,7 @@ a:hover { color: var(--link-hover); }
 .site-nav ul {
   list-style: none;
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   gap: 0.9rem;
   margin: 0;
@@ -470,7 +471,18 @@ a:hover { color: var(--link-hover); }
   padding-top: 0.85rem;
   border-top: 1px solid var(--border);
 }
+.site-nav li {
+  display: flex;
+  align-items: center;
+  margin: 0;
+}
+.site-nav li + li {
+  margin-top: 0;
+}
 .site-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2rem;
   text-transform: none;
   letter-spacing: 0;
   font-size: 0.95rem;
