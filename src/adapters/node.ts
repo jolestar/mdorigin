@@ -119,6 +119,7 @@ export function createNodeRequestListener(options: NodeAdapterOptions) {
       const siteResponse = await handleSiteRequest(store, url.pathname, {
         draftMode: options.draftMode,
         siteConfig: options.siteConfig,
+        acceptHeader: request.headers.accept,
       });
 
       response.statusCode = siteResponse.status;

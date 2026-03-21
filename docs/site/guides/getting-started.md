@@ -26,6 +26,13 @@ That starts a local preview server and serves:
 - raw markdown at `/foo.md`
 - HTML at `/foo.html`
 - default human routes at `/foo`
+- markdown on extensionless routes when the client sends `Accept: text/markdown`
+
+For example:
+
+```bash
+curl -H "Accept: text/markdown" http://localhost:3000/guides/getting-started
+```
 
 ## Site config
 

@@ -32,3 +32,11 @@ dist/cloudflare/worker.mjs
 ```bash
 npx mdorigin init cloudflare --dir .
 ```
+
+After deployment, extensionless routes on the Worker can also return markdown when a client sends:
+
+```http
+Accept: text/markdown
+```
+
+That lets agents fetch markdown directly from the site domain without adding `.md` to the URL.

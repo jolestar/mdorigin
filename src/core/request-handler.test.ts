@@ -125,6 +125,84 @@ test('handleSiteRequest renders html and preserves markdown', async () => {
   assert.match(String(defaultHtmlResponse.body), /href="\.\.\/"/);
 });
 
+test('handleSiteRequest serves markdown on extensionless routes when accept asks for markdown', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Home', '---', '', '# Home'].join('\n'),
+    },
+    {
+      path: 'topic/README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Topic Home', '---', '', '# Topic Home'].join('\n'),
+    },
+    {
+      path: 'topic/post.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Post', '---', '', '# Post'].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/topic/post', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+    acceptHeader: 'text/markdown, text/html;q=0.9',
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['content-type'], 'text/markdown; charset=utf-8');
+  assert.equal(response.headers.vary, 'Accept');
+  assert.match(String(response.body), /^---/m);
+
+  const homeResponse = await handleSiteRequest(store, '/', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+    acceptHeader: 'text/markdown',
+  });
+  assert.equal(homeResponse.status, 200);
+  assert.equal(homeResponse.headers['content-type'], 'text/markdown; charset=utf-8');
+  assert.equal(homeResponse.headers.vary, 'Accept');
+  assert.match(String(homeResponse.body), /^---/m);
+
+  const directoryResponse = await handleSiteRequest(store, '/topic/', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+    acceptHeader: 'text/markdown',
+  });
+  assert.equal(directoryResponse.status, 200);
+  assert.equal(
+    directoryResponse.headers['content-type'],
+    'text/markdown; charset=utf-8',
+  );
+  assert.equal(directoryResponse.headers.vary, 'Accept');
+  assert.match(String(directoryResponse.body), /^---/m);
+});
+
+test('handleSiteRequest keeps explicit html routes as html even when markdown is accepted', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'topic/post.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: '# Post',
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/topic/post.html', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+    acceptHeader: 'text/markdown, text/html;q=0.9',
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['content-type'], 'text/html; charset=utf-8');
+  assert.equal(response.headers.vary, undefined);
+  assert.match(String(response.body), /<h1>Post<\/h1>/);
+});
+
 test('handleSiteRequest filters drafts in exclude mode', async () => {
   const store = new MemoryContentStore([
     {

@@ -2,7 +2,7 @@
 
 `mdorigin` is a markdown-first publishing engine.
 
-It treats markdown as the only source of truth, serves raw `.md` directly for agents, and renders `.html` views for humans from the same directory tree.
+It treats markdown as the only source of truth, serves raw `.md` directly for agents, renders `.html` views for humans from the same directory tree, and can return markdown from extensionless routes when clients send `Accept: text/markdown`.
 
 ## Install
 

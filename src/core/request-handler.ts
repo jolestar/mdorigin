@@ -19,6 +19,7 @@ import { escapeHtml, renderDocument } from '../html/template.js';
 export interface HandleSiteRequestOptions {
   draftMode: 'include' | 'exclude';
   siteConfig: ResolvedSiteConfig;
+  acceptHeader?: string;
 }
 
 export interface SiteResponse {
@@ -33,12 +34,26 @@ export async function handleSiteRequest(
   options: HandleSiteRequestOptions,
 ): Promise<SiteResponse> {
   const resolved = resolveRequest(pathname);
+  const negotiatedMarkdown = shouldServeMarkdownForRequest(
+    resolved,
+    options.acceptHeader,
+  );
   if (resolved.kind === 'not-found' || !resolved.sourcePath) {
     return notFound();
   }
 
   const entry = await store.get(resolved.sourcePath);
   if (entry === null) {
+    const alternateDirectoryMarkdown = await tryServeAlternateDirectoryMarkdown(
+      store,
+      resolved,
+      options,
+      negotiatedMarkdown,
+    );
+    if (alternateDirectoryMarkdown !== null) {
+      return alternateDirectoryMarkdown;
+    }
+
     const alternateMarkdownRedirect = await tryRedirectAlternateDirectoryMarkdown(
       store,
       resolved,
@@ -72,7 +87,7 @@ export async function handleSiteRequest(
     return notFound();
   }
 
-  if (resolved.kind === 'markdown') {
+  if (resolved.kind === 'markdown' || negotiatedMarkdown) {
     const parsed = await parseMarkdownDocument(resolved.sourcePath, entry.text);
     if (parsed.meta.draft === true && options.draftMode === 'exclude') {
       return notFound();
@@ -80,9 +95,12 @@ export async function handleSiteRequest(
 
     return {
       status: 200,
-      headers: {
+      headers: withVaryAcceptIfNeeded(
+        {
         'content-type': entry.mediaType,
-      },
+        },
+        negotiatedMarkdown,
+      ),
       body: entry.text,
     };
   }
@@ -108,9 +126,12 @@ export async function handleSiteRequest(
 
   return {
     status: 200,
-    headers: {
+    headers: withVaryAcceptIfNeeded(
+      {
       'content-type': 'text/html; charset=utf-8',
-    },
+      },
+      shouldVaryOnAccept(resolved),
+    ),
     body: renderDocument({
       siteTitle: options.siteConfig.siteTitle,
       siteDescription: options.siteConfig.siteDescription,
@@ -170,6 +191,33 @@ function redirect(location: string): SiteResponse {
       location,
     },
   };
+}
+
+function withVaryAcceptIfNeeded(
+  headers: Record<string, string>,
+  enabled: boolean,
+): Record<string, string> {
+  if (!enabled) {
+    return headers;
+  }
+
+  return {
+    ...headers,
+    vary: appendVary(headers.vary, 'Accept'),
+  };
+}
+
+function appendVary(existing: string | undefined, value: string): string {
+  if (!existing || existing.trim() === '') {
+    return value;
+  }
+
+  const parts = existing.split(',').map((part) => part.trim().toLowerCase());
+  if (parts.includes(value.toLowerCase())) {
+    return existing;
+  }
+
+  return `${existing}, ${value}`;
 }
 
 function getDocumentTitle(parsed: Awaited<ReturnType<typeof parseMarkdownDocument>>): string {
@@ -318,6 +366,53 @@ async function tryRenderAlternateDirectoryIndex(
   return null;
 }
 
+async function tryServeAlternateDirectoryMarkdown(
+  store: ContentStore,
+  resolved: ReturnType<typeof resolveRequest>,
+  options: HandleSiteRequestOptions,
+  negotiatedMarkdown: boolean,
+): Promise<SiteResponse | null> {
+  if (!negotiatedMarkdown || resolved.kind !== 'html' || !resolved.sourcePath) {
+    return null;
+  }
+
+  if (!resolved.requestPath.endsWith('/')) {
+    return null;
+  }
+
+  const directoryPath = path.posix.dirname(resolved.sourcePath);
+  for (const candidatePath of getDirectoryIndexCandidates(
+    directoryPath === '.' ? '' : directoryPath,
+  )) {
+    if (candidatePath === resolved.sourcePath) {
+      continue;
+    }
+
+    const entry = await store.get(candidatePath);
+    if (entry === null || entry.kind !== 'text' || entry.text === undefined) {
+      continue;
+    }
+
+    const parsed = await parseMarkdownDocument(candidatePath, entry.text);
+    if (parsed.meta.draft === true && options.draftMode === 'exclude') {
+      return notFound();
+    }
+
+    return {
+      status: 200,
+      headers: withVaryAcceptIfNeeded(
+        {
+          'content-type': entry.mediaType,
+        },
+        true,
+      ),
+      body: entry.text,
+    };
+  }
+
+  return null;
+}
+
 async function tryRedirectAlternateDirectoryMarkdown(
   store: ContentStore,
   resolved: ReturnType<typeof resolveRequest>,
@@ -362,6 +457,34 @@ function getMarkdownRequestPathForContentPath(contentPath: string): string {
 
 function isRootHomeRequest(requestPath: string): boolean {
   return requestPath === '/';
+}
+
+function shouldServeMarkdownForRequest(
+  resolved: ReturnType<typeof resolveRequest>,
+  acceptHeader: string | undefined,
+): boolean {
+  return shouldVaryOnAccept(resolved) && acceptsMarkdown(acceptHeader);
+}
+
+function shouldVaryOnAccept(
+  resolved: ReturnType<typeof resolveRequest>,
+): boolean {
+  if (resolved.kind !== 'html') {
+    return false;
+  }
+
+  return !resolved.requestPath.endsWith('.html');
+}
+
+function acceptsMarkdown(acceptHeader: string | undefined): boolean {
+  if (!acceptHeader) {
+    return false;
+  }
+
+  return acceptHeader
+    .split(',')
+    .map((part) => part.split(';', 1)[0]?.trim().toLowerCase())
+    .includes('text/markdown');
 }
 
 async function resolveTopNav(

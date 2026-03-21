@@ -62,6 +62,7 @@ export function createCloudflareWorker(
           siteTitleConfigured: false,
           siteDescriptionConfigured: false,
         },
+        acceptHeader: request.headers.get('accept') ?? undefined,
       });
 
       const headers = new Headers(siteResponse.headers);
