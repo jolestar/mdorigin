@@ -1,5 +1,6 @@
 ---
 title: Directory Indexes
+order: 20
 date: 2026-03-20
 summary: Generate and maintain directory index blocks inside index.md or README.md.
 ---

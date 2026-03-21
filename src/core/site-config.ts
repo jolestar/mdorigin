@@ -4,6 +4,7 @@ import path from 'node:path';
 import type { ContentStore } from './content-store.js';
 import { getDirectoryIndexCandidates } from './directory-index.js';
 import { parseMarkdownDocument } from './markdown.js';
+import type { TemplateName } from '../html/template-kind.js';
 import type { BuiltInThemeName } from '../html/theme.js';
 
 export interface SiteNavItem {
@@ -18,6 +19,7 @@ export interface SiteConfig {
   showSummary?: boolean;
   stylesheet?: string;
   theme?: BuiltInThemeName;
+  template?: TemplateName;
   topNav?: SiteNavItem[];
   showHomeIndex?: boolean;
 }
@@ -28,6 +30,7 @@ export interface ResolvedSiteConfig {
   showDate: boolean;
   showSummary: boolean;
   theme: BuiltInThemeName;
+  template: TemplateName;
   topNav: SiteNavItem[];
   showHomeIndex: boolean;
   stylesheetContent?: string;
@@ -80,6 +83,7 @@ export async function loadSiteConfig(
     showDate: parsedConfig.showDate ?? true,
     showSummary: parsedConfig.showSummary ?? true,
     theme: isBuiltInThemeName(parsedConfig.theme) ? parsedConfig.theme : 'paper',
+    template: isTemplateName(parsedConfig.template) ? parsedConfig.template : 'document',
     topNav: normalizeTopNav(parsedConfig.topNav),
     showHomeIndex:
       typeof parsedConfig.showHomeIndex === 'boolean'
@@ -144,6 +148,10 @@ async function resolveDefaultConfigPath(
 
 function isBuiltInThemeName(value: unknown): value is BuiltInThemeName {
   return value === 'paper' || value === 'atlas' || value === 'gazette';
+}
+
+function isTemplateName(value: unknown): value is TemplateName {
+  return value === 'document' || value === 'editorial';
 }
 
 function isNodeNotFound(error: unknown): error is NodeJS.ErrnoException {

@@ -10,6 +10,7 @@ const TEST_SITE_CONFIG = {
   showDate: true,
   showSummary: true,
   theme: 'paper' as const,
+  template: 'document' as const,
   topNav: [],
   showHomeIndex: true,
   siteTitleConfigured: true,
@@ -211,13 +212,19 @@ test('handleSiteRequest derives top navigation from root directories when topNav
       path: 'guides/README.md',
       kind: 'text',
       mediaType: 'text/markdown; charset=utf-8',
-      text: ['---', 'title: Guides', 'type: page', '---', '', '# Guides'].join('\n'),
+      text: ['---', 'title: Guides', 'type: page', 'order: 20', '---', '', '# Guides'].join('\n'),
     },
     {
       path: 'reference/index.md',
       kind: 'text',
       mediaType: 'text/markdown; charset=utf-8',
-      text: ['---', 'title: Reference', 'type: page', '---', '', '# Reference'].join('\n'),
+      text: ['---', 'title: Reference', 'type: page', 'order: 30', '---', '', '# Reference'].join('\n'),
+    },
+    {
+      path: 'about/README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: About', 'type: page', 'order: 10', '---', '', '# About'].join('\n'),
     },
     {
       path: 'post/README.md',
@@ -237,6 +244,9 @@ test('handleSiteRequest derives top navigation from root directories when topNav
   });
 
   assert.equal(response.status, 200);
+  const body = String(response.body);
+  assert.ok(body.indexOf('/about/') < body.indexOf('/guides/'));
+  assert.ok(body.indexOf('/guides/') < body.indexOf('/reference/'));
   assert.match(String(response.body), /href="\/guides\/"/);
   assert.match(String(response.body), />Guides<\/a>/);
   assert.match(String(response.body), /href="\/reference\/"/);
@@ -360,6 +370,7 @@ test('handleSiteRequest respects site config rendering options', async () => {
       showDate: false,
       showSummary: false,
       theme: 'atlas',
+      template: 'document',
       topNav: [{ label: 'Docs', href: '/docs/' }],
       showHomeIndex: true,
       stylesheetContent: 'body { color: red; }',
@@ -397,4 +408,40 @@ test('handleSiteRequest renders yaml dates parsed as Date objects', async () => 
   assert.equal(response.status, 200);
   assert.match(String(response.body), /<title>Dated Post \| Test Site<\/title>/);
   assert.match(String(response.body), /<h1>Dated<\/h1>/);
+});
+
+test('handleSiteRequest renders editorial template intro and strips duplicated h1', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'essay.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: [
+        '---',
+        'title: Editorial Essay',
+        'summary: Long-form introduction.',
+        'date: 2026-03-20',
+        '---',
+        '',
+        '# Editorial Essay',
+        '',
+        'Body paragraph.',
+      ].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/essay', {
+    draftMode: 'include',
+    siteConfig: {
+      ...TEST_SITE_CONFIG,
+      template: 'editorial',
+    },
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(String(response.body), /data-template="editorial"/);
+  assert.match(String(response.body), /page-intro__title">Editorial Essay</);
+  assert.match(String(response.body), /Long-form introduction\./);
+  assert.equal((String(response.body).match(/<h1/g) ?? []).length, 1);
+  assert.match(String(response.body), /Body paragraph\./);
 });

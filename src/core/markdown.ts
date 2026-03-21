@@ -9,6 +9,7 @@ export interface ParsedDocumentMeta {
   summary?: string;
   draft?: boolean;
   type?: string;
+  order?: number;
   [key: string]: unknown;
 }
 
@@ -119,6 +120,17 @@ function normalizeMeta(data: Record<string, unknown>): ParsedDocumentMeta {
 
   if (typeof data.type === 'string') {
     meta.type = data.type;
+  }
+
+  if (typeof data.order === 'number' && Number.isFinite(data.order)) {
+    meta.order = data.order;
+  }
+
+  if (typeof data.order === 'string') {
+    const order = Number.parseInt(data.order, 10);
+    if (Number.isFinite(order)) {
+      meta.order = order;
+    }
   }
 
   return meta;

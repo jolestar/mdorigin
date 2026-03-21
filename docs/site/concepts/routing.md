@@ -1,5 +1,6 @@
 ---
 title: Routing Model
+order: 10
 date: 2026-03-20
 summary: Understand how markdown, HTML, directory routes, and assets map to URLs.
 ---

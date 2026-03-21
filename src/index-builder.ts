@@ -13,11 +13,13 @@ interface ArticleIndexEntry {
   date?: string;
   summary?: string;
   link: string;
+  order?: number;
 }
 
 interface DirectoryIndexEntry {
   title: string;
   link: string;
+  order?: number;
 }
 
 interface ResolvedDirectoryEntry {
@@ -26,6 +28,7 @@ interface ResolvedDirectoryEntry {
   date?: string;
   summary?: string;
   draft: boolean;
+  order?: number;
 }
 
 export interface BuildIndexOptions {
@@ -132,11 +135,13 @@ export async function buildManagedIndexBlock(directoryPath: string): Promise<str
           date: resolvedEntry.date,
           summary: resolvedEntry.summary,
           link: `./${entry.name}/`,
+          order: resolvedEntry.order,
         });
       } else {
         directories.push({
           title: resolvedEntry.title,
           link: `./${entry.name}/`,
+          order: resolvedEntry.order,
         });
       }
       continue;
@@ -161,10 +166,11 @@ export async function buildManagedIndexBlock(directoryPath: string): Promise<str
       date: parsed.meta.date,
       summary: parsed.meta.summary ?? extractFirstParagraph(parsed.body),
       link: `./${entry.name}`,
+      order: parsed.meta.order,
     });
   }
 
-  directories.sort((left, right) => left.title.localeCompare(right.title));
+  directories.sort(compareDirectories);
   articles.sort(compareArticles);
 
   return renderManagedIndexBlock(directories, articles);
@@ -250,6 +256,7 @@ async function resolveDirectoryEntry(
     date: parsed.meta.date,
     summary: parsed.meta.summary ?? extractFirstParagraph(parsed.body),
     draft: parsed.meta.draft === true,
+    order: parsed.meta.order,
   };
 }
 
@@ -313,7 +320,21 @@ async function inspectDirectoryShape(directoryPath: string): Promise<{
   };
 }
 
+function compareDirectories(left: DirectoryIndexEntry, right: DirectoryIndexEntry): number {
+  const orderComparison = compareOptionalOrder(left.order, right.order);
+  if (orderComparison !== 0) {
+    return orderComparison;
+  }
+
+  return left.title.localeCompare(right.title);
+}
+
 function compareArticles(left: ArticleIndexEntry, right: ArticleIndexEntry): number {
+  const orderComparison = compareOptionalOrder(left.order, right.order);
+  if (orderComparison !== 0) {
+    return orderComparison;
+  }
+
   const leftTimestamp = left.date ? Date.parse(left.date) : Number.NaN;
   const rightTimestamp = right.date ? Date.parse(right.date) : Number.NaN;
 
@@ -328,6 +349,29 @@ function compareArticles(left: ArticleIndexEntry, right: ArticleIndexEntry): num
   }
 
   return left.title.localeCompare(right.title);
+}
+
+function compareOptionalOrder(
+  leftOrder: number | undefined,
+  rightOrder: number | undefined,
+): number {
+  if (leftOrder !== undefined && rightOrder !== undefined) {
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+
+    return 0;
+  }
+
+  if (leftOrder !== undefined) {
+    return -1;
+  }
+
+  if (rightOrder !== undefined) {
+    return 1;
+  }
+
+  return 0;
 }
 
 function extractFirstParagraph(markdown: string): string | undefined {

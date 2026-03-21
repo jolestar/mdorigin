@@ -56,6 +56,7 @@ export function createCloudflareWorker(
           showDate: true,
           showSummary: true,
           theme: 'paper',
+          template: 'document',
           topNav: [],
           showHomeIndex: true,
           siteTitleConfigured: false,

@@ -1,5 +1,6 @@
 ---
 title: Getting Started
+order: 10
 date: 2026-03-20
 summary: Preview content locally, configure a site, and build indexes.
 ---
@@ -41,3 +42,14 @@ If `stylesheet` is set, the CSS file is read and inlined into rendered HTML for 
 1. `--config`
 2. `<content-root>/mdorigin.config.json`
 3. current working directory `mdorigin.config.json`
+
+You can also choose a page structure with `template`:
+
+```json
+{
+  "theme": "atlas",
+  "template": "document"
+}
+```
+
+Use `document` for docs-style sites and `editorial` for article-led pages.

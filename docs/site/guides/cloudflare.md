@@ -1,5 +1,6 @@
 ---
 title: Cloudflare Deployment
+order: 20
 date: 2026-03-20
 summary: Build a user-project Worker bundle and initialize Wrangler config.
 ---

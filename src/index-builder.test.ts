@@ -15,13 +15,13 @@ test('buildManagedIndexBlock renders directories and articles with sorting', asy
   await mkdir(path.join(rootDir, 'zeta'));
   await writeFile(
     path.join(rootDir, 'zeta', 'index.md'),
-    ['---', 'title: Zeta Notes', '---', '', '# Zeta'].join('\n'),
+    ['---', 'title: Zeta Notes', 'order: 20', 'type: page', '---', '', '# Zeta'].join('\n'),
     'utf8',
   );
   await mkdir(path.join(rootDir, 'alpha'));
   await writeFile(
     path.join(rootDir, 'alpha', 'index.md'),
-    ['---', 'title: Alpha Notes', 'type: page', '---', '', '# Alpha'].join('\n'),
+    ['---', 'title: Alpha Notes', 'order: 10', 'type: page', '---', '', '# Alpha'].join('\n'),
     'utf8',
   );
   await mkdir(path.join(rootDir, 'essay'));
@@ -31,6 +31,7 @@ test('buildManagedIndexBlock renders directories and articles with sorting', asy
       '---',
       'title: Directory Essay',
       'type: post',
+      'order: 5',
       'date: 2025-04-05',
       'summary: Essay summary',
       '---',
@@ -41,12 +42,12 @@ test('buildManagedIndexBlock renders directories and articles with sorting', asy
   );
   await writeFile(
     path.join(rootDir, 'old.md'),
-    ['---', 'title: Old Post', 'date: 2024-01-03', 'summary: Old summary', '---', '', '# Old'].join('\n'),
+    ['---', 'title: Old Post', 'order: 30', 'date: 2024-01-03', 'summary: Old summary', '---', '', '# Old'].join('\n'),
     'utf8',
   );
   await writeFile(
     path.join(rootDir, 'new.md'),
-    ['---', 'title: New Post', 'date: 2025-03-04', '---', '', 'First paragraph summary.', '', '# Heading later'].join('\n'),
+    ['---', 'title: New Post', 'order: 20', 'date: 2025-03-04', '---', '', 'First paragraph summary.', '', '# Heading later'].join('\n'),
     'utf8',
   );
   await writeFile(path.join(rootDir, 'index.md'), '# Root\n', 'utf8');
@@ -57,6 +58,7 @@ test('buildManagedIndexBlock renders directories and articles with sorting', asy
   assert.match(block, /\[Directory Essay\]\(\.\/essay\/\)[\s\S]*2025-04-05 · Essay summary/);
   assert.match(block, /\[New Post\]\(\.\/new\.md\)[\s\S]*2025-03-04 · First paragraph summary\./);
   assert.match(block, /\[Old Post\]\(\.\/old\.md\)[\s\S]*2024-01-03 · Old summary/);
+  assert.ok(block.indexOf('Alpha Notes') < block.indexOf('Zeta Notes'));
   assert.ok(block.indexOf('Directory Essay') < block.indexOf('New Post'));
   assert.ok(block.indexOf('New Post') < block.indexOf('Old Post'));
 });

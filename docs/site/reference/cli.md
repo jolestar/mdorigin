@@ -1,5 +1,6 @@
 ---
 title: CLI
+order: 20
 date: 2026-03-20
 summary: Command-line entrypoints for local preview, index generation, and Cloudflare bundles.
 ---

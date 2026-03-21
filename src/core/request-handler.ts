@@ -113,6 +113,7 @@ export async function handleSiteRequest(
       showSummary: options.siteConfig.showSummary,
       showDate: options.siteConfig.showDate,
       theme: options.siteConfig.theme,
+      template: options.siteConfig.template,
       topNav: navigation.items,
       stylesheetContent: options.siteConfig.stylesheetContent,
     }),
@@ -200,6 +201,7 @@ async function renderDirectoryListing(
       showSummary: false,
       showDate: false,
       theme: siteConfig.theme,
+      template: siteConfig.template,
       topNav: navigation.items,
       stylesheetContent: siteConfig.stylesheetContent,
     }),
@@ -288,6 +290,7 @@ async function tryRenderAlternateDirectoryIndex(
         showSummary: options.siteConfig.showSummary,
         showDate: options.siteConfig.showDate,
         theme: options.siteConfig.theme,
+        template: options.siteConfig.template,
         topNav: navigation.items,
         stylesheetContent: options.siteConfig.stylesheetContent,
       }),
@@ -322,6 +325,7 @@ async function resolveTopNav(
 
   const directories = rootEntries.filter((entry) => entry.kind === 'directory');
   const navItems: SiteNavItem[] = [];
+  const orderedNavItems: Array<SiteNavItem & { order?: number }> = [];
 
   for (const entry of directories) {
     const resolved = await resolveDirectoryNav(store, entry);
@@ -329,11 +333,28 @@ async function resolveTopNav(
       continue;
     }
 
-    navItems.push({
+    orderedNavItems.push({
       label: resolved.title,
       href: `/${entry.name}/`,
+      order: resolved.order,
     });
   }
+
+  orderedNavItems.sort((left, right) => {
+    if (left.order !== undefined && right.order !== undefined) {
+      if (left.order !== right.order) {
+        return left.order - right.order;
+      }
+    } else if (left.order !== undefined) {
+      return -1;
+    } else if (right.order !== undefined) {
+      return 1;
+    }
+
+    return left.label.localeCompare(right.label);
+  });
+
+  navItems.push(...orderedNavItems.map(({ label, href }) => ({ label, href })));
 
   return {
     items: navItems,
@@ -344,7 +365,7 @@ async function resolveTopNav(
 async function resolveDirectoryNav(
   store: ContentStore,
   entry: ContentDirectoryEntry,
-): Promise<{ title: string; type: 'page' | 'post' }> {
+): Promise<{ title: string; type: 'page' | 'post'; order?: number }> {
   for (const candidatePath of getDirectoryIndexCandidates(entry.path)) {
     const contentEntry = await store.get(candidatePath);
     if (contentEntry === null || contentEntry.kind !== 'text' || contentEntry.text === undefined) {
@@ -360,6 +381,7 @@ async function resolveDirectoryNav(
           ? parsed.meta.title
           : entry.name,
       type: inferDirectoryContentType(parsed.meta, shape),
+      order: parsed.meta.order,
     };
   }
 

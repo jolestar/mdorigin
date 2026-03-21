@@ -30,6 +30,7 @@ test('loadSiteConfig prefers content root config over cwd config', async () => {
 
   assert.equal(config.siteTitle, 'root-title');
   assert.equal(config.theme, 'gazette');
+  assert.equal(config.template, 'document');
 });
 
 test('applySiteConfigFrontmatterDefaults uses root homepage frontmatter when config is absent', async () => {
@@ -81,6 +82,7 @@ test('applySiteConfigFrontmatterDefaults does not override explicit config value
     showDate: true,
     showSummary: true,
     theme: 'paper',
+    template: 'document',
     topNav: [],
     showHomeIndex: true,
     siteTitleConfigured: true,

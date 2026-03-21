@@ -4,5 +4,6 @@
   "showDate": true,
   "showSummary": true,
   "theme": "atlas",
+  "template": "document",
   "showHomeIndex": true
 }

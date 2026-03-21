@@ -28,6 +28,7 @@ test('node server serves markdown, html, and assets', async () => {
       showDate: true,
       showSummary: true,
       theme: 'paper',
+      template: 'document',
       topNav: [],
       showHomeIndex: true,
       siteTitleConfigured: true,

@@ -1,5 +1,6 @@
 ---
 title: Configuration
+order: 10
 date: 2026-03-20
 summary: Site-level configuration fields and their behavior.
 ---
@@ -13,6 +14,7 @@ Useful fields:
 - `siteTitle`
 - `siteDescription`
 - `theme`
+- `template`
 - `topNav`
 - `showHomeIndex`
 - `stylesheet`
@@ -32,6 +34,15 @@ Useful fields:
 - Auto-derived navigation only includes directories treated as `type: page`.
 - Directories treated as `type: post` are excluded from auto-derived top navigation.
 - When the root homepage already has top navigation, the HTML view hides repeated `page` entries from the managed root index block and keeps only the remaining entries, such as posts.
+
+## Template
+
+`mdorigin` currently supports two built-in template variants:
+
+- `document`: the default docs-and-notes layout
+- `editorial`: a more article-led layout with a dedicated page intro block
+
+The `theme` still controls colors, typography, and spacing. `template` controls the page structure.
 
 ## Directory Type
 
@@ -56,3 +67,20 @@ Rules:
 - `type: page` is for sections, landing pages, and navigable collections
 - `type: post` is for article containers such as `post/README.md` with colocated assets
 - if `type` is omitted, `mdorigin` uses lightweight inference and does not write the result back to frontmatter
+
+## Order
+
+Markdown frontmatter may define `order`:
+
+```md
+---
+title: Getting Started
+order: 10
+---
+```
+
+Rules:
+
+- lower `order` values come first
+- `order` is used for auto-derived top navigation and for directory index generation
+- when `order` is absent, `mdorigin` falls back to its default sort rules

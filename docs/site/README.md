@@ -1,5 +1,7 @@
 ---
 title: mdorigin
+type: page
+order: 0
 date: 2026-03-20
 summary: Markdown-first publishing for human HTML and agent-readable raw markdown.
 ---
@@ -9,6 +11,12 @@ summary: Markdown-first publishing for human HTML and agent-readable raw markdow
 `mdorigin` is a markdown-first publishing engine.
 
 It treats markdown as the source of truth, serves raw `.md` directly for agents, and renders HTML views for humans from the same directory tree.
+
+## Start Here
+
+- [Getting Started](./guides/getting-started.md)
+- [Configuration](./reference/configuration.md)
+- [Cloudflare Deployment](./guides/cloudflare.md)
 
 ## What it does
 
@@ -22,14 +30,9 @@ The site below is intentionally organized as directories so the automatic index 
 
 <!-- INDEX:START -->
 
-- [Concepts](./concepts/)
-  2026-03-20 · Core ideas behind markdown-first publishing, routes, and directory indexes.
-
 - [Guides](./guides/)
-  2026-03-20 · Step-by-step operational guides for previewing, indexing, and deployment.
-
+- [Concepts](./concepts/)
 - [Reference](./reference/)
-  2026-03-20 · Configuration and command reference for mdorigin.
 
 - [Why mdorigin exists](./why-mdorigin.md)
   2026-03-20 · A concise explanation of the markdown-first model and why the project avoids runtime-only content layers.
