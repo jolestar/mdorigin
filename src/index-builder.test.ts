@@ -147,3 +147,27 @@ test('buildDirectoryIndexes updates README.md when index.md is missing', async (
   assert.match(readme, /<!-- INDEX:START -->/);
   assert.match(readme, /\[Getting Started\]\(\.\/getting-started\.md\)/);
 });
+
+test('buildDirectoryIndexes skips type post directory bundles', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-index-post-bundle-'));
+  await mkdir(path.join(rootDir, 'hui-xiang-za-ji'));
+  await writeFile(path.join(rootDir, 'index.md'), '# Root\n', 'utf8');
+  const postReadmePath = path.join(rootDir, 'hui-xiang-za-ji', 'README.md');
+  const original = [
+    '---',
+    'title: 回乡杂记',
+    'type: post',
+    '---',
+    '',
+    '# 回乡杂记',
+  ].join('\n');
+  await writeFile(postReadmePath, original, 'utf8');
+  await writeFile(path.join(rootDir, 'hui-xiang-za-ji', '0523_091247.jpg'), 'binary', 'utf8');
+
+  const result = await buildDirectoryIndexes({ rootDir });
+
+  assert.ok(
+    result.skippedDirectories.some((entry) => entry.endsWith('/hui-xiang-za-ji')),
+  );
+  assert.equal(await readFile(postReadmePath, 'utf8'), original);
+});
