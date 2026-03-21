@@ -58,7 +58,7 @@ You can also choose a page structure with `template`:
 }
 ```
 
-Use `document` for docs-style sites and `editorial` for article-led pages.
+Use `document` for ordinary docs and articles. Use `catalog` for homepages and directory-style collection pages.
 
 ## Build directory indexes
 

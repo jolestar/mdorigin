@@ -574,7 +574,7 @@ test('handleSiteRequest renders yaml dates parsed as Date objects', async () => 
   assert.match(String(response.body), /<h1>Dated<\/h1>/);
 });
 
-test('handleSiteRequest renders editorial template intro and strips duplicated h1', async () => {
+test('handleSiteRequest renders catalog template with shared document structure', async () => {
   const store = new MemoryContentStore([
     {
       path: 'essay.md',
@@ -582,12 +582,12 @@ test('handleSiteRequest renders editorial template intro and strips duplicated h
       mediaType: 'text/markdown; charset=utf-8',
       text: [
         '---',
-        'title: Editorial Essay',
+        'title: Catalog Essay',
         'summary: Long-form introduction.',
         'date: 2026-03-20',
         '---',
         '',
-        '# Editorial Essay',
+        '# Catalog Essay',
         '',
         'Body paragraph.',
       ].join('\n'),
@@ -598,14 +598,13 @@ test('handleSiteRequest renders editorial template intro and strips duplicated h
     draftMode: 'include',
     siteConfig: {
       ...TEST_SITE_CONFIG,
-      template: 'editorial',
+      template: 'catalog',
     },
   });
 
   assert.equal(response.status, 200);
-  assert.match(String(response.body), /data-template="editorial"/);
-  assert.match(String(response.body), /page-intro__title">Editorial Essay</);
-  assert.match(String(response.body), /Long-form introduction\./);
+  assert.match(String(response.body), /data-template="catalog"/);
+  assert.match(String(response.body), /<h1>Catalog Essay<\/h1>/);
   assert.equal((String(response.body).match(/<h1/g) ?? []).length, 1);
   assert.match(String(response.body), /Body paragraph\./);
 });

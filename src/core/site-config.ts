@@ -151,7 +151,7 @@ function isBuiltInThemeName(value: unknown): value is BuiltInThemeName {
 }
 
 function isTemplateName(value: unknown): value is TemplateName {
-  return value === 'document' || value === 'editorial';
+  return value === 'document' || value === 'catalog';
 }
 
 function isNodeNotFound(error: unknown): error is NodeJS.ErrnoException {

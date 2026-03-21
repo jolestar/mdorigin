@@ -40,7 +40,7 @@ Useful fields:
 `mdorigin` currently supports two built-in template variants:
 
 - `document`: the default docs-and-notes layout
-- `editorial`: a more article-led layout with a dedicated page intro block
+- `catalog`: for homepages and directory-style collection pages
 
 The `theme` still controls colors, typography, and spacing. `template` controls the page structure.
 
