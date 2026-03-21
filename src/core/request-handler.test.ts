@@ -200,6 +200,37 @@ test('handleSiteRequest renders README.md as directory homepage fallback', async
   assert.match(String(response.body), /Root Readme/);
 });
 
+test('handleSiteRequest redirects alternate directory markdown filenames', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Root Readme', '---', '', '# Root Readme'].join('\n'),
+    },
+    {
+      path: 'guides/index.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Guides', '---', '', '# Guides'].join('\n'),
+    },
+  ]);
+
+  const rootRedirect = await handleSiteRequest(store, '/index.md', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+  assert.equal(rootRedirect.status, 308);
+  assert.equal(rootRedirect.headers.location, '/README.md');
+
+  const guidesRedirect = await handleSiteRequest(store, '/guides/README.md', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+  assert.equal(guidesRedirect.status, 308);
+  assert.equal(guidesRedirect.headers.location, '/guides/index.md');
+});
+
 test('handleSiteRequest derives top navigation from root directories when topNav is empty', async () => {
   const store = new MemoryContentStore([
     {

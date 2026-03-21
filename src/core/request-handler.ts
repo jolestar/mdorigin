@@ -39,6 +39,15 @@ export async function handleSiteRequest(
 
   const entry = await store.get(resolved.sourcePath);
   if (entry === null) {
+    const alternateMarkdownRedirect = await tryRedirectAlternateDirectoryMarkdown(
+      store,
+      resolved,
+      options,
+    );
+    if (alternateMarkdownRedirect !== null) {
+      return alternateMarkdownRedirect;
+    }
+
     if (resolved.kind === 'html' && resolved.requestPath.endsWith('/')) {
       const directoryIndexResponse = await tryRenderAlternateDirectoryIndex(
         store,
@@ -151,6 +160,15 @@ function notFound(): SiteResponse {
       'content-type': 'text/plain; charset=utf-8',
     },
     body: 'Not Found',
+  };
+}
+
+function redirect(location: string): SiteResponse {
+  return {
+    status: 308,
+    headers: {
+      location,
+    },
   };
 }
 
@@ -298,6 +316,48 @@ async function tryRenderAlternateDirectoryIndex(
   }
 
   return null;
+}
+
+async function tryRedirectAlternateDirectoryMarkdown(
+  store: ContentStore,
+  resolved: ReturnType<typeof resolveRequest>,
+  options: HandleSiteRequestOptions,
+): Promise<SiteResponse | null> {
+  if (resolved.kind !== 'markdown' || !resolved.sourcePath) {
+    return null;
+  }
+
+  const basename = path.posix.basename(resolved.sourcePath);
+  if (basename !== 'index.md' && basename !== 'README.md') {
+    return null;
+  }
+
+  const directoryPath = path.posix.dirname(resolved.sourcePath);
+  for (const candidatePath of getDirectoryIndexCandidates(
+    directoryPath === '.' ? '' : directoryPath,
+  )) {
+    if (candidatePath === resolved.sourcePath) {
+      continue;
+    }
+
+    const entry = await store.get(candidatePath);
+    if (entry === null || entry.kind !== 'text' || entry.text === undefined) {
+      continue;
+    }
+
+    const parsed = await parseMarkdownDocument(candidatePath, entry.text);
+    if (parsed.meta.draft === true && options.draftMode === 'exclude') {
+      return null;
+    }
+
+    return redirect(getMarkdownRequestPathForContentPath(candidatePath));
+  }
+
+  return null;
+}
+
+function getMarkdownRequestPathForContentPath(contentPath: string): string {
+  return `/${contentPath}`;
 }
 
 function isRootHomeRequest(requestPath: string): boolean {
