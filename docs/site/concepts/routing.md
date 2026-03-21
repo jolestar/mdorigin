@@ -22,8 +22,11 @@ docs/site/
 - `README.md` -> `/README.md`
 - directory homepage -> `/` using `index.md`, or `README.md` if `index.md` is absent
 - `guides/getting-started.md` -> `/guides/getting-started.md`, `/guides/getting-started.html`, `/guides/getting-started`
+- sitemap -> `/sitemap.xml`
 
 If a directory has no `index.md`, the current runtime can still render a minimal fallback listing for browsing.
+
+`/sitemap.xml` emits canonical HTML URLs, not `.md` source URLs. It requires `siteUrl` so the sitemap can use absolute locations.
 
 ## Canonical markdown paths
 

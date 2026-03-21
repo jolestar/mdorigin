@@ -233,6 +233,64 @@ test('handleSiteRequest filters drafts in exclude mode', async () => {
   assert.equal(excluded.status, 404);
 });
 
+test('handleSiteRequest renders sitemap.xml with canonical html urls', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Home', 'date: 2026-03-20', '---', '', '# Home'].join('\n'),
+    },
+    {
+      path: 'guides/README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Guides', 'date: 2026-03-21', '---', '', '# Guides'].join('\n'),
+    },
+    {
+      path: 'posts/hello.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Hello', 'aliases:', '  - /hello-world', '---', '', '# Hello'].join('\n'),
+    },
+    {
+      path: 'draft.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'draft: true', '---', '', '# Draft'].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/sitemap.xml', {
+    draftMode: 'exclude',
+    siteConfig: {
+      ...TEST_SITE_CONFIG,
+      siteUrl: 'https://example.com',
+    },
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['content-type'], 'application/xml; charset=utf-8');
+  const body = String(response.body);
+  assert.match(body, /<loc>https:\/\/example\.com\/<\/loc>/);
+  assert.match(body, /<loc>https:\/\/example\.com\/guides\/<\/loc>/);
+  assert.match(body, /<loc>https:\/\/example\.com\/posts\/hello<\/loc>/);
+  assert.doesNotMatch(body, /hello-world/);
+  assert.doesNotMatch(body, /draft/);
+  assert.match(body, /<lastmod>2026-03-20<\/lastmod>/);
+  assert.match(body, /<lastmod>2026-03-21<\/lastmod>/);
+});
+
+test('handleSiteRequest returns an error for sitemap.xml when siteUrl is missing', async () => {
+  const response = await handleSiteRequest(new MemoryContentStore([]), '/sitemap.xml', {
+    draftMode: 'exclude',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+
+  assert.equal(response.status, 500);
+  assert.match(String(response.body), /siteUrl/);
+});
+
 test('handleSiteRequest renders directory listings when index is missing', async () => {
   const store = new MemoryContentStore([
     {

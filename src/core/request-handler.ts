@@ -33,6 +33,10 @@ export async function handleSiteRequest(
   pathname: string,
   options: HandleSiteRequestOptions,
 ): Promise<SiteResponse> {
+  if (pathname === '/sitemap.xml') {
+    return renderSitemap(store, options);
+  }
+
   const resolved = resolveRequest(pathname);
   const negotiatedMarkdown = shouldServeMarkdownForRequest(
     resolved,
@@ -212,6 +216,40 @@ function redirect(location: string): SiteResponse {
   };
 }
 
+async function renderSitemap(
+  store: ContentStore,
+  options: HandleSiteRequestOptions,
+): Promise<SiteResponse> {
+  if (!options.siteConfig.siteUrl) {
+    return {
+      status: 500,
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+      },
+      body: 'sitemap.xml requires siteUrl in mdorigin.config.json',
+    };
+  }
+
+  const entries = await collectSitemapEntries(store, '', options);
+  const body = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...entries.map((entry) => {
+      const lastmod = entry.lastmod ? `<lastmod>${escapeHtml(entry.lastmod)}</lastmod>` : '';
+      return `  <url><loc>${escapeHtml(`${options.siteConfig.siteUrl}${entry.path}`)}</loc>${lastmod}</url>`;
+    }),
+    '</urlset>',
+  ].join('\n');
+
+  return {
+    status: 200,
+    headers: {
+      'content-type': 'application/xml; charset=utf-8',
+    },
+    body,
+  };
+}
+
 function withVaryAcceptIfNeeded(
   headers: Record<string, string>,
   enabled: boolean,
@@ -248,6 +286,72 @@ function getDocumentTitle(parsed: Awaited<ReturnType<typeof parseMarkdownDocumen
   return basename === 'index'
     ? path.posix.basename(path.posix.dirname(parsed.sourcePath)) || 'mdorigin'
     : basename;
+}
+
+interface SitemapEntry {
+  path: string;
+  lastmod?: string;
+}
+
+async function collectSitemapEntries(
+  store: ContentStore,
+  directoryPath: string,
+  options: HandleSiteRequestOptions,
+): Promise<SitemapEntry[]> {
+  const entries = await store.listDirectory(directoryPath);
+  if (entries === null) {
+    return [];
+  }
+
+  const sitemapEntries: SitemapEntry[] = [];
+
+  for (const entry of entries) {
+    if (entry.kind === 'directory') {
+      sitemapEntries.push(
+        ...(await collectSitemapEntries(store, entry.path, options)),
+      );
+      continue;
+    }
+
+    if (!isMarkdownEntry(entry)) {
+      continue;
+    }
+
+    const document = await store.get(entry.path);
+    if (document === null || document.kind !== 'text' || document.text === undefined) {
+      continue;
+    }
+
+    const parsed = await parseMarkdownDocument(entry.path, document.text);
+    if (parsed.meta.draft === true && options.draftMode === 'exclude') {
+      continue;
+    }
+
+    sitemapEntries.push({
+      path: getCanonicalHtmlPathForContentPath(entry.path),
+      lastmod: parsed.meta.date,
+    });
+  }
+
+  sitemapEntries.sort((left, right) => left.path.localeCompare(right.path));
+  return dedupeSitemapEntries(sitemapEntries);
+}
+
+function dedupeSitemapEntries(entries: SitemapEntry[]): SitemapEntry[] {
+  const deduped = new Map<string, SitemapEntry>();
+  for (const entry of entries) {
+    const existing = deduped.get(entry.path);
+    if (!existing) {
+      deduped.set(entry.path, entry);
+      continue;
+    }
+
+    if (!existing.lastmod && entry.lastmod) {
+      deduped.set(entry.path, entry);
+    }
+  }
+
+  return Array.from(deduped.values());
 }
 
 async function renderDirectoryListing(

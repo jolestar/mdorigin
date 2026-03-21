@@ -46,6 +46,7 @@ Useful fields:
 ## Branding
 
 - `siteUrl` sets the canonical site origin and is used for canonical links in rendered HTML.
+- `siteUrl` also enables `/sitemap.xml`, which emits absolute canonical URLs.
 - `favicon` adds a standard favicon link tag.
 - `logo` renders a small site logo in the header.
 
