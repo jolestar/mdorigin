@@ -85,7 +85,7 @@ export function resolveRequest(pathname: string): ResolvedRequest {
       };
 }
 
-function normalizeRequestPath(pathname: string): string | null {
+export function normalizeRequestPath(pathname: string): string | null {
   try {
     const decoded = decodeURIComponent(pathname || '/');
     const collapsed = decoded.replace(/\/{2,}/g, '/');

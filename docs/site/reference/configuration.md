@@ -13,9 +13,16 @@ Useful fields:
 
 - `siteTitle`
 - `siteDescription`
+- `siteUrl`
+- `favicon`
+- `logo`
 - `theme`
 - `template`
 - `topNav`
+- `footerNav`
+- `footerText`
+- `socialLinks`
+- `editLink`
 - `showHomeIndex`
 - `stylesheet`
 
@@ -34,13 +41,68 @@ Useful fields:
 - Auto-derived navigation only includes directories treated as `type: page`.
 - Directories treated as `type: post` are excluded from auto-derived top navigation.
 - When the root homepage already has top navigation, the HTML view hides repeated `page` entries from the managed root index block and keeps only the remaining entries, such as posts.
+- `footerNav` is always explicit and is not auto-derived from the content tree.
+
+## Branding
+
+- `siteUrl` sets the canonical site origin and is used for canonical links in rendered HTML.
+- `siteUrl` also enables `/sitemap.xml`, which emits absolute canonical URLs.
+- `favicon` adds a standard favicon link tag.
+- `logo` renders a small site logo in the header.
+
+Example:
+
+```json
+{
+  "siteUrl": "https://example.com",
+  "favicon": "/favicon.svg",
+  "logo": {
+    "src": "/logo.svg",
+    "alt": "Example"
+  }
+}
+```
+
+## Footer
+
+`mdorigin` supports a small set of explicit footer settings:
+
+- `footerNav`
+- `footerText`
+- `socialLinks`
+- `editLink`
+
+Example:
+
+```json
+{
+  "footerNav": [
+    { "label": "GitHub", "href": "https://github.com/example/repo" }
+  ],
+  "footerText": "Built with mdorigin.",
+  "socialLinks": [
+    { "icon": "github", "label": "GitHub", "href": "https://github.com/example/repo" }
+  ],
+  "editLink": {
+    "baseUrl": "https://github.com/example/repo/edit/main/docs/"
+  }
+}
+```
+
+Built-in social icons currently include:
+
+- `github`
+- `npm`
+- `rss`
+- `x`
+- `home`
 
 ## Template
 
 `mdorigin` currently supports two built-in template variants:
 
 - `document`: the default docs-and-notes layout
-- `editorial`: a more article-led layout with a dedicated page intro block
+- `catalog`: for homepages and directory-style collection pages
 
 The `theme` still controls colors, typography, and spacing. `template` controls the page structure.
 
@@ -84,3 +146,25 @@ Rules:
 - lower `order` values come first
 - `order` is used for auto-derived top navigation and for directory index generation
 - when `order` is absent, `mdorigin` falls back to its default sort rules
+
+## Aliases
+
+Markdown frontmatter may define old URLs that should redirect to the current canonical route:
+
+```md
+---
+title: Hello
+aliases:
+  - /hello-world
+  - /old/hello
+---
+```
+
+Rules:
+
+- `aliases` may be a string or a string array
+- alias requests return `308` redirects
+- aliases redirect to the canonical HTML route for the current document
+- directory homepages redirect to `/dir/`
+- regular markdown documents redirect to `/dir/name`
+- draft documents do not expose aliases in exclude mode

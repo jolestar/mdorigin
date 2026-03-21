@@ -1,1 +1,1 @@
-export type TemplateName = 'document' | 'editorial';
+export type TemplateName = 'document' | 'catalog';

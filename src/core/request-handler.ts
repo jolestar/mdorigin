@@ -8,17 +8,19 @@ import type {
 import { inferDirectoryContentType } from './content-type.js';
 import { getDirectoryIndexCandidates } from './directory-index.js';
 import {
+  extractManagedIndexEntries,
   parseMarkdownDocument,
   stripManagedIndexBlock,
   stripManagedIndexLinks,
 } from './markdown.js';
 import type { ResolvedSiteConfig, SiteNavItem } from './site-config.js';
-import { resolveRequest } from './router.js';
+import { normalizeRequestPath, resolveRequest } from './router.js';
 import { escapeHtml, renderDocument } from '../html/template.js';
 
 export interface HandleSiteRequestOptions {
   draftMode: 'include' | 'exclude';
   siteConfig: ResolvedSiteConfig;
+  acceptHeader?: string;
 }
 
 export interface SiteResponse {
@@ -32,13 +34,50 @@ export async function handleSiteRequest(
   pathname: string,
   options: HandleSiteRequestOptions,
 ): Promise<SiteResponse> {
+  if (pathname === '/sitemap.xml') {
+    return renderSitemap(store, options);
+  }
+
   const resolved = resolveRequest(pathname);
+  const negotiatedMarkdown = shouldServeMarkdownForRequest(
+    resolved,
+    options.acceptHeader,
+  );
   if (resolved.kind === 'not-found' || !resolved.sourcePath) {
+    const aliasRedirect = await tryRedirectAlias(store, pathname, options);
+    if (aliasRedirect !== null) {
+      return aliasRedirect;
+    }
+
     return notFound();
   }
 
   const entry = await store.get(resolved.sourcePath);
   if (entry === null) {
+    const aliasRedirect = await tryRedirectAlias(store, pathname, options);
+    if (aliasRedirect !== null) {
+      return aliasRedirect;
+    }
+
+    const alternateDirectoryMarkdown = await tryServeAlternateDirectoryMarkdown(
+      store,
+      resolved,
+      options,
+      negotiatedMarkdown,
+    );
+    if (alternateDirectoryMarkdown !== null) {
+      return alternateDirectoryMarkdown;
+    }
+
+    const alternateMarkdownRedirect = await tryRedirectAlternateDirectoryMarkdown(
+      store,
+      resolved,
+      options,
+    );
+    if (alternateMarkdownRedirect !== null) {
+      return alternateMarkdownRedirect;
+    }
+
     if (resolved.kind === 'html' && resolved.requestPath.endsWith('/')) {
       const directoryIndexResponse = await tryRenderAlternateDirectoryIndex(
         store,
@@ -63,7 +102,7 @@ export async function handleSiteRequest(
     return notFound();
   }
 
-  if (resolved.kind === 'markdown') {
+  if (resolved.kind === 'markdown' || negotiatedMarkdown) {
     const parsed = await parseMarkdownDocument(resolved.sourcePath, entry.text);
     if (parsed.meta.draft === true && options.draftMode === 'exclude') {
       return notFound();
@@ -71,9 +110,12 @@ export async function handleSiteRequest(
 
     return {
       status: 200,
-      headers: {
+      headers: withVaryAcceptIfNeeded(
+        {
         'content-type': entry.mediaType,
-      },
+        },
+        negotiatedMarkdown,
+      ),
       body: entry.text,
     };
   }
@@ -93,18 +135,32 @@ export async function handleSiteRequest(
             new Set(navigation.items.map((item) => item.href)),
           )
       : entry.text;
-  const renderedParsed = renderedBody === entry.text
+  const catalogEntries =
+    options.siteConfig.template === 'catalog'
+      ? extractManagedIndexEntries(renderedBody)
+      : [];
+  const documentBody =
+    options.siteConfig.template === 'catalog'
+      ? stripManagedIndexBlock(renderedBody)
+      : renderedBody;
+  const renderedParsed = documentBody === entry.text
     ? parsed
-    : await parseMarkdownDocument(resolved.sourcePath, renderedBody);
+    : await parseMarkdownDocument(resolved.sourcePath, documentBody);
 
   return {
     status: 200,
-    headers: {
+    headers: withVaryAcceptIfNeeded(
+      {
       'content-type': 'text/html; charset=utf-8',
-    },
+      },
+      shouldVaryOnAccept(resolved),
+    ),
     body: renderDocument({
       siteTitle: options.siteConfig.siteTitle,
       siteDescription: options.siteConfig.siteDescription,
+      siteUrl: options.siteConfig.siteUrl,
+      favicon: options.siteConfig.favicon,
+      logo: options.siteConfig.logo,
       title: getDocumentTitle(parsed),
       body: renderedParsed.html,
       summary:
@@ -115,7 +171,14 @@ export async function handleSiteRequest(
       theme: options.siteConfig.theme,
       template: options.siteConfig.template,
       topNav: navigation.items,
+      footerNav: options.siteConfig.footerNav,
+      footerText: options.siteConfig.footerText,
+      socialLinks: options.siteConfig.socialLinks,
+      editLinkHref: getEditLinkHref(options.siteConfig, resolved.sourcePath),
       stylesheetContent: options.siteConfig.stylesheetContent,
+      canonicalPath: getCanonicalHtmlPathForContentPath(resolved.sourcePath),
+      alternateMarkdownPath: getMarkdownRequestPathForContentPath(resolved.sourcePath),
+      catalogEntries,
     }),
   };
 }
@@ -154,6 +217,76 @@ function notFound(): SiteResponse {
   };
 }
 
+function redirect(location: string): SiteResponse {
+  return {
+    status: 308,
+    headers: {
+      location,
+    },
+  };
+}
+
+async function renderSitemap(
+  store: ContentStore,
+  options: HandleSiteRequestOptions,
+): Promise<SiteResponse> {
+  if (!options.siteConfig.siteUrl) {
+    return {
+      status: 500,
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+      },
+      body: 'sitemap.xml requires siteUrl in mdorigin.config.json',
+    };
+  }
+
+  const entries = await collectSitemapEntries(store, '', options);
+  const body = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...entries.map((entry) => {
+      const lastmod = entry.lastmod ? `<lastmod>${escapeHtml(entry.lastmod)}</lastmod>` : '';
+      return `  <url><loc>${escapeHtml(`${options.siteConfig.siteUrl}${entry.path}`)}</loc>${lastmod}</url>`;
+    }),
+    '</urlset>',
+  ].join('\n');
+
+  return {
+    status: 200,
+    headers: {
+      'content-type': 'application/xml; charset=utf-8',
+    },
+    body,
+  };
+}
+
+function withVaryAcceptIfNeeded(
+  headers: Record<string, string>,
+  enabled: boolean,
+): Record<string, string> {
+  if (!enabled) {
+    return headers;
+  }
+
+  return {
+    ...headers,
+    vary: appendVary(headers.vary, 'Accept'),
+  };
+}
+
+function appendVary(existing: string | undefined, value: string): string {
+  if (!existing || existing.trim() === '') {
+    return value;
+  }
+
+  const parts = existing.split(',').map((part) => part.trim().toLowerCase());
+  if (parts.includes(value.toLowerCase())) {
+    return existing;
+  }
+
+  return `${existing}, ${value}`;
+}
+
 function getDocumentTitle(parsed: Awaited<ReturnType<typeof parseMarkdownDocument>>): string {
   if (parsed.meta.title) {
     return parsed.meta.title;
@@ -163,6 +296,72 @@ function getDocumentTitle(parsed: Awaited<ReturnType<typeof parseMarkdownDocumen
   return basename === 'index'
     ? path.posix.basename(path.posix.dirname(parsed.sourcePath)) || 'mdorigin'
     : basename;
+}
+
+interface SitemapEntry {
+  path: string;
+  lastmod?: string;
+}
+
+async function collectSitemapEntries(
+  store: ContentStore,
+  directoryPath: string,
+  options: HandleSiteRequestOptions,
+): Promise<SitemapEntry[]> {
+  const entries = await store.listDirectory(directoryPath);
+  if (entries === null) {
+    return [];
+  }
+
+  const sitemapEntries: SitemapEntry[] = [];
+
+  for (const entry of entries) {
+    if (entry.kind === 'directory') {
+      sitemapEntries.push(
+        ...(await collectSitemapEntries(store, entry.path, options)),
+      );
+      continue;
+    }
+
+    if (!isMarkdownEntry(entry)) {
+      continue;
+    }
+
+    const document = await store.get(entry.path);
+    if (document === null || document.kind !== 'text' || document.text === undefined) {
+      continue;
+    }
+
+    const parsed = await parseMarkdownDocument(entry.path, document.text);
+    if (parsed.meta.draft === true && options.draftMode === 'exclude') {
+      continue;
+    }
+
+    sitemapEntries.push({
+      path: getCanonicalHtmlPathForContentPath(entry.path),
+      lastmod: parsed.meta.date,
+    });
+  }
+
+  sitemapEntries.sort((left, right) => left.path.localeCompare(right.path));
+  return dedupeSitemapEntries(sitemapEntries);
+}
+
+function dedupeSitemapEntries(entries: SitemapEntry[]): SitemapEntry[] {
+  const deduped = new Map<string, SitemapEntry>();
+  for (const entry of entries) {
+    const existing = deduped.get(entry.path);
+    if (!existing) {
+      deduped.set(entry.path, entry);
+      continue;
+    }
+
+    if (!existing.lastmod && entry.lastmod) {
+      deduped.set(entry.path, entry);
+    }
+  }
+
+  return Array.from(deduped.values());
 }
 
 async function renderDirectoryListing(
@@ -196,6 +395,9 @@ async function renderDirectoryListing(
     body: renderDocument({
       siteTitle: siteConfig.siteTitle,
       siteDescription: siteConfig.siteDescription,
+      siteUrl: siteConfig.siteUrl,
+      favicon: siteConfig.favicon,
+      logo: siteConfig.logo,
       title: getDirectoryTitle(requestPath),
       body,
       showSummary: false,
@@ -203,7 +405,14 @@ async function renderDirectoryListing(
       theme: siteConfig.theme,
       template: siteConfig.template,
       topNav: navigation.items,
+      footerNav: siteConfig.footerNav,
+      footerText: siteConfig.footerText,
+      socialLinks: siteConfig.socialLinks,
       stylesheetContent: siteConfig.stylesheetContent,
+      canonicalPath: requestPath,
+      alternateMarkdownPath: getMarkdownRequestPathForContentPath(
+        getDirectoryIndexContentPathForRequestPath(requestPath),
+      ),
     }),
   };
 }
@@ -238,6 +447,12 @@ function getDirectoryTitle(requestPath: string): string {
   return requestPath === '/' ? 'Index' : requestPath;
 }
 
+function getDirectoryIndexContentPathForRequestPath(requestPath: string): string {
+  return requestPath === '/'
+    ? 'index.md'
+    : `${requestPath.slice(1).replace(/\/$/, '')}/index.md`;
+}
+
 async function tryRenderAlternateDirectoryIndex(
   store: ContentStore,
   requestPath: string,
@@ -270,9 +485,17 @@ async function tryRenderAlternateDirectoryIndex(
               new Set(navigation.items.map((item) => item.href)),
             )
         : entry.text;
-    const renderedParsed = renderedBody === entry.text
+    const catalogEntries =
+      options.siteConfig.template === 'catalog'
+        ? extractManagedIndexEntries(renderedBody)
+        : [];
+    const documentBody =
+      options.siteConfig.template === 'catalog'
+        ? stripManagedIndexBlock(renderedBody)
+        : renderedBody;
+    const renderedParsed = documentBody === entry.text
       ? parsed
-      : await parseMarkdownDocument(candidatePath, renderedBody);
+      : await parseMarkdownDocument(candidatePath, documentBody);
 
     return {
       status: 200,
@@ -282,6 +505,9 @@ async function tryRenderAlternateDirectoryIndex(
       body: renderDocument({
         siteTitle: options.siteConfig.siteTitle,
         siteDescription: options.siteConfig.siteDescription,
+        siteUrl: options.siteConfig.siteUrl,
+        favicon: options.siteConfig.favicon,
+        logo: options.siteConfig.logo,
         title: getDocumentTitle(parsed),
         body: renderedParsed.html,
         summary:
@@ -292,7 +518,14 @@ async function tryRenderAlternateDirectoryIndex(
         theme: options.siteConfig.theme,
         template: options.siteConfig.template,
         topNav: navigation.items,
+        footerNav: options.siteConfig.footerNav,
+        footerText: options.siteConfig.footerText,
+        socialLinks: options.siteConfig.socialLinks,
+        editLinkHref: getEditLinkHref(options.siteConfig, candidatePath),
         stylesheetContent: options.siteConfig.stylesheetContent,
+        canonicalPath: requestPath,
+        alternateMarkdownPath: getMarkdownRequestPathForContentPath(candidatePath),
+        catalogEntries,
       }),
     };
   }
@@ -300,8 +533,238 @@ async function tryRenderAlternateDirectoryIndex(
   return null;
 }
 
+async function tryServeAlternateDirectoryMarkdown(
+  store: ContentStore,
+  resolved: ReturnType<typeof resolveRequest>,
+  options: HandleSiteRequestOptions,
+  negotiatedMarkdown: boolean,
+): Promise<SiteResponse | null> {
+  if (!negotiatedMarkdown || resolved.kind !== 'html' || !resolved.sourcePath) {
+    return null;
+  }
+
+  if (!resolved.requestPath.endsWith('/')) {
+    return null;
+  }
+
+  const directoryPath = path.posix.dirname(resolved.sourcePath);
+  for (const candidatePath of getDirectoryIndexCandidates(
+    directoryPath === '.' ? '' : directoryPath,
+  )) {
+    if (candidatePath === resolved.sourcePath) {
+      continue;
+    }
+
+    const entry = await store.get(candidatePath);
+    if (entry === null || entry.kind !== 'text' || entry.text === undefined) {
+      continue;
+    }
+
+    const parsed = await parseMarkdownDocument(candidatePath, entry.text);
+    if (parsed.meta.draft === true && options.draftMode === 'exclude') {
+      return notFound();
+    }
+
+    return {
+      status: 200,
+      headers: withVaryAcceptIfNeeded(
+        {
+          'content-type': entry.mediaType,
+        },
+        true,
+      ),
+      body: entry.text,
+    };
+  }
+
+  return null;
+}
+
+async function tryRedirectAlternateDirectoryMarkdown(
+  store: ContentStore,
+  resolved: ReturnType<typeof resolveRequest>,
+  options: HandleSiteRequestOptions,
+): Promise<SiteResponse | null> {
+  if (resolved.kind !== 'markdown' || !resolved.sourcePath) {
+    return null;
+  }
+
+  const basename = path.posix.basename(resolved.sourcePath);
+  if (basename !== 'index.md' && basename !== 'README.md') {
+    return null;
+  }
+
+  const directoryPath = path.posix.dirname(resolved.sourcePath);
+  for (const candidatePath of getDirectoryIndexCandidates(
+    directoryPath === '.' ? '' : directoryPath,
+  )) {
+    if (candidatePath === resolved.sourcePath) {
+      continue;
+    }
+
+    const entry = await store.get(candidatePath);
+    if (entry === null || entry.kind !== 'text' || entry.text === undefined) {
+      continue;
+    }
+
+    const parsed = await parseMarkdownDocument(candidatePath, entry.text);
+    if (parsed.meta.draft === true && options.draftMode === 'exclude') {
+      return null;
+    }
+
+    return redirect(getMarkdownRequestPathForContentPath(candidatePath));
+  }
+
+  return null;
+}
+
+function getMarkdownRequestPathForContentPath(contentPath: string): string {
+  return `/${contentPath}`;
+}
+
 function isRootHomeRequest(requestPath: string): boolean {
   return requestPath === '/';
+}
+
+function shouldServeMarkdownForRequest(
+  resolved: ReturnType<typeof resolveRequest>,
+  acceptHeader: string | undefined,
+): boolean {
+  return shouldVaryOnAccept(resolved) && acceptsMarkdown(acceptHeader);
+}
+
+function shouldVaryOnAccept(
+  resolved: ReturnType<typeof resolveRequest>,
+): boolean {
+  if (resolved.kind !== 'html') {
+    return false;
+  }
+
+  return !resolved.requestPath.endsWith('.html');
+}
+
+function acceptsMarkdown(acceptHeader: string | undefined): boolean {
+  if (!acceptHeader) {
+    return false;
+  }
+
+  return acceptHeader
+    .split(',')
+    .map((part) => part.split(';', 1)[0]?.trim().toLowerCase())
+    .includes('text/markdown');
+}
+
+async function tryRedirectAlias(
+  store: ContentStore,
+  pathname: string,
+  options: HandleSiteRequestOptions,
+): Promise<SiteResponse | null> {
+  const normalizedRequestPath = normalizeRequestPath(pathname);
+  if (normalizedRequestPath === null) {
+    return null;
+  }
+
+  const redirectLocation = await findAliasRedirectLocation(
+    store,
+    '',
+    normalizedRequestPath,
+    options,
+  );
+  if (!redirectLocation || redirectLocation === normalizedRequestPath) {
+    return null;
+  }
+
+  return redirect(redirectLocation);
+}
+
+async function findAliasRedirectLocation(
+  store: ContentStore,
+  directoryPath: string,
+  requestPath: string,
+  options: HandleSiteRequestOptions,
+): Promise<string | null> {
+  const entries = await store.listDirectory(directoryPath);
+  if (entries === null) {
+    return null;
+  }
+
+  for (const entry of entries) {
+    if (entry.kind === 'directory') {
+      const nestedMatch = await findAliasRedirectLocation(
+        store,
+        entry.path,
+        requestPath,
+        options,
+      );
+      if (nestedMatch !== null) {
+        return nestedMatch;
+      }
+      continue;
+    }
+
+    if (!isMarkdownEntry(entry)) {
+      continue;
+    }
+
+    const document = await store.get(entry.path);
+    if (document === null || document.kind !== 'text' || document.text === undefined) {
+      continue;
+    }
+
+    const parsed = await parseMarkdownDocument(entry.path, document.text);
+    if (parsed.meta.draft === true && options.draftMode === 'exclude') {
+      continue;
+    }
+
+    const aliases = normalizeAliases(parsed.meta.aliases);
+    if (!aliases.includes(requestPath)) {
+      continue;
+    }
+
+    return getCanonicalHtmlPathForContentPath(entry.path);
+  }
+
+  return null;
+}
+
+function isMarkdownEntry(entry: ContentDirectoryEntry): boolean {
+  return path.posix.extname(entry.name).toLowerCase() === '.md';
+}
+
+function normalizeAliases(aliases: unknown): string[] {
+  if (!Array.isArray(aliases)) {
+    return [];
+  }
+
+  return aliases.flatMap((alias) => {
+    if (typeof alias !== 'string') {
+      return [];
+    }
+
+    const normalized = normalizeRequestPath(alias);
+    return normalized === null ? [] : [normalized];
+  });
+}
+
+function getCanonicalHtmlPathForContentPath(contentPath: string): string {
+  const basename = path.posix.basename(contentPath).toLowerCase();
+  if (basename === 'index.md' || basename === 'readme.md') {
+    const directory = path.posix.dirname(contentPath);
+    return directory === '.' ? '/' : `/${directory}/`;
+  }
+
+  return `/${contentPath.slice(0, -'.md'.length)}`;
+}
+
+function getEditLinkHref(
+  siteConfig: ResolvedSiteConfig,
+  sourcePath: string | undefined,
+): string | undefined {
+  if (!siteConfig.editLink || !sourcePath) {
+    return undefined;
+  }
+
+  return `${siteConfig.editLink.baseUrl}${sourcePath}`;
 }
 
 async function resolveTopNav(

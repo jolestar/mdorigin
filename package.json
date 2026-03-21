@@ -1,6 +1,6 @@
 {
   "name": "mdorigin",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Markdown-first publishing engine with raw Markdown and HTML views.",
   "repository": {
@@ -19,7 +19,7 @@
     "cli"
   ],
   "bin": {
-    "mdorigin": "./dist/cli/main.js"
+    "mdorigin": "dist/cli/main.js"
   },
   "exports": {
     "./cloudflare": {
@@ -37,7 +37,7 @@
   ],
   "scripts": {
     "dev": "tsx src/cli/main.ts dev",
-    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.json",
+    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.json && node -e \"const fs=require('node:fs'); const file='dist/cli/main.js'; const source=fs.readFileSync(file,'utf8'); if (!source.startsWith('#!/usr/bin/env node\\n')) fs.writeFileSync(file, '#!/usr/bin/env node\\n' + source);\"",
     "build:index": "tsx src/cli/main.ts build index",
     "build:cloudflare": "tsx src/cli/main.ts build cloudflare",
     "init:cloudflare": "tsx src/cli/main.ts init cloudflare",

@@ -7,11 +7,18 @@ import { resolveRequest } from './router.js';
 
 const TEST_SITE_CONFIG = {
   siteTitle: 'Test Site',
+  siteUrl: undefined,
+  favicon: undefined,
+  logo: undefined,
   showDate: true,
   showSummary: true,
   theme: 'paper' as const,
   template: 'document' as const,
   topNav: [],
+  footerNav: [],
+  footerText: undefined,
+  socialLinks: [],
+  editLink: undefined,
   showHomeIndex: true,
   siteTitleConfigured: true,
   siteDescriptionConfigured: false,
@@ -125,6 +132,84 @@ test('handleSiteRequest renders html and preserves markdown', async () => {
   assert.match(String(defaultHtmlResponse.body), /href="\.\.\/"/);
 });
 
+test('handleSiteRequest serves markdown on extensionless routes when accept asks for markdown', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Home', '---', '', '# Home'].join('\n'),
+    },
+    {
+      path: 'topic/README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Topic Home', '---', '', '# Topic Home'].join('\n'),
+    },
+    {
+      path: 'topic/post.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Post', '---', '', '# Post'].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/topic/post', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+    acceptHeader: 'text/markdown, text/html;q=0.9',
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['content-type'], 'text/markdown; charset=utf-8');
+  assert.equal(response.headers.vary, 'Accept');
+  assert.match(String(response.body), /^---/m);
+
+  const homeResponse = await handleSiteRequest(store, '/', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+    acceptHeader: 'text/markdown',
+  });
+  assert.equal(homeResponse.status, 200);
+  assert.equal(homeResponse.headers['content-type'], 'text/markdown; charset=utf-8');
+  assert.equal(homeResponse.headers.vary, 'Accept');
+  assert.match(String(homeResponse.body), /^---/m);
+
+  const directoryResponse = await handleSiteRequest(store, '/topic/', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+    acceptHeader: 'text/markdown',
+  });
+  assert.equal(directoryResponse.status, 200);
+  assert.equal(
+    directoryResponse.headers['content-type'],
+    'text/markdown; charset=utf-8',
+  );
+  assert.equal(directoryResponse.headers.vary, 'Accept');
+  assert.match(String(directoryResponse.body), /^---/m);
+});
+
+test('handleSiteRequest keeps explicit html routes as html even when markdown is accepted', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'topic/post.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: '# Post',
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/topic/post.html', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+    acceptHeader: 'text/markdown, text/html;q=0.9',
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['content-type'], 'text/html; charset=utf-8');
+  assert.equal(response.headers.vary, undefined);
+  assert.match(String(response.body), /<h1>Post<\/h1>/);
+});
+
 test('handleSiteRequest filters drafts in exclude mode', async () => {
   const store = new MemoryContentStore([
     {
@@ -146,6 +231,64 @@ test('handleSiteRequest filters drafts in exclude mode', async () => {
     siteConfig: TEST_SITE_CONFIG,
   });
   assert.equal(excluded.status, 404);
+});
+
+test('handleSiteRequest renders sitemap.xml with canonical html urls', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Home', 'date: 2026-03-20', '---', '', '# Home'].join('\n'),
+    },
+    {
+      path: 'guides/README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Guides', 'date: 2026-03-21', '---', '', '# Guides'].join('\n'),
+    },
+    {
+      path: 'posts/hello.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Hello', 'aliases:', '  - /hello-world', '---', '', '# Hello'].join('\n'),
+    },
+    {
+      path: 'draft.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'draft: true', '---', '', '# Draft'].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/sitemap.xml', {
+    draftMode: 'exclude',
+    siteConfig: {
+      ...TEST_SITE_CONFIG,
+      siteUrl: 'https://example.com',
+    },
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['content-type'], 'application/xml; charset=utf-8');
+  const body = String(response.body);
+  assert.match(body, /<loc>https:\/\/example\.com\/<\/loc>/);
+  assert.match(body, /<loc>https:\/\/example\.com\/guides\/<\/loc>/);
+  assert.match(body, /<loc>https:\/\/example\.com\/posts\/hello<\/loc>/);
+  assert.doesNotMatch(body, /hello-world/);
+  assert.doesNotMatch(body, /draft/);
+  assert.match(body, /<lastmod>2026-03-20<\/lastmod>/);
+  assert.match(body, /<lastmod>2026-03-21<\/lastmod>/);
+});
+
+test('handleSiteRequest returns an error for sitemap.xml when siteUrl is missing', async () => {
+  const response = await handleSiteRequest(new MemoryContentStore([]), '/sitemap.xml', {
+    draftMode: 'exclude',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+
+  assert.equal(response.status, 500);
+  assert.match(String(response.body), /siteUrl/);
 });
 
 test('handleSiteRequest renders directory listings when index is missing', async () => {
@@ -198,6 +341,92 @@ test('handleSiteRequest renders README.md as directory homepage fallback', async
 
   assert.equal(response.status, 200);
   assert.match(String(response.body), /Root Readme/);
+});
+
+test('handleSiteRequest redirects alternate directory markdown filenames', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Root Readme', '---', '', '# Root Readme'].join('\n'),
+    },
+    {
+      path: 'guides/index.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Guides', '---', '', '# Guides'].join('\n'),
+    },
+  ]);
+
+  const rootRedirect = await handleSiteRequest(store, '/index.md', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+  assert.equal(rootRedirect.status, 308);
+  assert.equal(rootRedirect.headers.location, '/README.md');
+
+  const guidesRedirect = await handleSiteRequest(store, '/guides/README.md', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+  assert.equal(guidesRedirect.status, 308);
+  assert.equal(guidesRedirect.headers.location, '/guides/index.md');
+});
+
+test('handleSiteRequest redirects aliases to canonical html paths', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: '# Home',
+    },
+    {
+      path: 'guides/README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'aliases:', '  - /old-guides', '---', '', '# Guides'].join('\n'),
+    },
+    {
+      path: 'posts/hello.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'aliases:', '  - /hello-world', '---', '', '# Hello'].join('\n'),
+    },
+  ]);
+
+  const directoryAlias = await handleSiteRequest(store, '/old-guides', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+  assert.equal(directoryAlias.status, 308);
+  assert.equal(directoryAlias.headers.location, '/guides/');
+
+  const articleAlias = await handleSiteRequest(store, '/hello-world', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+  assert.equal(articleAlias.status, 308);
+  assert.equal(articleAlias.headers.location, '/posts/hello');
+});
+
+test('handleSiteRequest does not redirect draft aliases in exclude mode', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'draft.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'draft: true', 'aliases:', '  - /old-draft', '---', '', '# Draft'].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/old-draft', {
+    draftMode: 'exclude',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+
+  assert.equal(response.status, 404);
 });
 
 test('handleSiteRequest derives top navigation from root directories when topNav is empty', async () => {
@@ -367,11 +596,18 @@ test('handleSiteRequest respects site config rendering options', async () => {
     siteConfig: {
       siteTitle: 'Configured Site',
       siteDescription: 'Configured description',
+      siteUrl: 'https://example.com',
+      favicon: '/favicon.ico',
+      logo: { src: '/logo.svg', alt: 'Configured Site' },
       showDate: false,
       showSummary: false,
       theme: 'atlas',
       template: 'document',
       topNav: [{ label: 'Docs', href: '/docs/' }],
+      footerNav: [{ label: 'GitHub', href: 'https://github.com/example/repo' }],
+      footerText: 'Footer note',
+      socialLinks: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/example/repo' }],
+      editLink: { baseUrl: 'https://github.com/example/repo/edit/main/docs/' },
       showHomeIndex: true,
       stylesheetContent: 'body { color: red; }',
       siteTitleConfigured: true,
@@ -386,6 +622,16 @@ test('handleSiteRequest respects site config rendering options', async () => {
   assert.match(String(response.body), /href="\/docs\/"/);
   assert.doesNotMatch(String(response.body), /href="\/guides\/"/);
   assert.match(String(response.body), /body \{ color: red; \}/);
+  assert.match(String(response.body), /rel="canonical" href="https:\/\/example\.com\/post"/);
+  assert.match(String(response.body), /rel="icon" href="\/favicon\.ico"/);
+  assert.match(
+    String(response.body),
+    /rel="alternate" type="text\/markdown" href="\/post\.md"/,
+  );
+  assert.match(String(response.body), /<img src="\/logo\.svg" alt="Configured Site">/);
+  assert.match(String(response.body), /site-footer__nav/);
+  assert.match(String(response.body), /Footer note/);
+  assert.match(String(response.body), /Edit this page/);
   assert.doesNotMatch(String(response.body), /Hidden summary/);
   assert.doesNotMatch(String(response.body), /2026-03-20/);
 });
@@ -410,38 +656,57 @@ test('handleSiteRequest renders yaml dates parsed as Date objects', async () => 
   assert.match(String(response.body), /<h1>Dated<\/h1>/);
 });
 
-test('handleSiteRequest renders editorial template intro and strips duplicated h1', async () => {
+test('handleSiteRequest renders managed index blocks with catalog layout', async () => {
   const store = new MemoryContentStore([
     {
-      path: 'essay.md',
+      path: 'README.md',
       kind: 'text',
       mediaType: 'text/markdown; charset=utf-8',
       text: [
         '---',
-        'title: Editorial Essay',
-        'summary: Long-form introduction.',
-        'date: 2026-03-20',
+        'title: Catalog Home',
         '---',
         '',
-        '# Editorial Essay',
+        '# Catalog Home',
         '',
         'Body paragraph.',
+        '',
+        '## Start Here',
+        '',
+        '- [Manual Link](./guides/)',
+        '',
+        '<!-- INDEX:START -->',
+        '',
+        '- [Guides](./guides/)',
+        '',
+        '- [Reference](./reference/)',
+        '',
+        '- [Why mdorigin exists](./why-mdorigin.md)',
+        '  2026-03-20 · A concise explanation of the project.',
+        '',
+        '<!-- INDEX:END -->',
       ].join('\n'),
     },
   ]);
 
-  const response = await handleSiteRequest(store, '/essay', {
+  const response = await handleSiteRequest(store, '/', {
     draftMode: 'include',
     siteConfig: {
       ...TEST_SITE_CONFIG,
-      template: 'editorial',
+      template: 'catalog',
     },
   });
 
   assert.equal(response.status, 200);
-  assert.match(String(response.body), /data-template="editorial"/);
-  assert.match(String(response.body), /page-intro__title">Editorial Essay</);
-  assert.match(String(response.body), /Long-form introduction\./);
+  assert.match(String(response.body), /data-template="catalog"/);
+  assert.match(String(response.body), /<h1>Catalog Home<\/h1>/);
   assert.equal((String(response.body).match(/<h1/g) ?? []).length, 1);
   assert.match(String(response.body), /Body paragraph\./);
+  assert.match(String(response.body), /<a class="catalog-item catalog-item--directory" href="\.\/guides\/">/);
+  assert.match(String(response.body), /<a class="catalog-item catalog-item--directory" href="\.\/reference\/">/);
+  assert.match(String(response.body), /<a class="catalog-item" href="\.\/why-mdorigin">/);
+  assert.match(String(response.body), /A concise explanation of the project\./);
+  assert.match(String(response.body), /<li><a href="\.\/guides\/">Manual Link<\/a><\/li>/);
+  assert.doesNotMatch(String(response.body), /<li><a href="\.\/reference\/">Reference<\/a><\/li>/);
+  assert.doesNotMatch(String(response.body), /Directory<\/span>/);
 });

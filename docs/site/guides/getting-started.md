@@ -26,6 +26,13 @@ That starts a local preview server and serves:
 - raw markdown at `/foo.md`
 - HTML at `/foo.html`
 - default human routes at `/foo`
+- markdown on extensionless routes when the client sends `Accept: text/markdown`
+
+For example:
+
+```bash
+curl -H "Accept: text/markdown" http://localhost:3000/guides/getting-started
+```
 
 ## Site config
 
@@ -46,12 +53,17 @@ You can also choose a page structure with `template`:
 
 ```json
 {
+  "siteUrl": "https://example.com",
+  "favicon": "/favicon.svg",
   "theme": "atlas",
-  "template": "document"
+  "template": "document",
+  "footerNav": [
+    { "label": "GitHub", "href": "https://github.com/example/repo" }
+  ]
 }
 ```
 
-Use `document` for docs-style sites and `editorial` for article-led pages.
+Use `document` for ordinary docs and articles. Use `catalog` for homepages and directory-style collection pages.
 
 ## Build directory indexes
 

@@ -53,15 +53,23 @@ export function createCloudflareWorker(
         draftMode: 'exclude',
         siteConfig: manifest.siteConfig ?? {
           siteTitle: 'mdorigin',
+          siteUrl: undefined,
+          favicon: undefined,
+          logo: undefined,
           showDate: true,
           showSummary: true,
           theme: 'paper',
           template: 'document',
           topNav: [],
+          footerNav: [],
+          footerText: undefined,
+          socialLinks: [],
+          editLink: undefined,
           showHomeIndex: true,
           siteTitleConfigured: false,
           siteDescriptionConfigured: false,
         },
+        acceptHeader: request.headers.get('accept') ?? undefined,
       });
 
       const headers = new Headers(siteResponse.headers);

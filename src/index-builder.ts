@@ -96,6 +96,15 @@ async function updateSingleDirectoryIndex(
     return null;
   }
 
+  if (indexFilePath !== null) {
+    const source = await readFile(indexFilePath, 'utf8');
+    const parsed = await parseMarkdownDocument(path.basename(indexFilePath), source);
+    const shape = await inspectDirectoryShape(directoryPath);
+    if (inferDirectoryContentType(parsed.meta, shape) === 'post') {
+      return null;
+    }
+  }
+
   const targetFilePath = indexFilePath ?? path.join(directoryPath, 'index.md');
   const existingContent = indexFilePath
     ? await readFile(indexFilePath, 'utf8')

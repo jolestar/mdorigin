@@ -7,11 +7,18 @@ test('cloudflare worker serves html and hides drafts', async () => {
   const worker = createCloudflareWorker({
     siteConfig: {
       siteTitle: 'Worker Test',
+      siteUrl: undefined,
+      favicon: undefined,
+      logo: undefined,
       showDate: true,
       showSummary: true,
       theme: 'paper',
       template: 'document',
       topNav: [],
+      footerNav: [],
+      footerText: undefined,
+      socialLinks: [],
+      editLink: undefined,
       showHomeIndex: true,
       stylesheetContent: 'body { font-family: serif; }',
       siteTitleConfigured: true,
