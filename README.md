@@ -7,14 +7,16 @@ It treats markdown as the only source of truth, serves raw `.md` directly for ag
 ## Install
 
 ```bash
-npm install --save-dev mdorigin
+npm install -g mdorigin
 ```
 
-Then run it with `npx`:
+Then run it directly:
 
 ```bash
-npx mdorigin dev --root docs/site
+mdorigin dev --root docs/site
 ```
+
+If you prefer a project-local install instead, use `npm install --save-dev mdorigin` and run it with `npx --no-install mdorigin ...`.
 
 ## Repo Development
 

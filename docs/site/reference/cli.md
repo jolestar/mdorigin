@@ -7,7 +7,13 @@ summary: Command-line entrypoints for local preview, index generation, and Cloud
 
 # CLI
 
-Install the package in your site project:
+Recommended install:
+
+```bash
+npm install -g mdorigin
+```
+
+Project-local install also works:
 
 ```bash
 npm install --save-dev mdorigin
@@ -15,7 +21,9 @@ npm install --save-dev mdorigin
 
 Main commands:
 
-- `npx mdorigin dev --root <content-dir>`
-- `npx mdorigin build index --root <content-dir>`
-- `npx mdorigin build cloudflare --root <content-dir>`
-- `npx mdorigin init cloudflare --dir .`
+- `mdorigin dev --root <content-dir>`
+- `mdorigin build index --root <content-dir>`
+- `mdorigin build cloudflare --root <content-dir>`
+- `mdorigin init cloudflare --dir .`
+
+With a project-local install, run the same commands via `npx --no-install mdorigin ...`.

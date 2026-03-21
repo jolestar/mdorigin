@@ -9,16 +9,18 @@ summary: Build a user-project Worker bundle and initialize Wrangler config.
 
 `mdorigin` does not ship a repo-owned `wrangler.toml`. Instead, it generates a Worker bundle for the consuming project.
 
-Install `mdorigin` in the project first:
+Recommended install:
 
 ```bash
-npm install --save-dev mdorigin
+npm install -g mdorigin
 ```
+
+Project-local install also works with `npm install --save-dev mdorigin`.
 
 ## Build a Worker bundle
 
 ```bash
-npx mdorigin build cloudflare --root docs/site
+mdorigin build cloudflare --root docs/site
 ```
 
 By default this writes:
@@ -30,7 +32,7 @@ dist/cloudflare/worker.mjs
 ## Initialize Wrangler config
 
 ```bash
-npx mdorigin init cloudflare --dir .
+mdorigin init cloudflare --dir .
 ```
 
 After deployment, extensionless routes on the Worker can also return markdown when a client sends:

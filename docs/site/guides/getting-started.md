@@ -10,6 +10,12 @@ summary: Preview content locally, configure a site, and build indexes.
 ## Install
 
 ```bash
+npm install -g mdorigin
+```
+
+If you prefer a project-local install, use:
+
+```bash
 npm install --save-dev mdorigin
 ```
 
@@ -18,7 +24,7 @@ npm install --save-dev mdorigin
 Use a content root such as `docs/site`:
 
 ```bash
-npx mdorigin dev --root docs/site
+mdorigin dev --root docs/site
 ```
 
 That starts a local preview server and serves:
@@ -68,5 +74,5 @@ Use `document` for ordinary docs and articles. Use `catalog` for homepages and d
 ## Build directory indexes
 
 ```bash
-npx mdorigin build index --root docs/site
+mdorigin build index --root docs/site
 ```
