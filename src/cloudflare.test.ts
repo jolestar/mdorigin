@@ -74,6 +74,7 @@ test('initCloudflareProject writes wrangler config', async () => {
   const configSource = await readFile(result.configFile, 'utf8');
   assert.match(configSource, /"name": "docs-site"/);
   assert.match(configSource, /"dist\/cloudflare\/worker\.mjs"/);
+  assert.match(configSource, /"compatibility_flags": \["nodejs_compat"\]/);
 });
 
 test('initCloudflareProject derives worker name from site title when name is omitted', async () => {
@@ -89,4 +90,5 @@ test('initCloudflareProject derives worker name from site title when name is omi
 
   const configSource = await readFile(result.configFile, 'utf8');
   assert.match(configSource, /"name": "example-notes"/);
+  assert.match(configSource, /"compatibility_flags": \["nodejs_compat"\]/);
 });

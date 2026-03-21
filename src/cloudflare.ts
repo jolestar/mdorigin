@@ -127,7 +127,8 @@ export async function initCloudflareProject(
     '  "$schema": "./node_modules/wrangler/config-schema.json",',
     `  "name": ${JSON.stringify(workerName)},`,
     `  "main": ${JSON.stringify(toPosixPath(path.relative(projectDir, options.workerEntry)))},`,
-    `  "compatibility_date": ${JSON.stringify(compatibilityDate)}`,
+    `  "compatibility_date": ${JSON.stringify(compatibilityDate)},`,
+    '  "compatibility_flags": ["nodejs_compat"]',
     '}',
     '',
   ].join('\n');
