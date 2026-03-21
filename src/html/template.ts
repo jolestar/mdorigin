@@ -195,13 +195,13 @@ function renderCatalogArticle(
 
 function renderCatalogDirectories(entries: ManagedIndexEntry[]): string {
   return [
-    '<div class="catalog-grid">',
+    '<div class="catalog-list catalog-list--directories">',
     ...entries.map(
       (entry) =>
-        `<a class="catalog-card" href="${escapeHtml(entry.href)}"><span class="catalog-card__eyebrow">Directory</span><strong class="catalog-card__title">${escapeHtml(entry.title)}</strong>${
+        `<a class="catalog-item catalog-item--directory" href="${escapeHtml(entry.href)}"><strong class="catalog-item__title">${escapeHtml(entry.title)}</strong>${
           entry.detail
-            ? `<span class="catalog-card__detail">${escapeHtml(entry.detail)}</span>`
-            : '<span class="catalog-card__detail">Browse this section.</span>'
+            ? `<span class="catalog-item__detail">${escapeHtml(entry.detail)}</span>`
+            : '<span class="catalog-item__detail">Browse this section.</span>'
         }</a>`,
     ),
     '</div>',

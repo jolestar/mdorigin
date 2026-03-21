@@ -225,43 +225,20 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
 .catalog-page__body > :last-child {
   margin-bottom: 0;
 }
-.catalog-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: 1rem;
-}
 .catalog-list {
-  margin-top: 1.1rem;
+  margin-top: 1rem;
   display: grid;
   gap: 0.9rem;
 }
-.catalog-card,
 .catalog-item {
   display: block;
   text-decoration: none;
 }
-.catalog-card {
-  padding: 1rem 1.1rem;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--surface) 94%, white 6%);
-}
-.catalog-card__eyebrow {
-  display: block;
-  color: var(--muted);
-  font-size: 0.74rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.catalog-card__title,
 .catalog-item__title {
   display: block;
-  margin-top: 0.35rem;
   color: var(--text);
   font-size: 1.05rem;
 }
-.catalog-card__detail,
 .catalog-item__detail {
   display: block;
   margin-top: 0.35rem;
@@ -269,14 +246,13 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
   font-size: 0.92rem;
 }
 .catalog-item {
-  padding: 0.9rem 0;
+  padding: 0.95rem 0;
   border-top: 1px solid var(--border);
 }
 .catalog-list > .catalog-item:first-child {
   border-top: 0;
   padding-top: 0;
 }
-.catalog-card:hover,
 .catalog-item:hover {
   text-decoration: none;
 }
@@ -515,44 +491,20 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
 .catalog-page__body > :last-child {
   margin-bottom: 0;
 }
-.catalog-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
-  gap: 1rem;
-}
 .catalog-list {
-  margin-top: 1.2rem;
+  margin-top: 1rem;
   display: grid;
   gap: 0.95rem;
 }
-.catalog-card,
 .catalog-item {
   display: block;
   text-decoration: none;
 }
-.catalog-card {
-  padding: 1rem 1.05rem;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(247,250,252,0.95));
-  box-shadow: 0 14px 28px rgba(15, 34, 58, 0.05);
-}
-.catalog-card__eyebrow {
-  display: block;
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.catalog-card__title,
 .catalog-item__title {
   display: block;
-  margin-top: 0.4rem;
   color: var(--text);
   font-size: 1.08rem;
 }
-.catalog-card__detail,
 .catalog-item__detail {
   display: block;
   margin-top: 0.4rem;
@@ -560,14 +512,13 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
   font-size: 0.92rem;
 }
 .catalog-item {
-  padding: 1rem 0 0;
+  padding: 1rem 0 0.1rem;
   border-top: 1px solid rgba(215, 225, 236, 0.8);
 }
 .catalog-list > .catalog-item:first-child {
   border-top: 0;
   padding-top: 0;
 }
-.catalog-card:hover,
 .catalog-item:hover {
   text-decoration: none;
 }
@@ -808,43 +759,20 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
 .catalog-page__body > :last-child {
   margin-bottom: 0;
 }
-.catalog-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: 1rem;
-}
 .catalog-list {
-  margin-top: 1.1rem;
+  margin-top: 1rem;
   display: grid;
   gap: 0.9rem;
 }
-.catalog-card,
 .catalog-item {
   display: block;
   text-decoration: none;
 }
-.catalog-card {
-  padding: 1rem 1rem 1.05rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,253,248,0.98));
-}
-.catalog-card__eyebrow {
-  display: block;
-  color: var(--muted);
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.catalog-card__title,
 .catalog-item__title {
   display: block;
-  margin-top: 0.4rem;
   color: var(--text);
   font-size: 1.08rem;
 }
-.catalog-card__detail,
 .catalog-item__detail {
   display: block;
   margin-top: 0.4rem;
@@ -852,14 +780,13 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
   font-size: 0.93rem;
 }
 .catalog-item {
-  padding: 0.95rem 0 0;
+  padding: 0.95rem 0 0.05rem;
   border-top: 1px solid var(--border);
 }
 .catalog-list > .catalog-item:first-child {
   border-top: 0;
   padding-top: 0;
 }
-.catalog-card:hover,
 .catalog-item:hover {
   text-decoration: none;
 }

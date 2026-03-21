@@ -702,10 +702,11 @@ test('handleSiteRequest renders managed index blocks with catalog layout', async
   assert.match(String(response.body), /<h1>Catalog Home<\/h1>/);
   assert.equal((String(response.body).match(/<h1/g) ?? []).length, 1);
   assert.match(String(response.body), /Body paragraph\./);
-  assert.match(String(response.body), /<a class="catalog-card" href="\.\/guides\/">/);
-  assert.match(String(response.body), /<a class="catalog-card" href="\.\/reference\/">/);
+  assert.match(String(response.body), /<a class="catalog-item catalog-item--directory" href="\.\/guides\/">/);
+  assert.match(String(response.body), /<a class="catalog-item catalog-item--directory" href="\.\/reference\/">/);
   assert.match(String(response.body), /<a class="catalog-item" href="\.\/why-mdorigin">/);
   assert.match(String(response.body), /A concise explanation of the project\./);
   assert.match(String(response.body), /<li><a href="\.\/guides\/">Manual Link<\/a><\/li>/);
   assert.doesNotMatch(String(response.body), /<li><a href="\.\/reference\/">Reference<\/a><\/li>/);
+  assert.doesNotMatch(String(response.body), /Directory<\/span>/);
 });
