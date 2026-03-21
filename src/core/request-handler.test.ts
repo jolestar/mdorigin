@@ -7,11 +7,18 @@ import { resolveRequest } from './router.js';
 
 const TEST_SITE_CONFIG = {
   siteTitle: 'Test Site',
+  siteUrl: undefined,
+  favicon: undefined,
+  logo: undefined,
   showDate: true,
   showSummary: true,
   theme: 'paper' as const,
   template: 'document' as const,
   topNav: [],
+  footerNav: [],
+  footerText: undefined,
+  socialLinks: [],
+  editLink: undefined,
   showHomeIndex: true,
   siteTitleConfigured: true,
   siteDescriptionConfigured: false,
@@ -531,11 +538,18 @@ test('handleSiteRequest respects site config rendering options', async () => {
     siteConfig: {
       siteTitle: 'Configured Site',
       siteDescription: 'Configured description',
+      siteUrl: 'https://example.com',
+      favicon: '/favicon.ico',
+      logo: { src: '/logo.svg', alt: 'Configured Site' },
       showDate: false,
       showSummary: false,
       theme: 'atlas',
       template: 'document',
       topNav: [{ label: 'Docs', href: '/docs/' }],
+      footerNav: [{ label: 'GitHub', href: 'https://github.com/example/repo' }],
+      footerText: 'Footer note',
+      socialLinks: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/example/repo' }],
+      editLink: { baseUrl: 'https://github.com/example/repo/edit/main/docs/' },
       showHomeIndex: true,
       stylesheetContent: 'body { color: red; }',
       siteTitleConfigured: true,
@@ -550,6 +564,12 @@ test('handleSiteRequest respects site config rendering options', async () => {
   assert.match(String(response.body), /href="\/docs\/"/);
   assert.doesNotMatch(String(response.body), /href="\/guides\/"/);
   assert.match(String(response.body), /body \{ color: red; \}/);
+  assert.match(String(response.body), /rel="canonical" href="https:\/\/example\.com\/post"/);
+  assert.match(String(response.body), /rel="icon" href="\/favicon\.ico"/);
+  assert.match(String(response.body), /<img src="\/logo\.svg" alt="Configured Site">/);
+  assert.match(String(response.body), /site-footer__nav/);
+  assert.match(String(response.body), /Footer note/);
+  assert.match(String(response.body), /Edit this page/);
   assert.doesNotMatch(String(response.body), /Hidden summary/);
   assert.doesNotMatch(String(response.body), /2026-03-20/);
 });

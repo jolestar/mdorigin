@@ -13,9 +13,16 @@ Useful fields:
 
 - `siteTitle`
 - `siteDescription`
+- `siteUrl`
+- `favicon`
+- `logo`
 - `theme`
 - `template`
 - `topNav`
+- `footerNav`
+- `footerText`
+- `socialLinks`
+- `editLink`
 - `showHomeIndex`
 - `stylesheet`
 
@@ -34,6 +41,60 @@ Useful fields:
 - Auto-derived navigation only includes directories treated as `type: page`.
 - Directories treated as `type: post` are excluded from auto-derived top navigation.
 - When the root homepage already has top navigation, the HTML view hides repeated `page` entries from the managed root index block and keeps only the remaining entries, such as posts.
+- `footerNav` is always explicit and is not auto-derived from the content tree.
+
+## Branding
+
+- `siteUrl` sets the canonical site origin and is used for canonical links in rendered HTML.
+- `favicon` adds a standard favicon link tag.
+- `logo` renders a small site logo in the header.
+
+Example:
+
+```json
+{
+  "siteUrl": "https://example.com",
+  "favicon": "/favicon.svg",
+  "logo": {
+    "src": "/logo.svg",
+    "alt": "Example"
+  }
+}
+```
+
+## Footer
+
+`mdorigin` supports a small set of explicit footer settings:
+
+- `footerNav`
+- `footerText`
+- `socialLinks`
+- `editLink`
+
+Example:
+
+```json
+{
+  "footerNav": [
+    { "label": "GitHub", "href": "https://github.com/example/repo" }
+  ],
+  "footerText": "Built with mdorigin.",
+  "socialLinks": [
+    { "icon": "github", "label": "GitHub", "href": "https://github.com/example/repo" }
+  ],
+  "editLink": {
+    "baseUrl": "https://github.com/example/repo/edit/main/docs/"
+  }
+}
+```
+
+Built-in social icons currently include:
+
+- `github`
+- `npm`
+- `rss`
+- `x`
+- `home`
 
 ## Template
 

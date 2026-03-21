@@ -53,8 +53,13 @@ You can also choose a page structure with `template`:
 
 ```json
 {
+  "siteUrl": "https://example.com",
+  "favicon": "/favicon.svg",
   "theme": "atlas",
-  "template": "document"
+  "template": "document",
+  "footerNav": [
+    { "label": "GitHub", "href": "https://github.com/example/repo" }
+  ]
 }
 ```
 

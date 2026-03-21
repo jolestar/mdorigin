@@ -1,9 +1,27 @@
 {
   "siteTitle": "mdorigin",
   "siteDescription": "Markdown-first publishing for humans and agents.",
+  "siteUrl": "https://mdorigin.jolestar.workers.dev",
+  "favicon": "/favicon.svg",
+  "logo": {
+    "src": "/favicon.svg",
+    "alt": "mdorigin"
+  },
   "showDate": true,
   "showSummary": true,
   "theme": "atlas",
   "template": "document",
+  "footerNav": [
+    { "label": "GitHub", "href": "https://github.com/jolestar/mdorigin" },
+    { "label": "npm", "href": "https://www.npmjs.com/package/mdorigin" }
+  ],
+  "footerText": "Markdown-first publishing for humans and agents.",
+  "socialLinks": [
+    { "icon": "github", "label": "GitHub", "href": "https://github.com/jolestar/mdorigin" },
+    { "icon": "npm", "label": "npm", "href": "https://www.npmjs.com/package/mdorigin" }
+  ],
+  "editLink": {
+    "baseUrl": "https://github.com/jolestar/mdorigin/edit/main/docs/site/"
+  },
   "showHomeIndex": true
 }

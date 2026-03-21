@@ -12,26 +12,56 @@ export interface SiteNavItem {
   href: string;
 }
 
+export interface SiteLogo {
+  src: string;
+  alt?: string;
+  href?: string;
+}
+
+export interface SiteSocialLink {
+  icon: string;
+  label: string;
+  href: string;
+}
+
+export interface EditLinkConfig {
+  baseUrl: string;
+}
+
 export interface SiteConfig {
   siteTitle?: string;
   siteDescription?: string;
+  siteUrl?: string;
+  favicon?: string;
+  logo?: SiteLogo;
   showDate?: boolean;
   showSummary?: boolean;
   stylesheet?: string;
   theme?: BuiltInThemeName;
   template?: TemplateName;
   topNav?: SiteNavItem[];
+  footerNav?: SiteNavItem[];
+  footerText?: string;
+  socialLinks?: SiteSocialLink[];
+  editLink?: EditLinkConfig;
   showHomeIndex?: boolean;
 }
 
 export interface ResolvedSiteConfig {
   siteTitle: string;
   siteDescription?: string;
+  siteUrl?: string;
+  favicon?: string;
+  logo?: SiteLogo;
   showDate: boolean;
   showSummary: boolean;
   theme: BuiltInThemeName;
   template: TemplateName;
   topNav: SiteNavItem[];
+  footerNav: SiteNavItem[];
+  footerText?: string;
+  socialLinks: SiteSocialLink[];
+  editLink?: EditLinkConfig;
   showHomeIndex: boolean;
   stylesheetContent?: string;
   siteTitleConfigured: boolean;
@@ -80,11 +110,21 @@ export async function loadSiteConfig(
       parsedConfig.siteDescription !== ''
         ? parsedConfig.siteDescription
         : undefined,
+    siteUrl: normalizeSiteUrl(parsedConfig.siteUrl),
+    favicon: normalizeSiteHref(parsedConfig.favicon),
+    logo: normalizeLogo(parsedConfig.logo),
     showDate: parsedConfig.showDate ?? true,
     showSummary: parsedConfig.showSummary ?? true,
     theme: isBuiltInThemeName(parsedConfig.theme) ? parsedConfig.theme : 'paper',
     template: isTemplateName(parsedConfig.template) ? parsedConfig.template : 'document',
     topNav: normalizeTopNav(parsedConfig.topNav),
+    footerNav: normalizeTopNav(parsedConfig.footerNav),
+    footerText:
+      typeof parsedConfig.footerText === 'string' && parsedConfig.footerText !== ''
+        ? parsedConfig.footerText
+        : undefined,
+    socialLinks: normalizeSocialLinks(parsedConfig.socialLinks),
+    editLink: normalizeEditLink(parsedConfig.editLink),
     showHomeIndex:
       typeof parsedConfig.showHomeIndex === 'boolean'
         ? parsedConfig.showHomeIndex
@@ -192,9 +232,105 @@ function normalizeTopNav(value: unknown): SiteNavItem[] {
       typeof item.href === 'string' &&
       item.href !== ''
     ) {
-      return [{ label: item.label, href: item.href }];
+      const href = normalizeSiteHref(item.href);
+      return href ? [{ label: item.label, href }] : [];
     }
 
     return [];
   });
+}
+
+function normalizeLogo(value: unknown): SiteLogo | undefined {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('src' in value) ||
+    typeof value.src !== 'string' ||
+    value.src === ''
+  ) {
+    return undefined;
+  }
+
+  const src = normalizeSiteHref(value.src);
+  if (!src) {
+    return undefined;
+  }
+
+  const href =
+    'href' in value && typeof value.href === 'string'
+      ? normalizeSiteHref(value.href)
+      : undefined;
+
+  return {
+    src,
+    alt:
+      'alt' in value && typeof value.alt === 'string' && value.alt !== ''
+        ? value.alt
+        : undefined,
+    href,
+  };
+}
+
+function normalizeSocialLinks(value: unknown): SiteSocialLink[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) => {
+    if (
+      typeof item !== 'object' ||
+      item === null ||
+      !('icon' in item) ||
+      !('label' in item) ||
+      !('href' in item) ||
+      typeof item.icon !== 'string' ||
+      item.icon === '' ||
+      typeof item.label !== 'string' ||
+      item.label === '' ||
+      typeof item.href !== 'string' ||
+      item.href === ''
+    ) {
+      return [];
+    }
+
+    const href = normalizeSiteHref(item.href);
+    return href
+      ? [{ icon: item.icon, label: item.label, href }]
+      : [];
+  });
+}
+
+function normalizeEditLink(value: unknown): EditLinkConfig | undefined {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    !('baseUrl' in value) ||
+    typeof value.baseUrl !== 'string' ||
+    value.baseUrl === ''
+  ) {
+    return undefined;
+  }
+
+  return { baseUrl: value.baseUrl };
+}
+
+function normalizeSiteUrl(value: unknown): string | undefined {
+  return typeof value === 'string' && value !== '' ? value.replace(/\/+$/, '') : undefined;
+}
+
+function normalizeSiteHref(value: unknown): string | undefined {
+  if (typeof value !== 'string' || value === '') {
+    return undefined;
+  }
+
+  if (
+    value.startsWith('/') ||
+    value.startsWith('#') ||
+    value.startsWith('//') ||
+    /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(value)
+  ) {
+    return value;
+  }
+
+  return `/${value.replace(/^\.?\//, '')}`;
 }

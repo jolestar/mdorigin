@@ -22,7 +22,21 @@ test('loadSiteConfig prefers content root config over cwd config', async () => {
   );
   await writeFile(
     path.join(rootDir, 'mdorigin.config.json'),
-    JSON.stringify({ siteTitle: 'root-title', theme: 'gazette' }, null, 2),
+    JSON.stringify(
+      {
+        siteTitle: 'root-title',
+        theme: 'gazette',
+        siteUrl: 'https://example.com',
+        favicon: 'favicon.svg',
+        logo: { src: 'logo.svg', alt: 'Example Logo' },
+        footerNav: [{ label: 'GitHub', href: 'https://github.com/example/repo' }],
+        footerText: 'Footer note',
+        socialLinks: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/example/repo' }],
+        editLink: { baseUrl: 'https://github.com/example/repo/edit/main/docs/' },
+      },
+      null,
+      2,
+    ),
     'utf8',
   );
 
@@ -31,6 +45,15 @@ test('loadSiteConfig prefers content root config over cwd config', async () => {
   assert.equal(config.siteTitle, 'root-title');
   assert.equal(config.theme, 'gazette');
   assert.equal(config.template, 'document');
+  assert.equal(config.siteUrl, 'https://example.com');
+  assert.equal(config.favicon, '/favicon.svg');
+  assert.deepEqual(config.logo, { src: '/logo.svg', alt: 'Example Logo', href: undefined });
+  assert.equal(config.footerNav[0]?.label, 'GitHub');
+  assert.equal(config.footerText, 'Footer note');
+  assert.equal(config.socialLinks[0]?.icon, 'github');
+  assert.deepEqual(config.editLink, {
+    baseUrl: 'https://github.com/example/repo/edit/main/docs/',
+  });
 });
 
 test('applySiteConfigFrontmatterDefaults uses root homepage frontmatter when config is absent', async () => {
@@ -79,11 +102,18 @@ test('applySiteConfigFrontmatterDefaults does not override explicit config value
   const resolved = await applySiteConfigFrontmatterDefaults(store, {
     siteTitle: 'Configured Title',
     siteDescription: 'Configured Description',
+    siteUrl: undefined,
+    favicon: undefined,
+    logo: undefined,
     showDate: true,
     showSummary: true,
     theme: 'paper',
     template: 'document',
     topNav: [],
+    footerNav: [],
+    footerText: undefined,
+    socialLinks: [],
+    editLink: undefined,
     showHomeIndex: true,
     siteTitleConfigured: true,
     siteDescriptionConfigured: true,

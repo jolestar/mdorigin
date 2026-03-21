@@ -145,6 +145,9 @@ export async function handleSiteRequest(
     body: renderDocument({
       siteTitle: options.siteConfig.siteTitle,
       siteDescription: options.siteConfig.siteDescription,
+      siteUrl: options.siteConfig.siteUrl,
+      favicon: options.siteConfig.favicon,
+      logo: options.siteConfig.logo,
       title: getDocumentTitle(parsed),
       body: renderedParsed.html,
       summary:
@@ -155,7 +158,12 @@ export async function handleSiteRequest(
       theme: options.siteConfig.theme,
       template: options.siteConfig.template,
       topNav: navigation.items,
+      footerNav: options.siteConfig.footerNav,
+      footerText: options.siteConfig.footerText,
+      socialLinks: options.siteConfig.socialLinks,
+      editLinkHref: getEditLinkHref(options.siteConfig, resolved.sourcePath),
       stylesheetContent: options.siteConfig.stylesheetContent,
+      canonicalPath: getCanonicalHtmlPathForContentPath(resolved.sourcePath),
     }),
   };
 }
@@ -272,6 +280,9 @@ async function renderDirectoryListing(
     body: renderDocument({
       siteTitle: siteConfig.siteTitle,
       siteDescription: siteConfig.siteDescription,
+      siteUrl: siteConfig.siteUrl,
+      favicon: siteConfig.favicon,
+      logo: siteConfig.logo,
       title: getDirectoryTitle(requestPath),
       body,
       showSummary: false,
@@ -279,7 +290,11 @@ async function renderDirectoryListing(
       theme: siteConfig.theme,
       template: siteConfig.template,
       topNav: navigation.items,
+      footerNav: siteConfig.footerNav,
+      footerText: siteConfig.footerText,
+      socialLinks: siteConfig.socialLinks,
       stylesheetContent: siteConfig.stylesheetContent,
+      canonicalPath: requestPath,
     }),
   };
 }
@@ -358,6 +373,9 @@ async function tryRenderAlternateDirectoryIndex(
       body: renderDocument({
         siteTitle: options.siteConfig.siteTitle,
         siteDescription: options.siteConfig.siteDescription,
+        siteUrl: options.siteConfig.siteUrl,
+        favicon: options.siteConfig.favicon,
+        logo: options.siteConfig.logo,
         title: getDocumentTitle(parsed),
         body: renderedParsed.html,
         summary:
@@ -368,7 +386,12 @@ async function tryRenderAlternateDirectoryIndex(
         theme: options.siteConfig.theme,
         template: options.siteConfig.template,
         topNav: navigation.items,
+        footerNav: options.siteConfig.footerNav,
+        footerText: options.siteConfig.footerText,
+        socialLinks: options.siteConfig.socialLinks,
+        editLinkHref: getEditLinkHref(options.siteConfig, candidatePath),
         stylesheetContent: options.siteConfig.stylesheetContent,
+        canonicalPath: requestPath,
       }),
     };
   }
@@ -597,6 +620,17 @@ function getCanonicalHtmlPathForContentPath(contentPath: string): string {
   }
 
   return `/${contentPath.slice(0, -'.md'.length)}`;
+}
+
+function getEditLinkHref(
+  siteConfig: ResolvedSiteConfig,
+  sourcePath: string | undefined,
+): string | undefined {
+  if (!siteConfig.editLink || !sourcePath) {
+    return undefined;
+  }
+
+  return `${siteConfig.editLink.baseUrl}${sourcePath}`;
 }
 
 async function resolveTopNav(
