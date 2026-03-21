@@ -21,6 +21,13 @@ export interface ParsedDocument {
   meta: ParsedDocumentMeta;
 }
 
+export interface ManagedIndexEntry {
+  kind: 'directory' | 'article';
+  title: string;
+  href: string;
+  detail?: string;
+}
+
 export async function parseMarkdownDocument(
   sourcePath: string,
   markdown: string,
@@ -94,6 +101,40 @@ export function stripManagedIndexLinks(
       return `${start}${keptBlocks.join('\n\n')}\n${end}`;
     },
   );
+}
+
+export function extractManagedIndexEntries(markdown: string): ManagedIndexEntry[] {
+  const match = markdown.match(/<!-- INDEX:START -->\n?([\s\S]*?)\n?<!-- INDEX:END -->/);
+  if (!match) {
+    return [];
+  }
+
+  const blocks = match[1]
+    .trim()
+    .split(/\n\s*\n/g)
+    .map((block) => block.trim())
+    .filter((block) => block !== '');
+
+  const entries: ManagedIndexEntry[] = [];
+  for (const block of blocks) {
+    const lines = block.split('\n');
+    const firstLine = lines[0]?.trim() ?? '';
+    const entryMatch = firstLine.match(/^- \[([^\]]+)\]\(([^)]+)\)$/);
+    if (!entryMatch) {
+      continue;
+    }
+
+    const rawHref = entryMatch[2];
+    const href = rewriteMarkdownHref(rawHref);
+    entries.push({
+      kind: href.endsWith('/') ? 'directory' : 'article',
+      title: entryMatch[1],
+      href,
+      detail: lines[1]?.trim() || undefined,
+    });
+  }
+
+  return entries;
 }
 
 function normalizeMeta(data: Record<string, unknown>): ParsedDocumentMeta {

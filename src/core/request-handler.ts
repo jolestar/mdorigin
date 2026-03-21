@@ -8,6 +8,7 @@ import type {
 import { inferDirectoryContentType } from './content-type.js';
 import { getDirectoryIndexCandidates } from './directory-index.js';
 import {
+  extractManagedIndexEntries,
   parseMarkdownDocument,
   stripManagedIndexBlock,
   stripManagedIndexLinks,
@@ -134,9 +135,17 @@ export async function handleSiteRequest(
             new Set(navigation.items.map((item) => item.href)),
           )
       : entry.text;
-  const renderedParsed = renderedBody === entry.text
+  const catalogEntries =
+    options.siteConfig.template === 'catalog'
+      ? extractManagedIndexEntries(renderedBody)
+      : [];
+  const documentBody =
+    options.siteConfig.template === 'catalog'
+      ? stripManagedIndexBlock(renderedBody)
+      : renderedBody;
+  const renderedParsed = documentBody === entry.text
     ? parsed
-    : await parseMarkdownDocument(resolved.sourcePath, renderedBody);
+    : await parseMarkdownDocument(resolved.sourcePath, documentBody);
 
   return {
     status: 200,
@@ -169,6 +178,7 @@ export async function handleSiteRequest(
       stylesheetContent: options.siteConfig.stylesheetContent,
       canonicalPath: getCanonicalHtmlPathForContentPath(resolved.sourcePath),
       alternateMarkdownPath: getMarkdownRequestPathForContentPath(resolved.sourcePath),
+      catalogEntries,
     }),
   };
 }
@@ -475,9 +485,17 @@ async function tryRenderAlternateDirectoryIndex(
               new Set(navigation.items.map((item) => item.href)),
             )
         : entry.text;
-    const renderedParsed = renderedBody === entry.text
+    const catalogEntries =
+      options.siteConfig.template === 'catalog'
+        ? extractManagedIndexEntries(renderedBody)
+        : [];
+    const documentBody =
+      options.siteConfig.template === 'catalog'
+        ? stripManagedIndexBlock(renderedBody)
+        : renderedBody;
+    const renderedParsed = documentBody === entry.text
       ? parsed
-      : await parseMarkdownDocument(candidatePath, renderedBody);
+      : await parseMarkdownDocument(candidatePath, documentBody);
 
     return {
       status: 200,
@@ -507,6 +525,7 @@ async function tryRenderAlternateDirectoryIndex(
         stylesheetContent: options.siteConfig.stylesheetContent,
         canonicalPath: requestPath,
         alternateMarkdownPath: getMarkdownRequestPathForContentPath(candidatePath),
+        catalogEntries,
       }),
     };
   }

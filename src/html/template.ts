@@ -3,6 +3,7 @@ import type {
   SiteNavItem,
   SiteSocialLink,
 } from '../core/site-config.js';
+import type { ManagedIndexEntry } from '../core/markdown.js';
 import type { TemplateName } from './template-kind.js';
 import { getBuiltInThemeStyles, type BuiltInThemeName } from './theme.js';
 
@@ -28,6 +29,7 @@ export interface RenderDocumentOptions {
   stylesheetContent?: string;
   canonicalPath?: string;
   alternateMarkdownPath?: string;
+  catalogEntries?: ManagedIndexEntry[];
 }
 
 export function renderDocument(options: RenderDocumentOptions) {
@@ -102,6 +104,10 @@ export function renderDocument(options: RenderDocumentOptions) {
     footerNavBlock || socialLinksBlock || footerTextBlock || editLinkBlock
       ? `<footer class="site-footer"><div class="site-footer__inner">${footerNavBlock}${socialLinksBlock}${footerTextBlock}${editLinkBlock}</div></footer>`
       : '';
+  const articleBody =
+    options.template === 'catalog'
+      ? renderCatalogArticle(options.body, options.catalogEntries ?? [])
+      : options.body;
 
   return [
     '<!doctype html>',
@@ -119,7 +125,7 @@ export function renderDocument(options: RenderDocumentOptions) {
     `<body data-theme="${options.theme}" data-template="${options.template}">`,
     `<header class="site-header"><div class="site-header__inner"><div class="site-header__brand"><p class="site-header__title"><a href="${brandHref}">${logoBlock}<span>${siteTitle}</span></a></p>${siteDescriptionBlock}</div>${navBlock}</div></header>`,
     '<main>',
-    `<article>${options.body}</article>`,
+    `<article>${articleBody}</article>`,
     '</main>',
     footerBlock,
     '</body>',
@@ -165,4 +171,54 @@ function renderSocialIcon(icon: string): string {
 
 function iconSvg(pathData: string): string {
   return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${pathData}"></path></svg>`;
+}
+
+function renderCatalogArticle(
+  body: string,
+  entries: ManagedIndexEntry[],
+): string {
+  if (entries.length === 0) {
+    return body;
+  }
+
+  const directories = entries.filter((entry) => entry.kind === 'directory');
+  const articles = entries.filter((entry) => entry.kind === 'article');
+
+  return [
+    `<div class="catalog-page__body">${body}</div>`,
+    '<section class="catalog-page" aria-label="Catalog">',
+    directories.length > 0 ? renderCatalogDirectories(directories) : '',
+    articles.length > 0 ? renderCatalogArticles(articles) : '',
+    '</section>',
+  ].join('');
+}
+
+function renderCatalogDirectories(entries: ManagedIndexEntry[]): string {
+  return [
+    '<div class="catalog-grid">',
+    ...entries.map(
+      (entry) =>
+        `<a class="catalog-card" href="${escapeHtml(entry.href)}"><span class="catalog-card__eyebrow">Directory</span><strong class="catalog-card__title">${escapeHtml(entry.title)}</strong>${
+          entry.detail
+            ? `<span class="catalog-card__detail">${escapeHtml(entry.detail)}</span>`
+            : '<span class="catalog-card__detail">Browse this section.</span>'
+        }</a>`,
+    ),
+    '</div>',
+  ].join('');
+}
+
+function renderCatalogArticles(entries: ManagedIndexEntry[]): string {
+  return [
+    '<div class="catalog-list">',
+    ...entries.map(
+      (entry) =>
+        `<a class="catalog-item" href="${escapeHtml(entry.href)}"><strong class="catalog-item__title">${escapeHtml(entry.title)}</strong>${
+          entry.detail
+            ? `<span class="catalog-item__detail">${escapeHtml(entry.detail)}</span>`
+            : ''
+        }</a>`,
+    ),
+    '</div>',
+  ].join('');
 }

@@ -656,27 +656,40 @@ test('handleSiteRequest renders yaml dates parsed as Date objects', async () => 
   assert.match(String(response.body), /<h1>Dated<\/h1>/);
 });
 
-test('handleSiteRequest renders catalog template with shared document structure', async () => {
+test('handleSiteRequest renders managed index blocks with catalog layout', async () => {
   const store = new MemoryContentStore([
     {
-      path: 'essay.md',
+      path: 'README.md',
       kind: 'text',
       mediaType: 'text/markdown; charset=utf-8',
       text: [
         '---',
-        'title: Catalog Essay',
-        'summary: Long-form introduction.',
-        'date: 2026-03-20',
+        'title: Catalog Home',
         '---',
         '',
-        '# Catalog Essay',
+        '# Catalog Home',
         '',
         'Body paragraph.',
+        '',
+        '## Start Here',
+        '',
+        '- [Manual Link](./guides/)',
+        '',
+        '<!-- INDEX:START -->',
+        '',
+        '- [Guides](./guides/)',
+        '',
+        '- [Reference](./reference/)',
+        '',
+        '- [Why mdorigin exists](./why-mdorigin.md)',
+        '  2026-03-20 · A concise explanation of the project.',
+        '',
+        '<!-- INDEX:END -->',
       ].join('\n'),
     },
   ]);
 
-  const response = await handleSiteRequest(store, '/essay', {
+  const response = await handleSiteRequest(store, '/', {
     draftMode: 'include',
     siteConfig: {
       ...TEST_SITE_CONFIG,
@@ -686,7 +699,13 @@ test('handleSiteRequest renders catalog template with shared document structure'
 
   assert.equal(response.status, 200);
   assert.match(String(response.body), /data-template="catalog"/);
-  assert.match(String(response.body), /<h1>Catalog Essay<\/h1>/);
+  assert.match(String(response.body), /<h1>Catalog Home<\/h1>/);
   assert.equal((String(response.body).match(/<h1/g) ?? []).length, 1);
   assert.match(String(response.body), /Body paragraph\./);
+  assert.match(String(response.body), /<a class="catalog-card" href="\.\/guides\/">/);
+  assert.match(String(response.body), /<a class="catalog-card" href="\.\/reference\/">/);
+  assert.match(String(response.body), /<a class="catalog-item" href="\.\/why-mdorigin">/);
+  assert.match(String(response.body), /A concise explanation of the project\./);
+  assert.match(String(response.body), /<li><a href="\.\/guides\/">Manual Link<\/a><\/li>/);
+  assert.doesNotMatch(String(response.body), /<li><a href="\.\/reference\/">Reference<\/a><\/li>/);
 });
