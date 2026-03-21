@@ -164,6 +164,7 @@ export async function handleSiteRequest(
       editLinkHref: getEditLinkHref(options.siteConfig, resolved.sourcePath),
       stylesheetContent: options.siteConfig.stylesheetContent,
       canonicalPath: getCanonicalHtmlPathForContentPath(resolved.sourcePath),
+      alternateMarkdownPath: getMarkdownRequestPathForContentPath(resolved.sourcePath),
     }),
   };
 }
@@ -295,6 +296,9 @@ async function renderDirectoryListing(
       socialLinks: siteConfig.socialLinks,
       stylesheetContent: siteConfig.stylesheetContent,
       canonicalPath: requestPath,
+      alternateMarkdownPath: getMarkdownRequestPathForContentPath(
+        getDirectoryIndexContentPathForRequestPath(requestPath),
+      ),
     }),
   };
 }
@@ -327,6 +331,12 @@ function getDirectoryEntryLabel(entry: ContentDirectoryEntry): string {
 
 function getDirectoryTitle(requestPath: string): string {
   return requestPath === '/' ? 'Index' : requestPath;
+}
+
+function getDirectoryIndexContentPathForRequestPath(requestPath: string): string {
+  return requestPath === '/'
+    ? 'index.md'
+    : `${requestPath.slice(1).replace(/\/$/, '')}/index.md`;
 }
 
 async function tryRenderAlternateDirectoryIndex(
@@ -392,6 +402,7 @@ async function tryRenderAlternateDirectoryIndex(
         editLinkHref: getEditLinkHref(options.siteConfig, candidatePath),
         stylesheetContent: options.siteConfig.stylesheetContent,
         canonicalPath: requestPath,
+        alternateMarkdownPath: getMarkdownRequestPathForContentPath(candidatePath),
       }),
     };
   }

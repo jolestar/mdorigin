@@ -27,6 +27,7 @@ export interface RenderDocumentOptions {
   editLinkHref?: string;
   stylesheetContent?: string;
   canonicalPath?: string;
+  alternateMarkdownPath?: string;
 }
 
 export function renderDocument(options: RenderDocumentOptions) {
@@ -46,6 +47,11 @@ export function renderDocument(options: RenderDocumentOptions) {
       : '';
   const faviconMeta = options.favicon
     ? `<link rel="icon" href="${escapeHtml(options.favicon)}">`
+    : '';
+  const alternateMarkdownMeta = options.alternateMarkdownPath
+    ? `<link rel="alternate" type="text/markdown" href="${escapeHtml(
+        options.alternateMarkdownPath,
+      )}">`
     : '';
   const stylesheetBlock = `<style>${getBuiltInThemeStyles(options.theme)}${
     options.stylesheetContent ? `\n${options.stylesheetContent}` : ''
@@ -107,6 +113,7 @@ export function renderDocument(options: RenderDocumentOptions) {
     summaryMeta,
     canonicalMeta,
     faviconMeta,
+    alternateMarkdownMeta,
     stylesheetBlock,
     '</head>',
     `<body data-theme="${options.theme}" data-template="${options.template}">`,

@@ -566,6 +566,10 @@ test('handleSiteRequest respects site config rendering options', async () => {
   assert.match(String(response.body), /body \{ color: red; \}/);
   assert.match(String(response.body), /rel="canonical" href="https:\/\/example\.com\/post"/);
   assert.match(String(response.body), /rel="icon" href="\/favicon\.ico"/);
+  assert.match(
+    String(response.body),
+    /rel="alternate" type="text\/markdown" href="\/post\.md"/,
+  );
   assert.match(String(response.body), /<img src="\/logo\.svg" alt="Configured Site">/);
   assert.match(String(response.body), /site-footer__nav/);
   assert.match(String(response.body), /Footer note/);
