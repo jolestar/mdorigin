@@ -309,6 +309,61 @@ test('handleSiteRequest redirects alternate directory markdown filenames', async
   assert.equal(guidesRedirect.headers.location, '/guides/index.md');
 });
 
+test('handleSiteRequest redirects aliases to canonical html paths', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: '# Home',
+    },
+    {
+      path: 'guides/README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'aliases:', '  - /old-guides', '---', '', '# Guides'].join('\n'),
+    },
+    {
+      path: 'posts/hello.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'aliases:', '  - /hello-world', '---', '', '# Hello'].join('\n'),
+    },
+  ]);
+
+  const directoryAlias = await handleSiteRequest(store, '/old-guides', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+  assert.equal(directoryAlias.status, 308);
+  assert.equal(directoryAlias.headers.location, '/guides/');
+
+  const articleAlias = await handleSiteRequest(store, '/hello-world', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+  assert.equal(articleAlias.status, 308);
+  assert.equal(articleAlias.headers.location, '/posts/hello');
+});
+
+test('handleSiteRequest does not redirect draft aliases in exclude mode', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'draft.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'draft: true', 'aliases:', '  - /old-draft', '---', '', '# Draft'].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/old-draft', {
+    draftMode: 'exclude',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+
+  assert.equal(response.status, 404);
+});
+
 test('handleSiteRequest derives top navigation from root directories when topNav is empty', async () => {
   const store = new MemoryContentStore([
     {

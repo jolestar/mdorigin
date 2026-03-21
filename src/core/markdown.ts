@@ -10,6 +10,7 @@ export interface ParsedDocumentMeta {
   draft?: boolean;
   type?: string;
   order?: number;
+  aliases?: string[];
   [key: string]: unknown;
 }
 
@@ -131,6 +132,16 @@ function normalizeMeta(data: Record<string, unknown>): ParsedDocumentMeta {
     if (Number.isFinite(order)) {
       meta.order = order;
     }
+  }
+
+  if (typeof data.aliases === 'string' && data.aliases !== '') {
+    meta.aliases = [data.aliases];
+  }
+
+  if (Array.isArray(data.aliases)) {
+    meta.aliases = data.aliases.filter(
+      (value): value is string => typeof value === 'string' && value !== '',
+    );
   }
 
   return meta;

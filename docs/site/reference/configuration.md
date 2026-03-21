@@ -84,3 +84,25 @@ Rules:
 - lower `order` values come first
 - `order` is used for auto-derived top navigation and for directory index generation
 - when `order` is absent, `mdorigin` falls back to its default sort rules
+
+## Aliases
+
+Markdown frontmatter may define old URLs that should redirect to the current canonical route:
+
+```md
+---
+title: Hello
+aliases:
+  - /hello-world
+  - /old/hello
+---
+```
+
+Rules:
+
+- `aliases` may be a string or a string array
+- alias requests return `308` redirects
+- aliases redirect to the canonical HTML route for the current document
+- directory homepages redirect to `/dir/`
+- regular markdown documents redirect to `/dir/name`
+- draft documents do not expose aliases in exclude mode

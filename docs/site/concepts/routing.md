@@ -58,3 +58,22 @@ Example:
 ```bash
 curl -H "Accept: text/markdown" http://localhost:3000/guides/getting-started
 ```
+
+## Aliases
+
+Documents may declare old paths in frontmatter with `aliases`.
+
+When a request matches one of those aliases, `mdorigin` returns a `308` redirect to the current canonical HTML route:
+
+- directory homepages redirect to `/dir/`
+- regular documents redirect to `/dir/name`
+
+Example:
+
+```md
+---
+aliases:
+  - /old-guides
+  - /legacy/getting-started
+---
+```

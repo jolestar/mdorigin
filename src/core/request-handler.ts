@@ -13,7 +13,7 @@ import {
   stripManagedIndexLinks,
 } from './markdown.js';
 import type { ResolvedSiteConfig, SiteNavItem } from './site-config.js';
-import { resolveRequest } from './router.js';
+import { normalizeRequestPath, resolveRequest } from './router.js';
 import { escapeHtml, renderDocument } from '../html/template.js';
 
 export interface HandleSiteRequestOptions {
@@ -39,11 +39,21 @@ export async function handleSiteRequest(
     options.acceptHeader,
   );
   if (resolved.kind === 'not-found' || !resolved.sourcePath) {
+    const aliasRedirect = await tryRedirectAlias(store, pathname, options);
+    if (aliasRedirect !== null) {
+      return aliasRedirect;
+    }
+
     return notFound();
   }
 
   const entry = await store.get(resolved.sourcePath);
   if (entry === null) {
+    const aliasRedirect = await tryRedirectAlias(store, pathname, options);
+    if (aliasRedirect !== null) {
+      return aliasRedirect;
+    }
+
     const alternateDirectoryMarkdown = await tryServeAlternateDirectoryMarkdown(
       store,
       resolved,
@@ -485,6 +495,108 @@ function acceptsMarkdown(acceptHeader: string | undefined): boolean {
     .split(',')
     .map((part) => part.split(';', 1)[0]?.trim().toLowerCase())
     .includes('text/markdown');
+}
+
+async function tryRedirectAlias(
+  store: ContentStore,
+  pathname: string,
+  options: HandleSiteRequestOptions,
+): Promise<SiteResponse | null> {
+  const normalizedRequestPath = normalizeRequestPath(pathname);
+  if (normalizedRequestPath === null) {
+    return null;
+  }
+
+  const redirectLocation = await findAliasRedirectLocation(
+    store,
+    '',
+    normalizedRequestPath,
+    options,
+  );
+  if (!redirectLocation || redirectLocation === normalizedRequestPath) {
+    return null;
+  }
+
+  return redirect(redirectLocation);
+}
+
+async function findAliasRedirectLocation(
+  store: ContentStore,
+  directoryPath: string,
+  requestPath: string,
+  options: HandleSiteRequestOptions,
+): Promise<string | null> {
+  const entries = await store.listDirectory(directoryPath);
+  if (entries === null) {
+    return null;
+  }
+
+  for (const entry of entries) {
+    if (entry.kind === 'directory') {
+      const nestedMatch = await findAliasRedirectLocation(
+        store,
+        entry.path,
+        requestPath,
+        options,
+      );
+      if (nestedMatch !== null) {
+        return nestedMatch;
+      }
+      continue;
+    }
+
+    if (!isMarkdownEntry(entry)) {
+      continue;
+    }
+
+    const document = await store.get(entry.path);
+    if (document === null || document.kind !== 'text' || document.text === undefined) {
+      continue;
+    }
+
+    const parsed = await parseMarkdownDocument(entry.path, document.text);
+    if (parsed.meta.draft === true && options.draftMode === 'exclude') {
+      continue;
+    }
+
+    const aliases = normalizeAliases(parsed.meta.aliases);
+    if (!aliases.includes(requestPath)) {
+      continue;
+    }
+
+    return getCanonicalHtmlPathForContentPath(entry.path);
+  }
+
+  return null;
+}
+
+function isMarkdownEntry(entry: ContentDirectoryEntry): boolean {
+  return path.posix.extname(entry.name).toLowerCase() === '.md';
+}
+
+function normalizeAliases(aliases: unknown): string[] {
+  if (!Array.isArray(aliases)) {
+    return [];
+  }
+
+  return aliases.flatMap((alias) => {
+    if (typeof alias !== 'string') {
+      return [];
+    }
+
+    const normalized = normalizeRequestPath(alias);
+    return normalized === null ? [] : [normalized];
+  });
+}
+
+function getCanonicalHtmlPathForContentPath(contentPath: string): string {
+  const basename = path.posix.basename(contentPath).toLowerCase();
+  if (basename === 'index.md' || basename === 'readme.md') {
+    const directory = path.posix.dirname(contentPath);
+    return directory === '.' ? '/' : `/${directory}/`;
+  }
+
+  return `/${contentPath.slice(0, -'.md'.length)}`;
 }
 
 async function resolveTopNav(
