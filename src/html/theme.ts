@@ -128,6 +128,13 @@ main {
   padding-top: 1rem;
   color: var(--muted);
 }
+.site-footer__meta {
+  margin-top: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
 .site-footer__nav ul,
 .site-footer__social {
   list-style: none;
@@ -165,6 +172,19 @@ main {
 .site-footer__edit-link {
   display: block;
   margin-top: 0.9rem;
+}
+.site-footer__edit-link {
+  display: inline-block;
+  margin-top: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  opacity: 0.72;
+}
+@media (max-width: 720px) {
+  .site-footer__meta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 article {
   background: color-mix(in srgb, var(--surface) 92%, white 8%);
@@ -390,6 +410,13 @@ main {
   padding-top: 1rem;
   color: var(--muted);
 }
+.site-footer__meta {
+  margin-top: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
 .site-footer__nav ul,
 .site-footer__social {
   list-style: none;
@@ -427,6 +454,19 @@ main {
 .site-footer__edit-link {
   display: block;
   margin-top: 0.95rem;
+}
+.site-footer__edit-link {
+  display: inline-block;
+  margin-top: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  opacity: 0.72;
+}
+@media (max-width: 720px) {
+  .site-footer__meta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 article {
   background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(247,250,252,0.98));
@@ -653,6 +693,13 @@ main {
   padding-top: 1rem;
   color: var(--muted);
 }
+.site-footer__meta {
+  margin-top: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
 .site-footer__nav ul,
 .site-footer__social {
   list-style: none;
@@ -690,6 +737,19 @@ main {
 .site-footer__edit-link {
   display: block;
   margin-top: 0.9rem;
+}
+.site-footer__edit-link {
+  display: inline-block;
+  margin-top: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  opacity: 0.72;
+}
+@media (max-width: 720px) {
+  .site-footer__meta {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 article {
   background:

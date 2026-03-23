@@ -100,9 +100,13 @@ export function renderDocument(options: RenderDocumentOptions) {
   const footerTextBlock = options.footerText
     ? `<p class="site-footer__text">${escapeHtml(options.footerText)}</p>`
     : '';
+  const footerMetaBlock =
+    socialLinksBlock || editLinkBlock
+      ? `<div class="site-footer__meta">${socialLinksBlock}${editLinkBlock}</div>`
+      : '';
   const footerBlock =
-    footerNavBlock || socialLinksBlock || footerTextBlock || editLinkBlock
-      ? `<footer class="site-footer"><div class="site-footer__inner">${footerNavBlock}${socialLinksBlock}${footerTextBlock}${editLinkBlock}</div></footer>`
+    footerNavBlock || footerTextBlock || footerMetaBlock
+      ? `<footer class="site-footer"><div class="site-footer__inner">${footerNavBlock}${footerTextBlock}${footerMetaBlock}</div></footer>`
       : '';
   const articleBody =
     options.template === 'catalog'

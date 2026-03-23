@@ -12,11 +12,7 @@ summary: Markdown-first publishing for human HTML and agent-readable raw markdow
 
 It treats markdown as the source of truth, serves raw `.md` directly for agents, and renders HTML views for humans from the same directory tree.
 
-## Start Here
-
-- [Getting Started](./guides/getting-started.md)
-- [Configuration](./reference/configuration.md)
-- [Cloudflare Deployment](./guides/cloudflare.md)
+If you want to try it quickly, start with [Getting Started](./guides/getting-started.md), then move to [Configuration](./reference/configuration.md) and [Cloudflare Deployment](./guides/cloudflare.md).
 
 ## What it does
 
@@ -26,7 +22,11 @@ It treats markdown as the source of truth, serves raw `.md` directly for agents,
 - relative assets stay next to content
 - the same core works for local Node preview and Cloudflare Workers
 
-The site below is intentionally organized as directories so the automatic index behavior can act as the primary navigation layer.
+## Project Note
+
+[Why mdorigin exists](./why-mdorigin.md) explains the project direction in one page and gives the shortest rationale for the markdown-first model.
+
+The top navigation and section indexes cover the rest of the documentation.
 
 <!-- INDEX:START -->
 

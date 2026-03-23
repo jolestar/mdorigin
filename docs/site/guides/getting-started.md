@@ -7,6 +7,16 @@ summary: Preview content locally, configure a site, and build indexes.
 
 # Getting Started
 
+## Quick Start
+
+```bash
+npm install -g mdorigin
+mdorigin dev --root docs/site
+mdorigin build index --root docs/site
+```
+
+That is enough to preview a site locally, keep directory indexes up to date, and confirm the content model before touching deployment.
+
 ## Install
 
 ```bash
