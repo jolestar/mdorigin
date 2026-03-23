@@ -30,6 +30,9 @@ export interface RenderDocumentOptions {
   canonicalPath?: string;
   alternateMarkdownPath?: string;
   catalogEntries?: ManagedIndexEntry[];
+  catalogRequestPath?: string;
+  catalogInitialPostCount?: number;
+  catalogLoadMoreStep?: number;
 }
 
 export function renderDocument(options: RenderDocumentOptions) {
@@ -110,7 +113,15 @@ export function renderDocument(options: RenderDocumentOptions) {
       : '';
   const articleBody =
     options.template === 'catalog'
-      ? renderCatalogArticle(options.body, options.catalogEntries ?? [])
+      ? renderCatalogArticle(
+          options.body,
+          options.catalogEntries ?? [],
+          {
+            requestPath: options.catalogRequestPath ?? '/',
+            initialPostCount: options.catalogInitialPostCount ?? 10,
+            loadMoreStep: options.catalogLoadMoreStep ?? 10,
+          },
+        )
       : options.body;
 
   return [
@@ -180,6 +191,11 @@ function iconSvg(pathData: string): string {
 function renderCatalogArticle(
   body: string,
   entries: ManagedIndexEntry[],
+  options: {
+    requestPath: string;
+    initialPostCount: number;
+    loadMoreStep: number;
+  },
 ): string {
   if (entries.length === 0) {
     return body;
@@ -187,13 +203,24 @@ function renderCatalogArticle(
 
   const directories = entries.filter((entry) => entry.kind === 'directory');
   const articles = entries.filter((entry) => entry.kind === 'article');
+  const initialPostCount = Math.max(1, options.initialPostCount);
+  const visibleArticles = articles.slice(0, initialPostCount);
+  const shouldLoadMore = articles.length > visibleArticles.length;
 
   return [
     `<div class="catalog-page__body">${body}</div>`,
     '<section class="catalog-page" aria-label="Catalog">',
     directories.length > 0 ? renderCatalogDirectories(directories) : '',
-    articles.length > 0 ? renderCatalogArticles(articles) : '',
+    articles.length > 0
+      ? renderCatalogArticles(visibleArticles, {
+          requestPath: options.requestPath,
+          nextOffset: visibleArticles.length,
+          loadMoreStep: options.loadMoreStep,
+          hasMore: shouldLoadMore,
+        })
+      : '',
     '</section>',
+    shouldLoadMore ? renderCatalogLoadMoreScript() : '',
   ].join('');
 }
 
@@ -212,17 +239,98 @@ function renderCatalogDirectories(entries: ManagedIndexEntry[]): string {
   ].join('');
 }
 
-function renderCatalogArticles(entries: ManagedIndexEntry[]): string {
-  return [
-    '<div class="catalog-list">',
-    ...entries.map(
+export function renderCatalogArticleItems(entries: readonly ManagedIndexEntry[]): string {
+  return entries
+    .map(
       (entry) =>
         `<a class="catalog-item" href="${escapeHtml(entry.href)}"><strong class="catalog-item__title">${escapeHtml(entry.title)}</strong>${
           entry.detail
             ? `<span class="catalog-item__detail">${escapeHtml(entry.detail)}</span>`
             : ''
         }</a>`,
-    ),
+    )
+    .join('');
+}
+
+function renderCatalogArticles(
+  entries: ManagedIndexEntry[],
+  options: {
+    requestPath: string;
+    nextOffset: number;
+    loadMoreStep: number;
+    hasMore: boolean;
+  },
+): string {
+  return [
+    '<div class="catalog-list" data-catalog-articles>',
+    renderCatalogArticleItems(entries),
     '</div>',
+    options.hasMore
+      ? `<div class="catalog-load-more"><button type="button" class="catalog-load-more__button" data-catalog-load-more data-request-path="${escapeHtml(
+          options.requestPath,
+        )}" data-next-offset="${escapeHtml(String(options.nextOffset))}" data-load-more-step="${escapeHtml(
+          String(options.loadMoreStep),
+        )}">Load more</button></div>`
+      : '',
   ].join('');
+}
+
+function renderCatalogLoadMoreScript(): string {
+  return `<script>
+(() => {
+  const button = document.querySelector('[data-catalog-load-more]');
+  const list = document.querySelector('[data-catalog-articles]');
+  if (!(button instanceof HTMLButtonElement) || !(list instanceof HTMLElement)) {
+    return;
+  }
+
+  const loadMore = async () => {
+    const requestPath = button.dataset.requestPath;
+    const nextOffset = button.dataset.nextOffset;
+    const loadMoreStep = button.dataset.loadMoreStep;
+    if (!requestPath || !nextOffset || !loadMoreStep) {
+      return;
+    }
+
+    button.disabled = true;
+    const previousLabel = button.textContent;
+    button.textContent = 'Loading...';
+
+    try {
+      const url = new URL(requestPath, window.location.origin);
+      url.searchParams.set('catalog-format', 'posts');
+      url.searchParams.set('catalog-offset', nextOffset);
+      url.searchParams.set('catalog-limit', loadMoreStep);
+
+      const response = await fetch(url.toString(), {
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to load more posts');
+      }
+
+      const payload = await response.json();
+      if (typeof payload.itemsHtml === 'string' && payload.itemsHtml !== '') {
+        list.insertAdjacentHTML('beforeend', payload.itemsHtml);
+      }
+
+      if (payload.hasMore === true && typeof payload.nextOffset === 'number') {
+        button.dataset.nextOffset = String(payload.nextOffset);
+        button.disabled = false;
+        button.textContent = previousLabel ?? 'Load more';
+        return;
+      }
+
+      button.remove();
+    } catch {
+      button.disabled = false;
+      button.textContent = previousLabel ?? 'Load more';
+    }
+  };
+
+  button.addEventListener('click', () => {
+    void loadMore();
+  });
+})();
+</script>`;
 }

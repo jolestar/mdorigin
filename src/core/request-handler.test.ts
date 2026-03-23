@@ -20,6 +20,8 @@ const TEST_SITE_CONFIG = {
   socialLinks: [],
   editLink: undefined,
   showHomeIndex: true,
+  catalogInitialPostCount: 10,
+  catalogLoadMoreStep: 10,
   siteTitleConfigured: true,
   siteDescriptionConfigured: false,
 };
@@ -609,6 +611,8 @@ test('handleSiteRequest respects site config rendering options', async () => {
       socialLinks: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/example/repo' }],
       editLink: { baseUrl: 'https://github.com/example/repo/edit/main/docs/' },
       showHomeIndex: true,
+      catalogInitialPostCount: 10,
+      catalogLoadMoreStep: 10,
       stylesheetContent: 'body { color: red; }',
       siteTitleConfigured: true,
       siteDescriptionConfigured: true,
@@ -709,4 +713,79 @@ test('handleSiteRequest renders managed index blocks with catalog layout', async
   assert.match(String(response.body), /<li><a href="\.\/guides\/">Manual Link<\/a><\/li>/);
   assert.doesNotMatch(String(response.body), /<li><a href="\.\/reference\/">Reference<\/a><\/li>/);
   assert.doesNotMatch(String(response.body), /Directory<\/span>/);
+});
+
+test('handleSiteRequest loads additional catalog articles in batches', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: [
+        '---',
+        'title: Catalog Home',
+        '---',
+        '',
+        '# Catalog Home',
+        '',
+        '<!-- INDEX:START -->',
+        '',
+        '- [First](./first.md)',
+        '  First detail.',
+        '',
+        '- [Second](./second.md)',
+        '  Second detail.',
+        '',
+        '- [Third](./third.md)',
+        '  Third detail.',
+        '',
+        '<!-- INDEX:END -->',
+      ].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/', {
+    draftMode: 'include',
+    siteConfig: {
+      ...TEST_SITE_CONFIG,
+      template: 'catalog',
+      catalogInitialPostCount: 1,
+      catalogLoadMoreStep: 1,
+    },
+  });
+
+  assert.equal(response.status, 200);
+  const body = String(response.body);
+  assert.match(body, /First/);
+  assert.doesNotMatch(body, /Second detail\./);
+  assert.match(body, /data-catalog-load-more/);
+
+  const fragmentResponse = await handleSiteRequest(store, '/', {
+    draftMode: 'include',
+    siteConfig: {
+      ...TEST_SITE_CONFIG,
+      template: 'catalog',
+      catalogInitialPostCount: 1,
+      catalogLoadMoreStep: 1,
+    },
+    searchParams: new URLSearchParams({
+      'catalog-format': 'posts',
+      'catalog-offset': '1',
+      'catalog-limit': '1',
+    }),
+  });
+
+  assert.equal(fragmentResponse.status, 200);
+  assert.equal(
+    fragmentResponse.headers['content-type'],
+    'application/json; charset=utf-8',
+  );
+  const payload = JSON.parse(String(fragmentResponse.body)) as {
+    itemsHtml: string;
+    hasMore: boolean;
+    nextOffset: number;
+  };
+  assert.match(payload.itemsHtml, /Second/);
+  assert.equal(payload.hasMore, true);
+  assert.equal(payload.nextOffset, 2);
 });

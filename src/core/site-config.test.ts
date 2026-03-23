@@ -33,6 +33,8 @@ test('loadSiteConfig prefers content root config over cwd config', async () => {
         footerText: 'Footer note',
         socialLinks: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/example/repo' }],
         editLink: { baseUrl: 'https://github.com/example/repo/edit/main/docs/' },
+        catalogInitialPostCount: 6,
+        catalogLoadMoreStep: 4,
       },
       null,
       2,
@@ -54,6 +56,8 @@ test('loadSiteConfig prefers content root config over cwd config', async () => {
   assert.deepEqual(config.editLink, {
     baseUrl: 'https://github.com/example/repo/edit/main/docs/',
   });
+  assert.equal(config.catalogInitialPostCount, 6);
+  assert.equal(config.catalogLoadMoreStep, 4);
 });
 
 test('applySiteConfigFrontmatterDefaults uses root homepage frontmatter when config is absent', async () => {
@@ -115,6 +119,8 @@ test('applySiteConfigFrontmatterDefaults does not override explicit config value
     socialLinks: [],
     editLink: undefined,
     showHomeIndex: true,
+    catalogInitialPostCount: 10,
+    catalogLoadMoreStep: 10,
     siteTitleConfigured: true,
     siteDescriptionConfigured: true,
   });

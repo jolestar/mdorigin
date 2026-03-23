@@ -15,12 +15,17 @@ import {
 } from './markdown.js';
 import type { ResolvedSiteConfig, SiteNavItem } from './site-config.js';
 import { normalizeRequestPath, resolveRequest } from './router.js';
-import { escapeHtml, renderDocument } from '../html/template.js';
+import {
+  escapeHtml,
+  renderCatalogArticleItems,
+  renderDocument,
+} from '../html/template.js';
 
 export interface HandleSiteRequestOptions {
   draftMode: 'include' | 'exclude';
   siteConfig: ResolvedSiteConfig;
   acceptHeader?: string;
+  searchParams?: URLSearchParams;
 }
 
 export interface SiteResponse {
@@ -39,6 +44,7 @@ export async function handleSiteRequest(
   }
 
   const resolved = resolveRequest(pathname);
+  const catalogFragmentRequest = getCatalogFragmentRequest(options.searchParams);
   const negotiatedMarkdown = shouldServeMarkdownForRequest(
     resolved,
     options.acceptHeader,
@@ -139,6 +145,12 @@ export async function handleSiteRequest(
     options.siteConfig.template === 'catalog'
       ? extractManagedIndexEntries(renderedBody)
       : [];
+  if (
+    catalogFragmentRequest !== null &&
+    options.siteConfig.template === 'catalog'
+  ) {
+    return renderCatalogPostsFragment(catalogEntries, catalogFragmentRequest);
+  }
   const documentBody =
     options.siteConfig.template === 'catalog'
       ? stripManagedIndexBlock(renderedBody)
@@ -179,6 +191,75 @@ export async function handleSiteRequest(
       canonicalPath: getCanonicalHtmlPathForContentPath(resolved.sourcePath),
       alternateMarkdownPath: getMarkdownRequestPathForContentPath(resolved.sourcePath),
       catalogEntries,
+      catalogRequestPath: resolved.requestPath,
+      catalogInitialPostCount: options.siteConfig.catalogInitialPostCount,
+      catalogLoadMoreStep: options.siteConfig.catalogLoadMoreStep,
+    }),
+  };
+}
+
+interface CatalogFragmentRequest {
+  offset: number;
+  limit: number;
+}
+
+function getCatalogFragmentRequest(
+  searchParams: URLSearchParams | undefined,
+): CatalogFragmentRequest | null {
+  if (searchParams?.get('catalog-format') !== 'posts') {
+    return null;
+  }
+
+  const offset = normalizeNonNegativeInteger(searchParams.get('catalog-offset'));
+  const limit = normalizePositiveInteger(searchParams.get('catalog-limit'));
+
+  if (offset === null || limit === null) {
+    return null;
+  }
+
+  return { offset, limit };
+}
+
+function normalizeNonNegativeInteger(value: string | null): number | null {
+  if (value === null) {
+    return 0;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function normalizePositiveInteger(value: string | null): number | null {
+  if (value === null) {
+    return null;
+  }
+
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function renderCatalogPostsFragment(
+  entries: readonly {
+    kind: 'directory' | 'article';
+    title: string;
+    href: string;
+    detail?: string;
+  }[],
+  request: CatalogFragmentRequest,
+): SiteResponse {
+  const articles = entries.filter((entry) => entry.kind === 'article');
+  const visibleArticles = articles.slice(request.offset, request.offset + request.limit);
+  const nextOffset = request.offset + visibleArticles.length;
+
+  return {
+    status: 200,
+    headers: {
+      'content-type': 'application/json; charset=utf-8',
+    },
+    body: JSON.stringify({
+      itemsHtml: renderCatalogArticleItems(visibleArticles),
+      hasMore: nextOffset < articles.length,
+      nextOffset,
     }),
   };
 }
@@ -489,6 +570,13 @@ async function tryRenderAlternateDirectoryIndex(
       options.siteConfig.template === 'catalog'
         ? extractManagedIndexEntries(renderedBody)
         : [];
+    const catalogFragmentRequest = getCatalogFragmentRequest(options.searchParams);
+    if (
+      catalogFragmentRequest !== null &&
+      options.siteConfig.template === 'catalog'
+    ) {
+      return renderCatalogPostsFragment(catalogEntries, catalogFragmentRequest);
+    }
     const documentBody =
       options.siteConfig.template === 'catalog'
         ? stripManagedIndexBlock(renderedBody)
@@ -526,6 +614,9 @@ async function tryRenderAlternateDirectoryIndex(
         canonicalPath: requestPath,
         alternateMarkdownPath: getMarkdownRequestPathForContentPath(candidatePath),
         catalogEntries,
+        catalogRequestPath: requestPath,
+        catalogInitialPostCount: options.siteConfig.catalogInitialPostCount,
+        catalogLoadMoreStep: options.siteConfig.catalogLoadMoreStep,
       }),
     };
   }

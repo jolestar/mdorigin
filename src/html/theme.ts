@@ -276,6 +276,27 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
 .catalog-item:hover {
   text-decoration: none;
 }
+.catalog-load-more {
+  margin-top: 1.2rem;
+}
+.catalog-load-more__button {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.catalog-load-more__button:hover {
+  background: color-mix(in srgb, var(--surface) 86%, var(--code-bg) 14%);
+}
+.catalog-load-more__button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
 @media (max-width: 720px) {
   html { font-size: 17px; }
   .site-header, main, .site-footer { padding-left: 1rem; padding-right: 1rem; }
@@ -561,6 +582,27 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
 }
 .catalog-item:hover {
   text-decoration: none;
+}
+.catalog-load-more {
+  margin-top: 1.2rem;
+}
+.catalog-load-more__button {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.catalog-load-more__button:hover {
+  background: color-mix(in srgb, var(--surface) 75%, var(--accent) 25%);
+}
+.catalog-load-more__button:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 @media (max-width: 720px) {
   .site-header__inner, main, .site-footer { padding-left: 1rem; padding-right: 1rem; }
@@ -849,6 +891,27 @@ hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
 }
 .catalog-item:hover {
   text-decoration: none;
+}
+.catalog-load-more {
+  margin-top: 1.2rem;
+}
+.catalog-load-more__button {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.65rem 1rem;
+  font: inherit;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.catalog-load-more__button:hover {
+  background: color-mix(in srgb, var(--surface) 84%, #fff 16%);
+}
+.catalog-load-more__button:disabled {
+  cursor: wait;
+  opacity: 0.7;
 }
 @media (max-width: 720px) {
   html { font-size: 17px; }

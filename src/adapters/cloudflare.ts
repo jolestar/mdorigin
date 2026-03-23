@@ -66,10 +66,13 @@ export function createCloudflareWorker(
           socialLinks: [],
           editLink: undefined,
           showHomeIndex: true,
+          catalogInitialPostCount: 10,
+          catalogLoadMoreStep: 10,
           siteTitleConfigured: false,
           siteDescriptionConfigured: false,
         },
         acceptHeader: request.headers.get('accept') ?? undefined,
+        searchParams: url.searchParams,
       });
 
       const headers = new Headers(siteResponse.headers);

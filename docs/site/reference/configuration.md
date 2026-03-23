@@ -24,6 +24,8 @@ Useful fields:
 - `socialLinks`
 - `editLink`
 - `showHomeIndex`
+- `catalogInitialPostCount`
+- `catalogLoadMoreStep`
 - `showDate`
 - `showSummary`
 - `stylesheet`
@@ -109,6 +111,23 @@ Built-in social icons currently include:
 - `catalog`: for homepages and directory-style collection pages
 
 The `theme` still controls colors, typography, and spacing. `template` controls the page structure.
+
+When `template` is `catalog`, you can limit the initial article list and progressively reveal more posts:
+
+```json
+{
+  "template": "catalog",
+  "catalogInitialPostCount": 10,
+  "catalogLoadMoreStep": 10
+}
+```
+
+Rules:
+
+- `catalogInitialPostCount` controls how many article entries are rendered in the first HTML response
+- `catalogLoadMoreStep` controls how many additional article entries each `Load more` request appends
+- directory entries are still rendered in full; the limit only applies to catalog article entries
+- both fields default to `10`
 
 ## Directory Type
 

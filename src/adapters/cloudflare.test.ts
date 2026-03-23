@@ -20,6 +20,8 @@ test('cloudflare worker serves html and hides drafts', async () => {
       socialLinks: [],
       editLink: undefined,
       showHomeIndex: true,
+      catalogInitialPostCount: 10,
+      catalogLoadMoreStep: 10,
       stylesheetContent: 'body { font-family: serif; }',
       siteTitleConfigured: true,
       siteDescriptionConfigured: false,

@@ -120,6 +120,7 @@ export function createNodeRequestListener(options: NodeAdapterOptions) {
         draftMode: options.draftMode,
         siteConfig: options.siteConfig,
         acceptHeader: request.headers.accept,
+        searchParams: url.searchParams,
       });
 
       response.statusCode = siteResponse.status;

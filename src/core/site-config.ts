@@ -45,6 +45,8 @@ export interface SiteConfig {
   socialLinks?: SiteSocialLink[];
   editLink?: EditLinkConfig;
   showHomeIndex?: boolean;
+  catalogInitialPostCount?: number;
+  catalogLoadMoreStep?: number;
 }
 
 export interface ResolvedSiteConfig {
@@ -63,6 +65,8 @@ export interface ResolvedSiteConfig {
   socialLinks: SiteSocialLink[];
   editLink?: EditLinkConfig;
   showHomeIndex: boolean;
+  catalogInitialPostCount: number;
+  catalogLoadMoreStep: number;
   stylesheetContent?: string;
   siteTitleConfigured: boolean;
   siteDescriptionConfigured: boolean;
@@ -129,6 +133,14 @@ export async function loadSiteConfig(
       typeof parsedConfig.showHomeIndex === 'boolean'
         ? parsedConfig.showHomeIndex
         : normalizeTopNav(parsedConfig.topNav).length === 0,
+    catalogInitialPostCount: normalizePositiveInteger(
+      parsedConfig.catalogInitialPostCount,
+      10,
+    ),
+    catalogLoadMoreStep: normalizePositiveInteger(
+      parsedConfig.catalogLoadMoreStep,
+      10,
+    ),
     stylesheetContent,
     siteTitleConfigured:
       typeof parsedConfig.siteTitle === 'string' && parsedConfig.siteTitle !== '',
@@ -238,6 +250,21 @@ function normalizeTopNav(value: unknown): SiteNavItem[] {
 
     return [];
   });
+}
+
+function normalizePositiveInteger(value: unknown, fallback: number): number {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  return fallback;
 }
 
 function normalizeLogo(value: unknown): SiteLogo | undefined {

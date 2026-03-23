@@ -81,6 +81,16 @@ You can also choose a page structure with `template`:
 
 Use `document` for ordinary docs and articles. Use `catalog` for homepages and directory-style collection pages.
 
+If you use `catalog`, you can also cap the first batch of article entries:
+
+```json
+{
+  "template": "catalog",
+  "catalogInitialPostCount": 10,
+  "catalogLoadMoreStep": 10
+}
+```
+
 ## Build directory indexes
 
 ```bash

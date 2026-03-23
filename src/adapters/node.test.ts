@@ -38,6 +38,8 @@ test('node server serves markdown, html, and assets', async () => {
       socialLinks: [],
       editLink: undefined,
       showHomeIndex: true,
+      catalogInitialPostCount: 10,
+      catalogLoadMoreStep: 10,
       siteTitleConfigured: true,
       siteDescriptionConfigured: false,
     },
