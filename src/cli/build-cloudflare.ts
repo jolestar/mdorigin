@@ -11,7 +11,7 @@ export async function runBuildCloudflareCommand(argv: string[]) {
   const args = parseArgs(argv);
   if (!args.root) {
     console.error(
-      'Usage: mdorigin build cloudflare --root <content-dir> [--out ./dist/cloudflare] [--config mdorigin.config.json]',
+      'Usage: mdorigin build cloudflare --root <content-dir> [--out ./dist/cloudflare] [--config mdorigin.config.json] [--search ./dist/search]',
     );
     process.exitCode = 1;
     return;
@@ -29,13 +29,14 @@ export async function runBuildCloudflareCommand(argv: string[]) {
     rootDir,
     outDir: path.resolve(args.out ?? 'dist/cloudflare'),
     siteConfig,
+    searchDir: args.search ? path.resolve(args.search) : undefined,
   });
 
   console.log(`cloudflare worker written to ${result.workerFile}`);
 }
 
 function parseArgs(argv: string[]) {
-  const result: { root?: string; out?: string; config?: string } = {};
+  const result: { root?: string; out?: string; config?: string; search?: string } = {};
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -55,6 +56,12 @@ function parseArgs(argv: string[]) {
 
     if (argument === '--config' && nextValue) {
       result.config = nextValue;
+      index += 1;
+      continue;
+    }
+
+    if (argument === '--search' && nextValue) {
+      result.search = nextValue;
       index += 1;
     }
   }

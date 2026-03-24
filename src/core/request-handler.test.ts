@@ -293,6 +293,91 @@ test('handleSiteRequest returns an error for sitemap.xml when siteUrl is missing
   assert.match(String(response.body), /siteUrl/);
 });
 
+test('handleSiteRequest serves OpenAPI schema for search', async () => {
+  const response = await handleSiteRequest(
+    new MemoryContentStore([]),
+    '/api/openapi.json',
+    {
+      draftMode: 'include',
+      siteConfig: TEST_SITE_CONFIG,
+      requestUrl: 'https://example.com/api/openapi.json',
+    },
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['content-type'], 'application/json; charset=utf-8');
+  const body = JSON.parse(String(response.body)) as {
+    openapi: string;
+    paths: Record<string, unknown>;
+  };
+  assert.equal(body.openapi, '3.1.0');
+  assert.ok('/api/search' in body.paths);
+});
+
+test('handleSiteRequest serves search API results', async () => {
+  const response = await handleSiteRequest(
+    new MemoryContentStore([]),
+    '/api/search',
+    {
+      draftMode: 'include',
+      siteConfig: TEST_SITE_CONFIG,
+      searchParams: new URLSearchParams({
+        q: 'cloudflare deploy',
+        topK: '5',
+      }),
+      searchApi: {
+        async search(query, options) {
+          assert.equal(query, 'cloudflare deploy');
+          assert.equal(options?.topK, 5);
+          return [
+            {
+              docId: '/guides/cloudflare',
+              relativePath: 'guides/cloudflare.md',
+              canonicalUrl: 'https://example.com/guides/cloudflare',
+              title: 'Cloudflare Deployment',
+              summary: 'Deploy with Workers.',
+              metadata: {},
+              score: 0.9,
+              bestMatch: {
+                chunkId: 1,
+                excerpt: 'Build a Worker bundle and deploy it.',
+                headingPath: ['Cloudflare Deployment'],
+                charStart: 0,
+                charEnd: 35,
+                score: 0.9,
+              },
+            },
+          ];
+        },
+      },
+    },
+  );
+
+  assert.equal(response.status, 200);
+  const body = JSON.parse(String(response.body)) as {
+    query: string;
+    count: number;
+    hits: Array<{ title: string }>;
+  };
+  assert.equal(body.query, 'cloudflare deploy');
+  assert.equal(body.count, 1);
+  assert.equal(body.hits[0]?.title, 'Cloudflare Deployment');
+});
+
+test('handleSiteRequest returns 404 for search API when disabled', async () => {
+  const response = await handleSiteRequest(
+    new MemoryContentStore([]),
+    '/api/search',
+    {
+      draftMode: 'include',
+      siteConfig: TEST_SITE_CONFIG,
+      searchParams: new URLSearchParams({ q: 'hello' }),
+    },
+  );
+
+  assert.equal(response.status, 404);
+});
+
 test('handleSiteRequest renders directory listings when index is missing', async () => {
   const store = new MemoryContentStore([
     {

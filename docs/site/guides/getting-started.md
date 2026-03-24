@@ -35,6 +35,17 @@ mdorigin build search --root docs/site
 mdorigin search --index dist/search "cloudflare deploy"
 ```
 
+To expose the same bundle as a site API during local preview:
+
+```bash
+mdorigin dev --root docs/site --search dist/search
+```
+
+Available endpoints:
+
+- `/api/search?q=cloudflare+deploy`
+- `/api/openapi.json`
+
 ## Install
 
 ```bash

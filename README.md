@@ -28,6 +28,18 @@ mdorigin build search --root docs/site
 mdorigin search --index dist/search "cloudflare deploy"
 ```
 
+To expose the same search bundle from the site runtime:
+
+```bash
+mdorigin dev --root docs/site --search dist/search
+mdorigin build cloudflare --root docs/site --search dist/search
+```
+
+Runtime endpoints:
+
+- `/api/search?q=cloudflare+deploy`
+- `/api/openapi.json`
+
 ## Repo Development
 
 ```bash

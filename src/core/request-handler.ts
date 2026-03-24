@@ -16,18 +16,22 @@ import {
   stripManagedIndexLinks,
 } from './markdown.js';
 import type { ResolvedSiteConfig, SiteNavItem } from './site-config.js';
+import { handleApiRoute } from './api.js';
 import { normalizeRequestPath, resolveRequest } from './router.js';
 import {
   escapeHtml,
   renderCatalogArticleItems,
   renderDocument,
 } from '../html/template.js';
+import type { SearchApi } from '../search.js';
 
 export interface HandleSiteRequestOptions {
   draftMode: 'include' | 'exclude';
   siteConfig: ResolvedSiteConfig;
   acceptHeader?: string;
   searchParams?: URLSearchParams;
+  requestUrl?: string;
+  searchApi?: SearchApi;
 }
 
 export interface SiteResponse {
@@ -41,6 +45,15 @@ export async function handleSiteRequest(
   pathname: string,
   options: HandleSiteRequestOptions,
 ): Promise<SiteResponse> {
+  const apiRoute = await handleApiRoute(pathname, options.searchParams, {
+    searchApi: options.searchApi,
+    siteConfig: options.siteConfig,
+    requestUrl: options.requestUrl,
+  });
+  if (apiRoute !== null) {
+    return apiRoute;
+  }
+
   if (pathname === '/sitemap.xml') {
     return renderSitemap(store, options);
   }

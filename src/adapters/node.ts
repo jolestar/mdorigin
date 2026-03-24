@@ -12,11 +12,13 @@ import {
 } from '../core/content-store.js';
 import { handleSiteRequest } from '../core/request-handler.js';
 import type { ResolvedSiteConfig } from '../core/site-config.js';
+import type { SearchApi } from '../search.js';
 
 export interface NodeAdapterOptions {
   rootDir: string;
   draftMode: 'include' | 'exclude';
   siteConfig: ResolvedSiteConfig;
+  searchApi?: SearchApi;
 }
 
 export function createFileSystemContentStore(rootDir: string): ContentStore {
@@ -164,6 +166,8 @@ export function createNodeRequestListener(options: NodeAdapterOptions) {
         siteConfig: options.siteConfig,
         acceptHeader: request.headers.accept,
         searchParams: url.searchParams,
+        requestUrl: url.toString(),
+        searchApi: options.searchApi,
       });
 
       response.statusCode = siteResponse.status;

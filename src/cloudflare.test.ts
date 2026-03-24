@@ -151,3 +151,41 @@ test('buildCloudflareManifest follows directory symlinks', async () => {
 
   assert.ok(manifest.entries.some((entry) => entry.path === 'skills/find-skills/SKILL.md'));
 });
+
+test('buildCloudflareManifest includes optional search bundle entries', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-search-root-'));
+  const searchDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-search-dir-'));
+  await writeFile(path.join(rootDir, 'index.md'), '# Home\n', 'utf8');
+  await writeFile(
+    path.join(searchDir, 'manifest.json'),
+    '{"artifactFormat":"file-bundle-v1"}\n',
+    'utf8',
+  );
+
+  const manifest = await buildCloudflareManifest({
+    rootDir,
+    searchDir,
+    siteConfig: {
+      siteTitle: 'Manifest Site',
+      siteUrl: undefined,
+      favicon: undefined,
+      logo: undefined,
+      showDate: true,
+      showSummary: true,
+      theme: 'paper',
+      template: 'document',
+      topNav: [],
+      footerNav: [],
+      footerText: undefined,
+      socialLinks: [],
+      editLink: undefined,
+      showHomeIndex: true,
+      catalogInitialPostCount: 10,
+      catalogLoadMoreStep: 10,
+      siteTitleConfigured: true,
+      siteDescriptionConfigured: false,
+    },
+  });
+
+  assert.equal(manifest.searchEntries?.[0]?.path, 'manifest.json');
+});

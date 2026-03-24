@@ -50,7 +50,7 @@ interface IndexbindBuildModule {
   ): Promise<{ documentCount: number; chunkCount: number; vectorDimensions: number }>;
 }
 
-interface SearchHit {
+export interface SearchHit {
   docId: string;
   relativePath: string;
   canonicalUrl?: string;
@@ -82,6 +82,24 @@ interface IndexbindWebIndex {
 
 interface IndexbindWebModule {
   openWebIndex(base: string | URL): Promise<IndexbindWebIndex>;
+}
+
+export interface SearchApi {
+  search(
+    query: string,
+    options?: {
+      topK?: number;
+      relativePathPrefix?: string;
+    },
+  ): Promise<SearchHit[]>;
+}
+
+export interface SearchBundleEntry {
+  path: string;
+  kind: 'text' | 'binary';
+  mediaType: string;
+  text?: string;
+  base64?: string;
 }
 
 interface SearchDocument {
@@ -147,6 +165,39 @@ export async function searchBundle(
     topK: options.topK ?? 10,
     relativePathPrefix: options.relativePathPrefix,
   });
+}
+
+export async function createSearchApiFromDirectory(indexDir: string): Promise<SearchApi> {
+  const webModule = await loadIndexbindWebModule();
+  const index = await webModule.openWebIndex(path.resolve(indexDir));
+  return {
+    search(query, options) {
+      return index.search(query, {
+        topK: options?.topK,
+        relativePathPrefix: options?.relativePathPrefix,
+      });
+    },
+  };
+}
+
+export function createSearchApiFromBundle(
+  bundleEntries: SearchBundleEntry[],
+): SearchApi {
+  let indexPromise: Promise<IndexbindWebIndex> | null = null;
+
+  return {
+    async search(query, options) {
+      if (indexPromise === null) {
+        indexPromise = openWebIndexFromBundle(bundleEntries);
+      }
+
+      const index = await indexPromise;
+      return index.search(query, {
+        topK: options?.topK,
+        relativePathPrefix: options?.relativePathPrefix,
+      });
+    },
+  };
 }
 
 async function collectSearchDocuments(
@@ -450,6 +501,54 @@ async function loadIndexbindWebModule(): Promise<IndexbindWebModule> {
       { cause: error instanceof Error ? error : undefined },
     );
   }
+}
+
+async function openWebIndexFromBundle(
+  bundleEntries: SearchBundleEntry[],
+): Promise<IndexbindWebIndex> {
+  const webModule = await loadIndexbindWebModule();
+  const baseUrl = 'https://mdorigin-search.invalid/';
+  const originalFetch = globalThis.fetch;
+  const bundleMap = new Map(
+    bundleEntries.map((entry) => [new URL(entry.path, baseUrl).toString(), entry]),
+  );
+
+  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+    const requestUrl =
+      typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url;
+    const entry = bundleMap.get(requestUrl);
+    if (entry) {
+      const headers = new Headers({ 'content-type': entry.mediaType });
+      const binaryBody = decodeBase64(entry.base64 ?? '');
+      const body =
+        entry.kind === 'text'
+          ? entry.text ?? ''
+          : new Blob([new Uint8Array(binaryBody)], {
+              type: entry.mediaType,
+            });
+      return new Response(body, {
+        status: 200,
+        headers,
+      });
+    }
+
+    return originalFetch(input as RequestInfo, init);
+  };
+
+  try {
+    return await webModule.openWebIndex(new URL(baseUrl));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
+function decodeBase64(value: string): Uint8Array {
+  const decoded = atob(value);
+  return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
 }
 
 const DIRECTORY_INDEX_FILENAMES_LOWER = new Set(

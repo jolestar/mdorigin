@@ -5,12 +5,13 @@ import {
   applySiteConfigFrontmatterDefaults,
   loadSiteConfig,
 } from '../core/site-config.js';
+import { createSearchApiFromDirectory } from '../search.js';
 
 export async function runDevCommand(argv: string[]) {
   const args = parseArgs(argv);
   if (!args.root) {
     console.error(
-      'Usage: mdorigin dev --root <content-dir> [--port 3000] [--config mdorigin.config.json]',
+      'Usage: mdorigin dev --root <content-dir> [--port 3000] [--config mdorigin.config.json] [--search ./dist/search]',
     );
     process.exitCode = 1;
     return;
@@ -29,6 +30,9 @@ export async function runDevCommand(argv: string[]) {
     rootDir,
     draftMode: 'include',
     siteConfig,
+    searchApi: args.search
+      ? await createSearchApiFromDirectory(path.resolve(args.search))
+      : undefined,
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -41,7 +45,7 @@ export async function runDevCommand(argv: string[]) {
 }
 
 function parseArgs(argv: string[]) {
-  const result: { root?: string; port?: number; config?: string } = {};
+  const result: { root?: string; port?: number; config?: string; search?: string } = {};
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -61,6 +65,12 @@ function parseArgs(argv: string[]) {
 
     if (argument === '--config' && nextValue) {
       result.config = nextValue;
+      index += 1;
+      continue;
+    }
+
+    if (argument === '--search' && nextValue) {
+      result.search = nextValue;
       index += 1;
     }
   }

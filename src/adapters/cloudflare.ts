@@ -5,6 +5,7 @@ import {
 } from '../core/content-store.js';
 import { handleSiteRequest } from '../core/request-handler.js';
 import type { ResolvedSiteConfig } from '../core/site-config.js';
+import { createSearchApiFromBundle, type SearchBundleEntry } from '../search.js';
 
 export interface CloudflareManifestEntry {
   path: string;
@@ -17,6 +18,7 @@ export interface CloudflareManifestEntry {
 export interface CloudflareManifest {
   entries: CloudflareManifestEntry[];
   siteConfig?: ResolvedSiteConfig;
+  searchEntries?: SearchBundleEntry[];
 }
 
 export interface ExportedHandlerLike {
@@ -45,6 +47,10 @@ export function createCloudflareWorker(
       };
     }),
   );
+  const searchApi =
+    manifest.searchEntries && manifest.searchEntries.length > 0
+      ? createSearchApiFromBundle(manifest.searchEntries)
+      : undefined;
 
   return {
     async fetch(request: Request): Promise<Response> {
@@ -73,6 +79,8 @@ export function createCloudflareWorker(
         },
         acceptHeader: request.headers.get('accept') ?? undefined,
         searchParams: url.searchParams,
+        requestUrl: request.url,
+        searchApi,
       });
 
       const headers = new Headers(siteResponse.headers);

@@ -12,6 +12,7 @@ import {
   normalizeContentPath,
 } from './core/content-store.js';
 import type { ResolvedSiteConfig } from './core/site-config.js';
+import type { SearchBundleEntry } from './search.js';
 
 export { createCloudflareWorker };
 export type { CloudflareManifest, CloudflareManifestEntry };
@@ -19,6 +20,7 @@ export type { CloudflareManifest, CloudflareManifestEntry };
 export interface BuildCloudflareManifestOptions {
   rootDir: string;
   siteConfig: ResolvedSiteConfig;
+  searchDir?: string;
 }
 
 export interface WriteCloudflareBundleOptions {
@@ -26,6 +28,7 @@ export interface WriteCloudflareBundleOptions {
   outDir: string;
   siteConfig: ResolvedSiteConfig;
   packageImport?: string;
+  searchDir?: string;
 }
 
 export interface InitCloudflareProjectOptions {
@@ -70,10 +73,15 @@ export async function buildCloudflareManifest(
     });
   }
 
+  const searchEntries = options.searchDir
+    ? await readBundleEntries(path.resolve(options.searchDir))
+    : undefined;
+
   entries.sort((left, right) => left.path.localeCompare(right.path));
   return {
     entries,
     siteConfig: options.siteConfig,
+    searchEntries,
   };
 }
 
@@ -84,6 +92,7 @@ export async function writeCloudflareBundle(
   const manifest = await buildCloudflareManifest({
     rootDir: options.rootDir,
     siteConfig: options.siteConfig,
+    searchDir: options.searchDir,
   });
   const packageImport = options.packageImport ?? 'mdorigin/cloudflare-runtime';
   const workerFile = path.join(outDir, 'worker.mjs');
@@ -166,6 +175,35 @@ async function listFiles(
   }
 
   return files;
+}
+
+async function readBundleEntries(directory: string): Promise<SearchBundleEntry[]> {
+  const files = await listFiles(directory);
+  const entries: SearchBundleEntry[] = [];
+
+  for (const filePath of files) {
+    const relativePath = path.relative(directory, filePath).replaceAll(path.sep, '/');
+    const mediaType = getMediaTypeForPath(relativePath);
+    if (isLikelyTextPath(relativePath) || relativePath.endsWith('.json')) {
+      entries.push({
+        path: relativePath,
+        kind: 'text',
+        mediaType,
+        text: await readFile(filePath, 'utf8'),
+      });
+      continue;
+    }
+
+    entries.push({
+      path: relativePath,
+      kind: 'binary',
+      mediaType,
+      base64: (await readFile(filePath)).toString('base64'),
+    });
+  }
+
+  entries.sort((left, right) => left.path.localeCompare(right.path));
+  return entries;
 }
 
 async function pathExists(filePath: string): Promise<boolean> {
