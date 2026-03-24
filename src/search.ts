@@ -114,6 +114,7 @@ export interface BuildSearchBundleOptions {
   siteConfig: ResolvedSiteConfig;
   draftMode?: 'include' | 'exclude';
   embeddingBackend?: 'hashing' | 'model2vec';
+  model?: string;
 }
 
 export interface BuildSearchBundleResult {
@@ -143,7 +144,8 @@ export async function buildSearchBundle(
     path.resolve(options.outDir),
     documents,
     {
-      embeddingBackend: options.embeddingBackend ?? 'hashing',
+      embeddingBackend: options.embeddingBackend ?? 'model2vec',
+      model: options.model,
       sourceRootId: path.basename(rootDir),
       sourceRootPath: rootDir,
     },
@@ -570,33 +572,74 @@ function decodeBase64(value: string): Uint8Array {
 }
 
 function rerankSearchHits(hits: SearchHit[]): SearchHit[] {
-  return [...hits].sort((left, right) => {
-    const scoreDelta = getSearchRankScore(right) - getSearchRankScore(left);
-    if (Math.abs(scoreDelta) > 1e-9) {
-      return scoreDelta;
+  const remaining = [...hits];
+  const ordered: SearchHit[] = [];
+
+  while (remaining.length > 0) {
+    let bestIndex = 0;
+    let bestScore = Number.NEGATIVE_INFINITY;
+
+    for (let index = 0; index < remaining.length; index += 1) {
+      const candidate = remaining[index];
+      const candidateScore = getDiversifiedSearchRankScore(candidate, ordered);
+      if (candidateScore > bestScore) {
+        bestScore = candidateScore;
+        bestIndex = index;
+        continue;
+      }
+
+      if (
+        Math.abs(candidateScore - bestScore) <= 1e-9 &&
+        compareHits(candidate, remaining[bestIndex]!) < 0
+      ) {
+        bestIndex = index;
+      }
     }
 
-    if (right.bestMatch.score !== left.bestMatch.score) {
-      return right.bestMatch.score - left.bestMatch.score;
-    }
+    ordered.push(remaining.splice(bestIndex, 1)[0]!);
+  }
 
-    return left.relativePath.localeCompare(right.relativePath);
-  });
+  return ordered;
 }
 
-function getSearchRankScore(hit: SearchHit): number {
+function getDiversifiedSearchRankScore(
+  hit: SearchHit,
+  selectedHits: readonly SearchHit[],
+): number {
   let adjusted = hit.score;
+  const candidateSection = getTopLevelSection(hit.relativePath);
+  const sameSectionCount = selectedHits.filter(
+    (selectedHit) => getTopLevelSection(selectedHit.relativePath) === candidateSection,
+  ).length;
+
+  if (sameSectionCount > 0) {
+    adjusted *= Math.pow(0.9, sameSectionCount);
+  }
 
   if (isOverviewSearchHit(hit)) {
-    adjusted *= 0.72;
+    adjusted *= sameSectionCount > 0 ? 0.72 : 0.84;
   }
 
   return adjusted;
 }
 
+function compareHits(left: SearchHit, right: SearchHit): number {
+  if (right.bestMatch.score !== left.bestMatch.score) {
+    return right.bestMatch.score - left.bestMatch.score;
+  }
+
+  return left.relativePath.localeCompare(right.relativePath);
+}
+
 function isOverviewSearchHit(hit: SearchHit): boolean {
   const baseName = path.posix.basename(hit.relativePath).toLowerCase();
   return baseName === 'readme.md' || baseName === 'index.md';
+}
+
+function getTopLevelSection(relativePath: string): string {
+  const normalized = relativePath.replaceAll('\\', '/');
+  const [firstSegment] = normalized.split('/', 1);
+  return firstSegment ?? '';
 }
 
 const DIRECTORY_INDEX_FILENAMES_LOWER = new Set(

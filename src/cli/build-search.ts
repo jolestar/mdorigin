@@ -8,7 +8,7 @@ export async function runBuildSearchCommand(rawArgs: string[]) {
   const args = parseArgs(rawArgs);
   if (!args.root) {
     throw new Error(
-      'Usage: mdorigin build search --root <content-dir> [--out ./dist/search] [--config mdorigin.config.json]',
+      'Usage: mdorigin build search --root <content-dir> [--out ./dist/search] [--embedding-backend model2vec|hashing] [--model sentence-transformers/all-MiniLM-L6-v2] [--config mdorigin.config.json]',
     );
   }
 
@@ -25,6 +25,8 @@ export async function runBuildSearchCommand(rawArgs: string[]) {
     rootDir,
     outDir: path.resolve(args.out ?? 'dist/search'),
     siteConfig,
+    embeddingBackend: args.embeddingBackend ?? 'model2vec',
+    model: args.model,
   });
 
   console.log(
@@ -49,6 +51,8 @@ function parseArgs(rawArgs: string[]) {
   return {
     root: parsed.root,
     out: parsed.out,
+    embeddingBackend: parsed['embedding-backend'] as 'hashing' | 'model2vec' | undefined,
+    model: parsed.model,
     config: parsed.config,
   };
 }

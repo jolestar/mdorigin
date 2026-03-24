@@ -77,6 +77,7 @@ test('buildSearchBundle and searchBundle integrate through indexbind', async (t)
     rootDir,
     outDir,
     siteConfig,
+    embeddingBackend: 'hashing',
   });
   assert.equal(result.documentCount, 2);
 
@@ -168,6 +169,7 @@ test('searchBundle prefers concrete documents over overview pages', async (t) =>
     rootDir,
     outDir,
     siteConfig,
+    embeddingBackend: 'hashing',
   });
 
   const hits = await searchBundle({

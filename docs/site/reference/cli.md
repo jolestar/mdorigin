@@ -25,6 +25,7 @@ Main commands:
 - `mdorigin dev --root <content-dir> --search <search-dir>`
 - `mdorigin build index --root <content-dir>`
 - `mdorigin build search --root <content-dir>`
+- `mdorigin build search --root <content-dir> --embedding-backend hashing`
 - `mdorigin build cloudflare --root <content-dir> --search <search-dir>`
 - `mdorigin init cloudflare --dir .`
 - `mdorigin search --index <search-dir> <query>`
@@ -34,6 +35,7 @@ With a project-local install, run the same commands via `npx --no-install mdorig
 Useful defaults:
 
 - `build search` writes to `dist/search` unless `--out` is provided
+- `build search` defaults to the `model2vec` embedding backend
 - `build cloudflare` writes to `dist/cloudflare/worker.mjs` unless `--out` is provided
 - `init cloudflare` points to `dist/cloudflare/worker.mjs` by default
 - `init cloudflare` derives the Worker name from `siteTitle` when `--name` is omitted
@@ -42,6 +44,12 @@ Search commands require the optional `indexbind` package:
 
 ```bash
 npm install indexbind
+```
+
+To force the older lightweight backend:
+
+```bash
+mdorigin build search --root docs/site --embedding-backend hashing
 ```
 
 When `dev` or `build cloudflare` is given `--search`, the site exposes:

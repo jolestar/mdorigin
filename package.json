@@ -1,6 +1,6 @@
 {
   "name": "mdorigin",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Markdown-first publishing engine with raw Markdown and HTML views.",
   "repository": {
@@ -59,7 +59,6 @@
     "node": ">=20"
   },
   "dependencies": {
-    "@noble/hashes": "^2.0.1",
     "gray-matter": "^4.0.3",
     "remark": "^15.0.1",
     "remark-gfm": "^4.0.1",
@@ -71,6 +70,6 @@
     "typescript": "^5.9.2"
   },
   "optionalDependencies": {
-    "indexbind": "^0.2.0"
+    "indexbind": "^0.2.1"
   }
 }

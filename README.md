@@ -28,6 +28,12 @@ mdorigin build search --root docs/site
 mdorigin search --index dist/search "cloudflare deploy"
 ```
 
+`build search` now defaults to the higher-quality `model2vec` backend. If you need a smaller or faster fallback, you can opt back into hashing:
+
+```bash
+mdorigin build search --root docs/site --embedding-backend hashing
+```
+
 To expose the same search bundle from the site runtime:
 
 ```bash
