@@ -18,6 +18,16 @@ mdorigin dev --root docs/site
 
 If you prefer a project-local install instead, use `npm install --save-dev mdorigin` and run it with `npx --no-install mdorigin ...`.
 
+## Optional Search
+
+`mdorigin` can build a local retrieval bundle through the optional [`indexbind`](https://github.com/jolestar/indexbind) package:
+
+```bash
+npm install indexbind
+mdorigin build search --root docs/site
+mdorigin search --index dist/search "cloudflare deploy"
+```
+
 ## Repo Development
 
 ```bash

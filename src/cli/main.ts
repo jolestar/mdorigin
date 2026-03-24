@@ -2,8 +2,10 @@
 
 import { runBuildIndexCommand } from './build-index.js';
 import { runBuildCloudflareCommand } from './build-cloudflare.js';
+import { runBuildSearchCommand } from './build-search.js';
 import { runDevCommand } from './dev.js';
 import { runInitCloudflareCommand } from './init-cloudflare.js';
+import { runSearchCommand } from './search.js';
 
 async function main() {
   const [command, subcommand, ...rest] = process.argv.slice(2);
@@ -23,8 +25,18 @@ async function main() {
     return;
   }
 
+  if (command === 'build' && subcommand === 'search') {
+    await runBuildSearchCommand(rest);
+    return;
+  }
+
   if (command === 'init' && subcommand === 'cloudflare') {
     await runInitCloudflareCommand(rest);
+    return;
+  }
+
+  if (command === 'search') {
+    await runSearchCommand([subcommand, ...rest].filter(isDefined));
     return;
   }
 
@@ -32,8 +44,10 @@ async function main() {
     'Usage:',
     '  mdorigin dev --root <content-dir> [--port 3000] [--config mdorigin.config.json]',
     '  mdorigin build index (--root <content-dir> | --dir <content-dir>)',
+    '  mdorigin build search --root <content-dir> [--out ./dist/search] [--config mdorigin.config.json]',
     '  mdorigin build cloudflare --root <content-dir> [--out ./dist/cloudflare] [--config mdorigin.config.json]',
     '  mdorigin init cloudflare [--dir .] [--entry ./dist/cloudflare/worker.mjs] [--name <worker-name>] [--compatibility-date 2026-03-20] [--force]',
+    '  mdorigin search --index <search-dir> [--top-k 10] <query>',
   ].join('\n'));
   process.exitCode = 1;
 }

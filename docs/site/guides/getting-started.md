@@ -27,6 +27,14 @@ docs/site/skills -> ../../skills
 
 `mdorigin dev`, `mdorigin build index`, and Cloudflare bundle generation all follow those symlinked directories.
 
+For local retrieval during development, install `indexbind` and build a search bundle:
+
+```bash
+npm install indexbind
+mdorigin build search --root docs/site
+mdorigin search --index dist/search "cloudflare deploy"
+```
+
 ## Install
 
 ```bash

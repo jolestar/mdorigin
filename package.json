@@ -22,6 +22,10 @@
     "mdorigin": "dist/cli/main.js"
   },
   "exports": {
+    "./search": {
+      "types": "./dist/search.d.ts",
+      "default": "./dist/search.js"
+    },
     "./cloudflare": {
       "types": "./dist/cloudflare.d.ts",
       "default": "./dist/cloudflare.js"
@@ -39,8 +43,10 @@
     "dev": "tsx src/cli/main.ts dev",
     "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.json && node -e \"const fs=require('node:fs'); const file='dist/cli/main.js'; const source=fs.readFileSync(file,'utf8'); if (!source.startsWith('#!/usr/bin/env node\\n')) fs.writeFileSync(file, '#!/usr/bin/env node\\n' + source);\"",
     "build:index": "tsx src/cli/main.ts build index",
+    "build:search": "tsx src/cli/main.ts build search",
     "build:cloudflare": "tsx src/cli/main.ts build cloudflare",
     "init:cloudflare": "tsx src/cli/main.ts init cloudflare",
+    "search": "tsx src/cli/main.ts search",
     "check": "tsc --noEmit -p tsconfig.json",
     "test": "node --test --import tsx src/*.test.ts src/**/*.test.ts",
     "prepack": "npm run build",
