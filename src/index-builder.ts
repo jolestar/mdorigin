@@ -3,7 +3,11 @@ import path from 'node:path';
 
 import { inferDirectoryContentType } from './core/content-type.js';
 import { getDirectoryIndexCandidates } from './core/directory-index.js';
-import { parseMarkdownDocument } from './core/markdown.js';
+import {
+  getDocumentSummary,
+  getDocumentTitle,
+  parseMarkdownDocument,
+} from './core/markdown.js';
 
 const INDEX_START_MARKER = '<!-- INDEX:START -->';
 const INDEX_END_MARKER = '<!-- INDEX:END -->';
@@ -171,9 +175,13 @@ export async function buildManagedIndexBlock(directoryPath: string): Promise<str
     }
 
     articles.push({
-      title: parsed.meta.title ?? entry.name.slice(0, -'.md'.length),
+      title: getDocumentTitle(
+        parsed.meta,
+        parsed.body,
+        entry.name.slice(0, -'.md'.length),
+      ),
       date: parsed.meta.date,
-      summary: parsed.meta.summary ?? extractFirstParagraph(parsed.body),
+      summary: getDocumentSummary(parsed.meta, parsed.body),
       link: `./${entry.name}`,
       order: parsed.meta.order,
     });
@@ -260,10 +268,10 @@ async function resolveDirectoryEntry(
   const shape = await inspectDirectoryShape(directoryPath);
 
   return {
-    title: parsed.meta.title ?? fallbackName,
+    title: getDocumentTitle(parsed.meta, parsed.body, fallbackName),
     type: inferDirectoryContentType(parsed.meta, shape),
     date: parsed.meta.date,
-    summary: parsed.meta.summary ?? extractFirstParagraph(parsed.body),
+    summary: getDocumentSummary(parsed.meta, parsed.body),
     draft: parsed.meta.draft === true,
     order: parsed.meta.order,
   };
@@ -272,27 +280,45 @@ async function resolveDirectoryEntry(
 async function listDirectoriesRecursively(rootDir: string): Promise<string[]> {
   const directories = [rootDir];
   const entries = await readdir(rootDir, { withFileTypes: true });
+  const rootShape = await inspectDirectoryShape(rootDir);
 
   for (const entry of entries) {
     if (!entry.isDirectory() || entry.name.startsWith('.')) {
       continue;
     }
 
-    directories.push(
-      ...(await listDirectoriesRecursively(path.join(rootDir, entry.name))),
-    );
+    if (rootShape.hasSkillIndex && isIgnoredSkillSupportDirectory(entry.name)) {
+      continue;
+    }
+
+    const childPath = path.join(rootDir, entry.name);
+    directories.push(childPath);
+
+    const childIndexPath = await resolveDirectoryIndexFile(childPath);
+    if (childIndexPath !== null) {
+      const source = await readFile(childIndexPath, 'utf8');
+      const parsed = await parseMarkdownDocument(path.basename(childIndexPath), source);
+      const shape = await inspectDirectoryShape(childPath);
+      if (inferDirectoryContentType(parsed.meta, shape) === 'post') {
+        continue;
+      }
+    }
+
+    directories.push(...(await listDirectoriesRecursively(childPath)).slice(1));
   }
 
   return directories;
 }
 
 async function inspectDirectoryShape(directoryPath: string): Promise<{
+  hasSkillIndex: boolean;
   hasChildDirectories: boolean;
   hasExtraMarkdownFiles: boolean;
   hasAssetFiles: boolean;
 }> {
   const entries = await readdir(directoryPath, { withFileTypes: true });
 
+  let hasSkillIndex = false;
   let hasChildDirectories = false;
   let hasExtraMarkdownFiles = false;
   let hasAssetFiles = false;
@@ -313,7 +339,9 @@ async function inspectDirectoryShape(directoryPath: string): Promise<{
 
     const extension = path.extname(entry.name).toLowerCase();
     if (extension === '.md') {
-      if (entry.name !== 'index.md' && entry.name !== 'README.md') {
+      if (entry.name === 'SKILL.md') {
+        hasSkillIndex = true;
+      } else if (entry.name !== 'index.md' && entry.name !== 'README.md') {
         hasExtraMarkdownFiles = true;
       }
       continue;
@@ -323,6 +351,7 @@ async function inspectDirectoryShape(directoryPath: string): Promise<{
   }
 
   return {
+    hasSkillIndex,
     hasChildDirectories,
     hasExtraMarkdownFiles,
     hasAssetFiles,
@@ -383,28 +412,6 @@ function compareOptionalOrder(
   return 0;
 }
 
-function extractFirstParagraph(markdown: string): string | undefined {
-  const paragraphs = markdown
-    .split(/\n\s*\n/g)
-    .map((paragraph) => paragraph.trim())
-    .filter((paragraph) => paragraph !== '');
-
-  for (const paragraph of paragraphs) {
-    if (
-      paragraph.startsWith('#') ||
-      paragraph.startsWith('<!--') ||
-      paragraph.startsWith('- ') ||
-      paragraph.startsWith('* ')
-    ) {
-      continue;
-    }
-
-    return paragraph.replace(/\s+/g, ' ');
-  }
-
-  return undefined;
-}
-
 async function resolveDirectoryIndexFile(
   directoryPath: string,
 ): Promise<string | null> {
@@ -416,6 +423,15 @@ async function resolveDirectoryIndexFile(
   }
 
   return null;
+}
+
+function isIgnoredSkillSupportDirectory(name: string): boolean {
+  return (
+    name === 'scripts' ||
+    name === 'references' ||
+    name === 'assets' ||
+    name === 'templates'
+  );
 }
 
 async function pathExists(filePath: string): Promise<boolean> {

@@ -3,6 +3,7 @@ import type { ParsedDocumentMeta } from './markdown.js';
 export type ContentType = 'page' | 'post';
 
 export interface DirectoryShape {
+  hasSkillIndex: boolean;
   hasChildDirectories: boolean;
   hasExtraMarkdownFiles: boolean;
   hasAssetFiles: boolean;
@@ -22,6 +23,10 @@ export function inferDirectoryContentType(
   }
 
   if (typeof meta.date === 'string' && meta.date !== '') {
+    return 'post';
+  }
+
+  if (shape.hasSkillIndex) {
     return 'post';
   }
 

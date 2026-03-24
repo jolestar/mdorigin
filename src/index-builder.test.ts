@@ -171,3 +171,65 @@ test('buildDirectoryIndexes skips type post directory bundles', async () => {
   );
   assert.equal(await readFile(postReadmePath, 'utf8'), original);
 });
+
+test('buildManagedIndexBlock treats skill directories as article bundles', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-index-skill-bundle-'));
+  await writeFile(path.join(rootDir, 'README.md'), '# Skills\n', 'utf8');
+  await mkdir(path.join(rootDir, 'find-skills'));
+  await writeFile(
+    path.join(rootDir, 'find-skills', 'SKILL.md'),
+    [
+      '---',
+      'name: find-skills',
+      'description: Discover skills from the ecosystem.',
+      '---',
+      '',
+      '# Find Skills',
+    ].join('\n'),
+    'utf8',
+  );
+  await mkdir(path.join(rootDir, 'find-skills', 'scripts'));
+  await writeFile(
+    path.join(rootDir, 'find-skills', 'scripts', 'install.sh'),
+    '#!/usr/bin/env bash\necho install\n',
+    'utf8',
+  );
+
+  const block = await buildManagedIndexBlock(rootDir);
+
+  assert.match(block, /\[find-skills\]\(\.\/find-skills\/\)/);
+  assert.match(block, /Discover skills from the ecosystem\./);
+});
+
+test('buildDirectoryIndexes does not recurse into skill support directories', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-index-skill-skip-'));
+  await writeFile(path.join(rootDir, 'README.md'), '# Skills\n', 'utf8');
+  await mkdir(path.join(rootDir, 'find-skills'));
+  await writeFile(
+    path.join(rootDir, 'find-skills', 'SKILL.md'),
+    [
+      '---',
+      'name: find-skills',
+      'description: Discover skills from the ecosystem.',
+      '---',
+      '',
+      '# Find Skills',
+    ].join('\n'),
+    'utf8',
+  );
+  await mkdir(path.join(rootDir, 'find-skills', 'scripts'));
+  await writeFile(
+    path.join(rootDir, 'find-skills', 'scripts', 'README.md'),
+    '# Script helpers\n',
+    'utf8',
+  );
+
+  const result = await buildDirectoryIndexes({ rootDir });
+
+  assert.ok(
+    result.skippedDirectories.some((entry) => entry.endsWith('/find-skills')),
+  );
+  assert.ok(
+    !result.updatedFiles.some((entry) => entry.endsWith('/find-skills/scripts/README.md')),
+  );
+});

@@ -89,10 +89,15 @@ const MEDIA_TYPES = new Map<string, string>([
   ['.json', 'application/json; charset=utf-8'],
   ['.md', 'text/markdown; charset=utf-8'],
   ['.pdf', 'application/pdf'],
+  ['.py', 'text/plain; charset=utf-8'],
   ['.png', 'image/png'],
+  ['.sh', 'text/plain; charset=utf-8'],
   ['.svg', 'image/svg+xml'],
   ['.txt', 'text/plain; charset=utf-8'],
+  ['.toml', 'text/plain; charset=utf-8'],
   ['.webp', 'image/webp'],
+  ['.yaml', 'text/plain; charset=utf-8'],
+  ['.yml', 'text/plain; charset=utf-8'],
 ]);
 
 export function getMediaTypeForPath(contentPath: string): string {

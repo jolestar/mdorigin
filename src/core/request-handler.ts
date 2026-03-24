@@ -9,6 +9,8 @@ import { inferDirectoryContentType } from './content-type.js';
 import { getDirectoryIndexCandidates } from './directory-index.js';
 import {
   extractManagedIndexEntries,
+  getDocumentSummary,
+  getDocumentTitle as getParsedDocumentTitle,
   parseMarkdownDocument,
   stripManagedIndexBlock,
   stripManagedIndexLinks,
@@ -176,7 +178,9 @@ export async function handleSiteRequest(
       title: getDocumentTitle(parsed),
       body: renderedParsed.html,
       summary:
-        options.siteConfig.showSummary === false ? undefined : parsed.meta.summary,
+        options.siteConfig.showSummary === false
+          ? undefined
+          : getDocumentSummary(parsed.meta, parsed.body),
       date: options.siteConfig.showDate === false ? undefined : parsed.meta.date,
       showSummary: options.siteConfig.showSummary,
       showDate: options.siteConfig.showDate,
@@ -369,14 +373,12 @@ function appendVary(existing: string | undefined, value: string): string {
 }
 
 function getDocumentTitle(parsed: Awaited<ReturnType<typeof parseMarkdownDocument>>): string {
-  if (parsed.meta.title) {
-    return parsed.meta.title;
-  }
-
   const basename = path.posix.basename(parsed.sourcePath, '.md');
-  return basename === 'index'
-    ? path.posix.basename(path.posix.dirname(parsed.sourcePath)) || 'mdorigin'
-    : basename;
+  const fallback =
+    basename === 'index' || basename === 'README' || basename === 'SKILL'
+      ? path.posix.basename(path.posix.dirname(parsed.sourcePath)) || 'mdorigin'
+      : basename;
+  return getParsedDocumentTitle(parsed.meta, parsed.body, fallback);
 }
 
 interface SitemapEntry {
@@ -599,7 +601,9 @@ async function tryRenderAlternateDirectoryIndex(
         title: getDocumentTitle(parsed),
         body: renderedParsed.html,
         summary:
-          options.siteConfig.showSummary === false ? undefined : parsed.meta.summary,
+          options.siteConfig.showSummary === false
+            ? undefined
+            : getDocumentSummary(parsed.meta, parsed.body),
         date: options.siteConfig.showDate === false ? undefined : parsed.meta.date,
         showSummary: options.siteConfig.showSummary,
         showDate: options.siteConfig.showDate,
@@ -930,10 +934,7 @@ async function resolveDirectoryNav(
     const shape = await inspectDirectoryShape(store, entry.path);
 
     return {
-      title:
-        typeof parsed.meta.title === 'string' && parsed.meta.title !== ''
-          ? parsed.meta.title
-          : entry.name,
+      title: getParsedDocumentTitle(parsed.meta, parsed.body, entry.name),
       type: inferDirectoryContentType(parsed.meta, shape),
       order: parsed.meta.order,
     };
@@ -949,6 +950,7 @@ async function inspectDirectoryShape(
   store: ContentStore,
   directoryPath: string,
 ): Promise<{
+  hasSkillIndex: boolean;
   hasChildDirectories: boolean;
   hasExtraMarkdownFiles: boolean;
   hasAssetFiles: boolean;
@@ -956,12 +958,14 @@ async function inspectDirectoryShape(
   const entries = await store.listDirectory(directoryPath);
   if (entries === null) {
     return {
+      hasSkillIndex: false,
       hasChildDirectories: false,
       hasExtraMarkdownFiles: false,
       hasAssetFiles: false,
     };
   }
 
+  let hasSkillIndex = false;
   let hasChildDirectories = false;
   let hasExtraMarkdownFiles = false;
   let hasAssetFiles = false;
@@ -978,7 +982,9 @@ async function inspectDirectoryShape(
 
     const extension = path.posix.extname(entry.name).toLowerCase();
     if (extension === '.md') {
-      if (entry.name !== 'index.md' && entry.name !== 'README.md') {
+      if (entry.name === 'SKILL.md') {
+        hasSkillIndex = true;
+      } else if (entry.name !== 'index.md' && entry.name !== 'README.md') {
         hasExtraMarkdownFiles = true;
       }
       continue;
@@ -988,6 +994,7 @@ async function inspectDirectoryShape(
   }
 
   return {
+    hasSkillIndex,
     hasChildDirectories,
     hasExtraMarkdownFiles,
     hasAssetFiles,

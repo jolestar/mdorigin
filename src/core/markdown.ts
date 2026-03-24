@@ -5,8 +5,10 @@ import remarkHtml from 'remark-html';
 
 export interface ParsedDocumentMeta {
   title?: string;
+  name?: string;
   date?: string;
   summary?: string;
+  description?: string;
   draft?: boolean;
   type?: string;
   order?: number;
@@ -26,6 +28,24 @@ export interface ManagedIndexEntry {
   title: string;
   href: string;
   detail?: string;
+}
+
+export function getDocumentTitle(meta: ParsedDocumentMeta, body: string, fallback: string): string {
+  return (
+    firstNonEmptyString(meta.title, meta.name) ??
+    extractFirstHeading(body) ??
+    fallback
+  );
+}
+
+export function getDocumentSummary(
+  meta: ParsedDocumentMeta,
+  body: string,
+): string | undefined {
+  return (
+    firstNonEmptyString(meta.summary, meta.description) ??
+    extractFirstParagraph(body)
+  );
 }
 
 export async function parseMarkdownDocument(
@@ -144,6 +164,10 @@ function normalizeMeta(data: Record<string, unknown>): ParsedDocumentMeta {
     meta.title = data.title;
   }
 
+  if (typeof data.name === 'string') {
+    meta.name = data.name;
+  }
+
   if (typeof data.date === 'string') {
     meta.date = data.date;
   }
@@ -154,6 +178,10 @@ function normalizeMeta(data: Record<string, unknown>): ParsedDocumentMeta {
 
   if (typeof data.summary === 'string') {
     meta.summary = data.summary;
+  }
+
+  if (typeof data.description === 'string') {
+    meta.description = data.description;
   }
 
   if (typeof data.draft === 'boolean') {
@@ -224,6 +252,14 @@ function rewriteMarkdownPath(pathname: string): string {
     return './';
   }
 
+  if (pathname.toLowerCase().endsWith('/skill.md')) {
+    return pathname.slice(0, -'SKILL.md'.length);
+  }
+
+  if (pathname.toLowerCase() === 'skill.md') {
+    return './';
+  }
+
   return pathname.slice(0, -'.md'.length);
 }
 
@@ -256,4 +292,46 @@ function normalizeManagedIndexHref(href: string): string {
   }
 
   return href;
+}
+
+function extractFirstHeading(markdown: string): string | undefined {
+  for (const line of markdown.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('#')) {
+      continue;
+    }
+
+    const heading = trimmed.replace(/^#+\s*/, '').trim();
+    if (heading !== '') {
+      return heading;
+    }
+  }
+
+  return undefined;
+}
+
+function extractFirstParagraph(markdown: string): string | undefined {
+  const paragraphs = markdown
+    .split(/\n\s*\n/g)
+    .map((paragraph) => paragraph.trim())
+    .filter((paragraph) => paragraph !== '');
+
+  for (const paragraph of paragraphs) {
+    if (
+      paragraph.startsWith('#') ||
+      paragraph.startsWith('<!--') ||
+      paragraph.startsWith('- ') ||
+      paragraph.startsWith('* ')
+    ) {
+      continue;
+    }
+
+    return paragraph.replace(/\s+/g, ' ');
+  }
+
+  return undefined;
+}
+
+function firstNonEmptyString(...values: Array<string | undefined>): string | undefined {
+  return values.find((value) => typeof value === 'string' && value !== '');
 }

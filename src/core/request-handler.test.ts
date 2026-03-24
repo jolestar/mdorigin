@@ -345,6 +345,42 @@ test('handleSiteRequest renders README.md as directory homepage fallback', async
   assert.match(String(response.body), /Root Readme/);
 });
 
+test('handleSiteRequest renders SKILL.md as directory homepage fallback', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'chrome-devtools/SKILL.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: [
+        '---',
+        'name: chrome-devtools-mcp-skill',
+        'description: Inspect pages and browser state.',
+        '---',
+        '',
+        '# Chrome DevTools MCP Skill',
+      ].join('\n'),
+    },
+  ]);
+
+  const htmlResponse = await handleSiteRequest(store, '/chrome-devtools/', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+  assert.equal(htmlResponse.status, 200);
+  assert.match(String(htmlResponse.body), /Chrome DevTools MCP Skill/);
+  assert.match(
+    String(htmlResponse.body),
+    /<title>chrome-devtools-mcp-skill \| Test Site<\/title>/,
+  );
+
+  const markdownResponse = await handleSiteRequest(store, '/chrome-devtools/SKILL.md', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+  assert.equal(markdownResponse.status, 200);
+  assert.match(String(markdownResponse.body), /^---/m);
+});
+
 test('handleSiteRequest redirects alternate directory markdown filenames', async () => {
   const store = new MemoryContentStore([
     {
@@ -638,6 +674,49 @@ test('handleSiteRequest respects site config rendering options', async () => {
   assert.match(String(response.body), /Edit this page/);
   assert.doesNotMatch(String(response.body), /Hidden summary/);
   assert.doesNotMatch(String(response.body), /2026-03-20/);
+});
+
+test('handleSiteRequest uses skill metadata fallbacks and serves script files as text', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'skill/SKILL.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: [
+        '---',
+        'name: find-skills',
+        'description: Discover skills from the ecosystem.',
+        '---',
+        '',
+        '# Find Skills',
+        '',
+        'This skill helps you discover installable skills.',
+      ].join('\n'),
+    },
+    {
+      path: 'skill/scripts/install.sh',
+      kind: 'text',
+      mediaType: 'text/plain; charset=utf-8',
+      text: '#!/usr/bin/env bash\necho install\n',
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/skill/', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(String(response.body), /Discover skills from the ecosystem\./);
+  assert.match(String(response.body), /<title>find-skills \| Test Site<\/title>/);
+
+  const scriptResponse = await handleSiteRequest(store, '/skill/scripts/install.sh', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+  assert.equal(scriptResponse.status, 200);
+  assert.equal(scriptResponse.headers['content-type'], 'text/plain; charset=utf-8');
+  assert.match(String(scriptResponse.body), /echo install/);
 });
 
 test('handleSiteRequest renders yaml dates parsed as Date objects', async () => {
