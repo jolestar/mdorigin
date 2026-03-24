@@ -17,6 +17,8 @@ mdorigin build index --root docs/site
 
 That is enough to preview a site locally, keep directory indexes up to date, and confirm the content model before touching deployment.
 
+`mdorigin` also works well with skill repositories that use `SKILL.md` as the main document file. Those folders are treated as document bundles, while helper directories such as `scripts/` and `references/` stay directly accessible but do not enter automatic indexes.
+
 ## Install
 
 ```bash

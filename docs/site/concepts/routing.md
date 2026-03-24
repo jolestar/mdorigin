@@ -21,6 +21,7 @@ docs/site/
 
 - `README.md` -> `/README.md`
 - directory homepage -> `/` using `index.md`, or `README.md` if `index.md` is absent
+- skill homepage -> `/skill-name/` using `SKILL.md` when neither `index.md` nor `README.md` exists
 - `guides/getting-started.md` -> `/guides/getting-started.md`, `/guides/getting-started.html`, `/guides/getting-started`
 - sitemap -> `/sitemap.xml`
 
@@ -38,12 +39,29 @@ This is a lightweight interoperability hint for agents and tools that want to di
 
 ## Canonical markdown paths
 
-Directory homepages support both `index.md` and `README.md`, but only one can exist as the real source file for a given directory.
+Directory homepages support `index.md`, `README.md`, and `SKILL.md`, but only one can act as the effective source file for a given directory.
 
 - if the real file is `README.md`, requesting `index.md` redirects to `README.md`
 - if the real file is `index.md`, requesting `README.md` redirects to `index.md`
+- if a directory only has `SKILL.md`, `/dir/` renders it and `/dir/SKILL.md` remains the raw markdown path
 
 This keeps raw markdown URLs canonical while still letting directories use either filename.
+
+## Skill bundle support
+
+Skill repositories often use:
+
+- `SKILL.md`
+- `scripts/`
+- `references/`
+- `assets/`
+
+When `mdorigin` sees `SKILL.md` in a directory, it treats that directory as a document bundle by default.
+
+- the directory is rendered as one published document
+- parent indexes treat it as an article entry, not a section entry
+- helper files under `scripts/`, `references/`, `assets/`, or `templates/` remain directly accessible by path
+- those helper directories do not participate in automatic content indexing
 
 ## Accept negotiation
 
