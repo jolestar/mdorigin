@@ -45,6 +45,7 @@ export async function handleSiteRequest(
   pathname: string,
   options: HandleSiteRequestOptions,
 ): Promise<SiteResponse> {
+  const searchEnabled = options.searchApi !== undefined;
   const apiRoute = await handleApiRoute(pathname, options.searchParams, {
     searchApi: options.searchApi,
     siteConfig: options.siteConfig,
@@ -109,7 +110,12 @@ export async function handleSiteRequest(
         return directoryIndexResponse;
       }
 
-      return renderDirectoryListing(store, resolved.requestPath, options.siteConfig);
+      return renderDirectoryListing(
+        store,
+        resolved.requestPath,
+        options.siteConfig,
+        searchEnabled,
+      );
     }
 
     return notFound();
@@ -211,6 +217,7 @@ export async function handleSiteRequest(
       catalogRequestPath: resolved.requestPath,
       catalogInitialPostCount: options.siteConfig.catalogInitialPostCount,
       catalogLoadMoreStep: options.siteConfig.catalogLoadMoreStep,
+      searchEnabled,
     }),
   };
 }
@@ -464,6 +471,7 @@ async function renderDirectoryListing(
   store: ContentStore,
   requestPath: string,
   siteConfig: ResolvedSiteConfig,
+  searchEnabled: boolean,
 ): Promise<SiteResponse> {
   const directoryPath =
     requestPath === '/' ? '' : requestPath.slice(1).replace(/\/$/, '');
@@ -509,6 +517,7 @@ async function renderDirectoryListing(
       alternateMarkdownPath: getMarkdownRequestPathForContentPath(
         getDirectoryIndexContentPathForRequestPath(requestPath),
       ),
+      searchEnabled,
     }),
   };
 }
@@ -634,6 +643,7 @@ async function tryRenderAlternateDirectoryIndex(
         catalogRequestPath: requestPath,
         catalogInitialPostCount: options.siteConfig.catalogInitialPostCount,
         catalogLoadMoreStep: options.siteConfig.catalogLoadMoreStep,
+        searchEnabled: options.searchApi !== undefined,
       }),
     };
   }

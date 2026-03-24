@@ -364,6 +364,31 @@ test('handleSiteRequest serves search API results', async () => {
   assert.equal(body.hits[0]?.title, 'Cloudflare Deployment');
 });
 
+test('handleSiteRequest renders search UI when search is enabled', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: '# Home',
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+    searchApi: {
+      async search() {
+        return [];
+      },
+    },
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(String(response.body), /data-site-search/);
+  assert.match(String(response.body), /action="\/api\/search"/);
+});
+
 test('handleSiteRequest returns 404 for search API when disabled', async () => {
   const response = await handleSiteRequest(
     new MemoryContentStore([]),

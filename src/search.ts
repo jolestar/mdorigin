@@ -11,9 +11,6 @@ import {
 import type { ParsedDocumentMeta } from './core/markdown.js';
 import type { ResolvedSiteConfig } from './core/site-config.js';
 
-const INDEXBIND_BUILD_MODULE = 'indexbind/build';
-const INDEXBIND_WEB_MODULE = 'indexbind/web';
-
 type JsonValue =
   | null
   | boolean
@@ -81,6 +78,10 @@ interface IndexbindWebIndex {
 }
 
 interface IndexbindWebModule {
+  openWebIndex(base: string | URL): Promise<IndexbindWebIndex>;
+}
+
+interface IndexbindCloudflareModule {
   openWebIndex(base: string | URL): Promise<IndexbindWebIndex>;
 }
 
@@ -483,7 +484,7 @@ function isIgnoredSkillSupportDirectory(name: string): boolean {
 
 async function loadIndexbindBuildModule(): Promise<IndexbindBuildModule> {
   try {
-    return (await import(INDEXBIND_BUILD_MODULE)) as IndexbindBuildModule;
+    return (await import('indexbind/build')) as IndexbindBuildModule;
   } catch (error) {
     throw new Error(
       `Search build requires the optional package "indexbind". Install it first, for example: npm install indexbind`,
@@ -494,7 +495,18 @@ async function loadIndexbindBuildModule(): Promise<IndexbindBuildModule> {
 
 async function loadIndexbindWebModule(): Promise<IndexbindWebModule> {
   try {
-    return (await import(INDEXBIND_WEB_MODULE)) as IndexbindWebModule;
+    return (await import('indexbind/web')) as IndexbindWebModule;
+  } catch (error) {
+    throw new Error(
+      `Search query requires the optional package "indexbind". Install it first, for example: npm install indexbind`,
+      { cause: error instanceof Error ? error : undefined },
+    );
+  }
+}
+
+async function loadIndexbindCloudflareModule(): Promise<IndexbindCloudflareModule> {
+  try {
+    return (await import('indexbind/cloudflare')) as IndexbindCloudflareModule;
   } catch (error) {
     throw new Error(
       `Search query requires the optional package "indexbind". Install it first, for example: npm install indexbind`,
@@ -506,7 +518,7 @@ async function loadIndexbindWebModule(): Promise<IndexbindWebModule> {
 async function openWebIndexFromBundle(
   bundleEntries: SearchBundleEntry[],
 ): Promise<IndexbindWebIndex> {
-  const webModule = await loadIndexbindWebModule();
+  const cloudflareModule = await loadIndexbindCloudflareModule();
   const baseUrl = 'https://mdorigin-search.invalid/';
   const originalFetch = globalThis.fetch;
   const bundleMap = new Map(
@@ -540,7 +552,7 @@ async function openWebIndexFromBundle(
   };
 
   try {
-    return await webModule.openWebIndex(new URL(baseUrl));
+    return await cloudflareModule.openWebIndex(new URL(baseUrl));
   } finally {
     globalThis.fetch = originalFetch;
   }

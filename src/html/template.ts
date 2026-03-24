@@ -33,6 +33,7 @@ export interface RenderDocumentOptions {
   catalogRequestPath?: string;
   catalogInitialPostCount?: number;
   catalogLoadMoreStep?: number;
+  searchEnabled?: boolean;
 }
 
 export function renderDocument(options: RenderDocumentOptions) {
@@ -70,6 +71,24 @@ export function renderDocument(options: RenderDocumentOptions) {
           )
           .join('')}</ul></nav>`
       : '';
+  const searchToggleBlock = options.searchEnabled
+    ? [
+        '<div class="site-search" data-site-search>',
+        '<button type="button" class="site-search__toggle" aria-expanded="false" aria-controls="site-search-panel">Search</button>',
+        '<div id="site-search-panel" class="site-search__panel" hidden>',
+        '<form class="site-search__form" role="search" action="/api/search" method="get">',
+        '<label class="site-search__label" for="site-search-input">Search site</label>',
+        '<div class="site-search__controls">',
+        '<input id="site-search-input" class="site-search__input" type="search" name="q" placeholder="Search docs and skills" autocomplete="off">',
+        '<button type="submit" class="site-search__submit">Go</button>',
+        '</div>',
+        '<p class="site-search__hint">Search is powered by <code>/api/search</code>.</p>',
+        '</form>',
+        '<div class="site-search__results" data-site-search-results></div>',
+        '</div>',
+        '</div>',
+      ].join('')
+    : '';
   const footerNavBlock =
     options.footerNav && options.footerNav.length > 0
       ? `<nav class="site-footer__nav"><ul>${options.footerNav
@@ -123,6 +142,7 @@ export function renderDocument(options: RenderDocumentOptions) {
           },
         )
       : options.body;
+  const searchScript = options.searchEnabled ? renderSearchScript() : '';
 
   return [
     '<!doctype html>',
@@ -138,11 +158,12 @@ export function renderDocument(options: RenderDocumentOptions) {
     stylesheetBlock,
     '</head>',
     `<body data-theme="${options.theme}" data-template="${options.template}">`,
-    `<header class="site-header"><div class="site-header__inner"><div class="site-header__brand"><p class="site-header__title"><a href="${brandHref}">${logoBlock}<span>${siteTitle}</span></a></p>${siteDescriptionBlock}</div>${navBlock}</div></header>`,
+    `<header class="site-header"><div class="site-header__inner"><div class="site-header__brand"><p class="site-header__title"><a href="${brandHref}">${logoBlock}<span>${siteTitle}</span></a></p>${siteDescriptionBlock}</div><div class="site-header__actions">${navBlock}${searchToggleBlock}</div></div></header>`,
     '<main>',
     `<article>${articleBody}</article>`,
     '</main>',
     footerBlock,
+    searchScript,
     '</body>',
     '</html>',
   ].join('');
@@ -333,4 +354,92 @@ function renderCatalogLoadMoreScript(): string {
   });
 })();
 </script>`;
+}
+
+function renderSearchScript(): string {
+  return [
+    '<script>',
+    '(function () {',
+    '  const root = document.querySelector("[data-site-search]");',
+    '  if (!root) return;',
+    '  const toggle = root.querySelector(".site-search__toggle");',
+    '  const panel = root.querySelector(".site-search__panel");',
+    '  const form = root.querySelector(".site-search__form");',
+    '  const input = root.querySelector(".site-search__input");',
+    '  const results = root.querySelector("[data-site-search-results]");',
+    '  if (!toggle || !panel || !form || !input || !results) return;',
+    '  let controller = null;',
+    '  function renderMessage(message) {',
+    '    results.innerHTML = `<p class="site-search__message">${escapeHtmlForScript(message)}</p>`;',
+    '  }',
+    '  function renderHits(hits) {',
+    '    if (!Array.isArray(hits) || hits.length === 0) {',
+    '      renderMessage("No results.");',
+    '      return;',
+    '    }',
+    '    results.innerHTML = hits.map((hit) => {',
+    '      const href = escapeHtmlForScript(hit.canonicalUrl || hit.docId || "#");',
+    '      const title = escapeHtmlForScript(hit.title || hit.relativePath || "Untitled");',
+    '      const summary = typeof hit.summary === "string" ? `<span class="site-search__item-summary">${escapeHtmlForScript(hit.summary)}</span>` : "";',
+    '      const excerpt = hit.bestMatch && typeof hit.bestMatch.excerpt === "string" ? `<span class="site-search__item-excerpt">${escapeHtmlForScript(hit.bestMatch.excerpt)}</span>` : "";',
+    '      return `<a class="site-search__item" href="${href}"><strong class="site-search__item-title">${title}</strong>${summary}${excerpt}</a>`;',
+    '    }).join("");',
+    '  }',
+    '  async function runSearch(query) {',
+    '    if (controller) controller.abort();',
+    '    controller = new AbortController();',
+    '    renderMessage("Searching...");',
+    '    try {',
+    '      const url = new URL("/api/search", window.location.origin);',
+    '      url.searchParams.set("q", query);',
+    '      url.searchParams.set("topK", "8");',
+    '      const response = await fetch(url, { signal: controller.signal });',
+    '      if (!response.ok) {',
+    '        renderMessage(`Search failed (${response.status}).`);',
+    '        return;',
+    '      }',
+    '      const payload = await response.json();',
+    '      renderHits(payload.hits);',
+    '    } catch (error) {',
+    '      if (error && typeof error === "object" && "name" in error && error.name === "AbortError") return;',
+    '      renderMessage("Search failed.");',
+    '    }',
+    '  }',
+    '  function setOpen(open) {',
+    '    toggle.setAttribute("aria-expanded", open ? "true" : "false");',
+    '    panel.hidden = !open;',
+    '    if (open) {',
+    '      input.focus();',
+    '      if (!results.innerHTML) renderMessage("Search docs, guides, and skills.");',
+    '    }',
+    '  }',
+    '  toggle.addEventListener("click", () => setOpen(panel.hidden));',
+    '  form.addEventListener("submit", (event) => {',
+    '    event.preventDefault();',
+    '    const query = input.value.trim();',
+    '    if (!query) {',
+    '      renderMessage("Enter a search query.");',
+    '      return;',
+    '    }',
+    '    void runSearch(query);',
+    '  });',
+    '  document.addEventListener("keydown", (event) => {',
+    '    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {',
+    '      event.preventDefault();',
+    '      setOpen(true);',
+    '    }',
+    '    if (event.key === "Escape" && !panel.hidden) setOpen(false);',
+    '  });',
+    '})();',
+    '',
+    'function escapeHtmlForScript(value) {',
+    '  return String(value)',
+    '    .replaceAll("&", "&amp;")',
+    '    .replaceAll("<", "&lt;")',
+    '    .replaceAll(">", "&gt;")',
+    '    .replaceAll(\'"\', "&quot;")',
+    '    .replaceAll("\\\'", "&#39;");',
+    '}',
+    '</script>',
+  ].join('');
 }

@@ -59,6 +59,7 @@
     "node": ">=20"
   },
   "dependencies": {
+    "@noble/hashes": "^2.0.1",
     "gray-matter": "^4.0.3",
     "remark": "^15.0.1",
     "remark-gfm": "^4.0.1",
@@ -68,5 +69,8 @@
     "@types/node": "^24.5.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2"
+  },
+  "optionalDependencies": {
+    "indexbind": "^0.2.0"
   }
 }
