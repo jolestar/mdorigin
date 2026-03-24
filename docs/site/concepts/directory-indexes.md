@@ -43,6 +43,8 @@ For skill bundles, `build index` also treats common helper directories as non-co
 
 These directories remain directly accessible as files, but they are not recursed into for automatic content indexing.
 
+This works the same way when skill directories are brought into the published tree through directory symlinks.
+
 If a directory has no generated entries, the managed block is left empty instead of emitting placeholder text.
 
 For the root homepage, HTML rendering may hide repeated `page` entries when those same destinations are already shown in the top navigation. The raw markdown remains unchanged.

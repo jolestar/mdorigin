@@ -19,6 +19,14 @@ That is enough to preview a site locally, keep directory indexes up to date, and
 
 `mdorigin` also works well with skill repositories that use `SKILL.md` as the main document file. Those folders are treated as document bundles, while helper directories such as `scripts/` and `references/` stay directly accessible but do not enter automatic indexes.
 
+If your published content lives under `docs/site` but your reusable content lives elsewhere in the repo, you can also expose it with directory symlinks. For example:
+
+```text
+docs/site/skills -> ../../skills
+```
+
+`mdorigin dev`, `mdorigin build index`, and Cloudflare bundle generation all follow those symlinked directories.
+
 ## Install
 
 ```bash
