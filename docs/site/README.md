@@ -31,6 +31,7 @@ The top navigation and section indexes cover the rest of the documentation.
 <!-- INDEX:START -->
 
 - [Guides](./guides/)
+- [Skills](./skills/)
 - [Concepts](./concepts/)
 - [Reference](./reference/)
 
