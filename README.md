@@ -59,14 +59,14 @@ npm run build:index -- --root docs/site
 
 Publishing is handled by GitHub Actions through npm trusted publishing.
 
-- workflow: `.github/workflows/publish.yml`
+- workflow: `.github/workflows/release.yml`
 - trigger: push a tag like `v0.1.2`, or run the workflow manually
 
 The npm package settings still need a one-time trusted publisher entry for:
 
 - owner: `jolestar`
 - repository: `mdorigin`
-- workflow file: `publish.yml`
+- workflow file: `release.yml`
 
 ## Docs
 
