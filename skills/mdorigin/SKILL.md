@@ -7,6 +7,20 @@ description: Build, preview, and deploy markdown-first sites with local preview,
 
 Use this skill when you want to work on a markdown-first publishing site powered by `mdorigin`.
 
+## Install
+
+Global install:
+
+```bash
+npm install -g mdorigin
+```
+
+Project-local install:
+
+```bash
+npm install --save-dev mdorigin
+```
+
 ## What it covers
 
 - local preview with `mdorigin dev`
