@@ -162,21 +162,25 @@ export async function searchBundle(
 ): Promise<SearchHit[]> {
   const webModule = await loadIndexbindWebModule();
   const index = await webModule.openWebIndex(path.resolve(options.indexDir));
-  return index.search(options.query, {
-    topK: options.topK ?? 10,
-    relativePathPrefix: options.relativePathPrefix,
-  });
+  return rerankSearchHits(
+    await index.search(options.query, {
+      topK: options.topK ?? 10,
+      relativePathPrefix: options.relativePathPrefix,
+    }),
+  );
 }
 
 export async function createSearchApiFromDirectory(indexDir: string): Promise<SearchApi> {
   const webModule = await loadIndexbindWebModule();
   const index = await webModule.openWebIndex(path.resolve(indexDir));
   return {
-    search(query, options) {
-      return index.search(query, {
-        topK: options?.topK,
-        relativePathPrefix: options?.relativePathPrefix,
-      });
+    async search(query, options) {
+      return rerankSearchHits(
+        await index.search(query, {
+          topK: options?.topK,
+          relativePathPrefix: options?.relativePathPrefix,
+        }),
+      );
     },
   };
 }
@@ -193,10 +197,12 @@ export function createSearchApiFromBundle(
       }
 
       const index = await indexPromise;
-      return index.search(query, {
-        topK: options?.topK,
-        relativePathPrefix: options?.relativePathPrefix,
-      });
+      return rerankSearchHits(
+        await index.search(query, {
+          topK: options?.topK,
+          relativePathPrefix: options?.relativePathPrefix,
+        }),
+      );
     },
   };
 }
@@ -561,6 +567,36 @@ async function openWebIndexFromBundle(
 function decodeBase64(value: string): Uint8Array {
   const decoded = atob(value);
   return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
+}
+
+function rerankSearchHits(hits: SearchHit[]): SearchHit[] {
+  return [...hits].sort((left, right) => {
+    const scoreDelta = getSearchRankScore(right) - getSearchRankScore(left);
+    if (Math.abs(scoreDelta) > 1e-9) {
+      return scoreDelta;
+    }
+
+    if (right.bestMatch.score !== left.bestMatch.score) {
+      return right.bestMatch.score - left.bestMatch.score;
+    }
+
+    return left.relativePath.localeCompare(right.relativePath);
+  });
+}
+
+function getSearchRankScore(hit: SearchHit): number {
+  let adjusted = hit.score;
+
+  if (isOverviewSearchHit(hit)) {
+    adjusted *= 0.72;
+  }
+
+  return adjusted;
+}
+
+function isOverviewSearchHit(hit: SearchHit): boolean {
+  const baseName = path.posix.basename(hit.relativePath).toLowerCase();
+  return baseName === 'readme.md' || baseName === 'index.md';
 }
 
 const DIRECTORY_INDEX_FILENAMES_LOWER = new Set(
