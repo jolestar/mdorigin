@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type {
@@ -139,18 +139,28 @@ export async function initCloudflareProject(
   return { configFile };
 }
 
-async function listFiles(directory: string): Promise<string[]> {
+async function listFiles(
+  directory: string,
+  visitedRealDirectories = new Set<string>(),
+): Promise<string[]> {
+  const directoryRealPath = await realpath(directory);
+  if (visitedRealDirectories.has(directoryRealPath)) {
+    return [];
+  }
+  visitedRealDirectories.add(directoryRealPath);
+
   const entries = await readdir(directory, { withFileTypes: true });
   const files: string[] = [];
 
   for (const entry of entries) {
     const fullPath = path.join(directory, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...(await listFiles(fullPath)));
+    const entryStats = await stat(fullPath);
+    if (entryStats.isDirectory()) {
+      files.push(...(await listFiles(fullPath, visitedRealDirectories)));
       continue;
     }
 
-    if (entry.isFile()) {
+    if (entryStats.isFile()) {
       files.push(fullPath);
     }
   }

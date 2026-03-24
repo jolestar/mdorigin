@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -81,6 +81,75 @@ test('node server serves markdown, html, and assets', async () => {
     const listingHtml = await listingResponse.text();
     assert.match(listingHtml, /href="\/browse\/entry"/);
     assert.match(listingHtml, /href="\/browse\/nested\/"/);
+  } finally {
+    await new Promise<void>((resolve, reject) =>
+      server.close((error) => (error ? reject(error) : resolve())),
+    );
+  }
+});
+
+test('node server follows directory symlinks inside the content root', async () => {
+  const workspaceDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-symlink-node-'));
+  const rootDir = path.join(workspaceDir, 'docs', 'site');
+  const skillsDir = path.join(workspaceDir, 'skills');
+  await mkdir(rootDir, { recursive: true });
+  await mkdir(skillsDir, { recursive: true });
+  await writeFile(path.join(rootDir, 'README.md'), '# Home\n', 'utf8');
+  await mkdir(path.join(skillsDir, 'find-skills', 'scripts'), { recursive: true });
+  await writeFile(
+    path.join(skillsDir, 'find-skills', 'SKILL.md'),
+    ['---', 'name: find-skills', 'description: Discover skills.', '---', '', '# Find Skills'].join('\n'),
+    'utf8',
+  );
+  await writeFile(
+    path.join(skillsDir, 'find-skills', 'scripts', 'install.sh'),
+    '#!/usr/bin/env bash\necho install\n',
+    'utf8',
+  );
+  await symlink(path.join(workspaceDir, 'skills'), path.join(rootDir, 'skills'));
+
+  const server = createNodeServer({
+    rootDir,
+    draftMode: 'include',
+    siteConfig: {
+      siteTitle: 'Node Test',
+      siteUrl: undefined,
+      favicon: undefined,
+      logo: undefined,
+      showDate: true,
+      showSummary: true,
+      theme: 'paper',
+      template: 'document',
+      topNav: [],
+      footerNav: [],
+      footerText: undefined,
+      socialLinks: [],
+      editLink: undefined,
+      showHomeIndex: true,
+      catalogInitialPostCount: 10,
+      catalogLoadMoreStep: 10,
+      siteTitleConfigured: true,
+      siteDescriptionConfigured: false,
+    },
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, () => resolve()));
+  const address = server.address();
+  if (!address || typeof address === 'string') {
+    throw new Error('expected TCP server address');
+  }
+
+  try {
+    const skillResponse = await fetch(`http://127.0.0.1:${address.port}/skills/find-skills/`);
+    assert.equal(skillResponse.status, 200);
+    assert.match(await skillResponse.text(), /Find Skills/);
+
+    const scriptResponse = await fetch(
+      `http://127.0.0.1:${address.port}/skills/find-skills/scripts/install.sh`,
+    );
+    assert.equal(scriptResponse.status, 200);
+    assert.equal(scriptResponse.headers.get('content-type'), 'text/plain; charset=utf-8');
+    assert.match(await scriptResponse.text(), /echo install/);
   } finally {
     await new Promise<void>((resolve, reject) =>
       server.close((error) => (error ? reject(error) : resolve())),

@@ -1,4 +1,4 @@
-import { readdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { inferDirectoryContentType } from './core/content-type.js';
@@ -136,7 +136,8 @@ export async function buildManagedIndexBlock(directoryPath: string): Promise<str
     }
 
     const fullPath = path.join(directoryPath, entry.name);
-    if (entry.isDirectory()) {
+    const entryStats = await stat(fullPath);
+    if (entryStats.isDirectory()) {
       const resolvedEntry = await resolveDirectoryEntry(fullPath, entry.name);
       if (resolvedEntry.draft) {
         continue;
@@ -160,7 +161,7 @@ export async function buildManagedIndexBlock(directoryPath: string): Promise<str
       continue;
     }
 
-    if (!entry.isFile() || path.extname(entry.name).toLowerCase() !== '.md') {
+    if (!entryStats.isFile() || path.extname(entry.name).toLowerCase() !== '.md') {
       continue;
     }
 
@@ -278,12 +279,25 @@ async function resolveDirectoryEntry(
 }
 
 async function listDirectoriesRecursively(rootDir: string): Promise<string[]> {
+  return listDirectoriesRecursivelyInternal(rootDir, new Set<string>());
+}
+
+async function listDirectoriesRecursivelyInternal(
+  rootDir: string,
+  visitedRealDirectories: Set<string>,
+): Promise<string[]> {
+  const realDirectoryPath = await realpath(rootDir);
+  if (visitedRealDirectories.has(realDirectoryPath)) {
+    return [];
+  }
+  visitedRealDirectories.add(realDirectoryPath);
+
   const directories = [rootDir];
   const entries = await readdir(rootDir, { withFileTypes: true });
   const rootShape = await inspectDirectoryShape(rootDir);
 
   for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith('.')) {
+    if (entry.name.startsWith('.')) {
       continue;
     }
 
@@ -292,6 +306,11 @@ async function listDirectoriesRecursively(rootDir: string): Promise<string[]> {
     }
 
     const childPath = path.join(rootDir, entry.name);
+    const childStats = await stat(childPath);
+    if (!childStats.isDirectory()) {
+      continue;
+    }
+
     directories.push(childPath);
 
     const childIndexPath = await resolveDirectoryIndexFile(childPath);
@@ -304,7 +323,12 @@ async function listDirectoriesRecursively(rootDir: string): Promise<string[]> {
       }
     }
 
-    directories.push(...(await listDirectoriesRecursively(childPath)).slice(1));
+    directories.push(
+      ...(await listDirectoriesRecursivelyInternal(
+        childPath,
+        visitedRealDirectories,
+      )).slice(1),
+    );
   }
 
   return directories;
@@ -328,12 +352,15 @@ async function inspectDirectoryShape(directoryPath: string): Promise<{
       continue;
     }
 
-    if (entry.isDirectory()) {
+    const fullPath = path.join(directoryPath, entry.name);
+    const entryStats = await stat(fullPath);
+
+    if (entryStats.isDirectory()) {
       hasChildDirectories = true;
       continue;
     }
 
-    if (!entry.isFile()) {
+    if (!entryStats.isFile()) {
       continue;
     }
 

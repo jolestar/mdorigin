@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { ContentEntry, ContentStore } from '../core/content-store.js';
@@ -30,11 +30,16 @@ export function createFileSystemContentStore(rootDir: string): ContentStore {
       }
 
       const filePath = path.resolve(resolvedRootDir, normalizedPath);
-      if (!filePath.startsWith(`${resolvedRootDir}${path.sep}`) && filePath !== resolvedRootDir) {
+      if (!isVisiblePathWithinRoot(resolvedRootDir, filePath)) {
         return null;
       }
 
       try {
+        const fileStats = await stat(filePath);
+        if (!fileStats.isFile()) {
+          return null;
+        }
+
         const mediaType = getMediaTypeForPath(normalizedPath);
         if (isLikelyTextPath(normalizedPath)) {
           const text = await readFile(filePath, 'utf8');
@@ -68,27 +73,58 @@ export function createFileSystemContentStore(rootDir: string): ContentStore {
       }
 
       const directoryPath = path.resolve(resolvedRootDir, normalizedPath);
-      if (
-        !directoryPath.startsWith(`${resolvedRootDir}${path.sep}`) &&
-        directoryPath !== resolvedRootDir
-      ) {
+      if (!isVisiblePathWithinRoot(resolvedRootDir, directoryPath)) {
         return null;
       }
 
       try {
+        const directoryStats = await stat(directoryPath);
+        if (!directoryStats.isDirectory()) {
+          return null;
+        }
+
         const entries = await readdir(directoryPath, { withFileTypes: true });
-        return entries
-          .filter((entry) => !entry.name.startsWith('.'))
-          .map(
-            (entry): ContentDirectoryEntry => ({
-              name: entry.name,
-              path:
+        const resolvedEntries = await Promise.all(
+          entries
+            .filter((entry) => !entry.name.startsWith('.'))
+            .map(async (entry): Promise<ContentDirectoryEntry | null> => {
+              const childVisiblePath =
                 normalizedPath === ''
                   ? entry.name
-                  : `${normalizedPath}/${entry.name}`,
-              kind: entry.isDirectory() ? 'directory' : 'file',
+                  : `${normalizedPath}/${entry.name}`;
+              const childFilePath = path.resolve(resolvedRootDir, childVisiblePath);
+
+              try {
+                const childStats = await stat(childFilePath);
+                if (childStats.isDirectory()) {
+                  return {
+                    name: entry.name,
+                    path: childVisiblePath,
+                    kind: 'directory',
+                  };
+                }
+
+                if (childStats.isFile()) {
+                  return {
+                    name: entry.name,
+                    path: childVisiblePath,
+                    kind: 'file',
+                  };
+                }
+              } catch (error) {
+                if (isNodeNotFound(error)) {
+                  return null;
+                }
+
+                throw error;
+              }
+
+              return null;
             }),
-          )
+        );
+
+        return resolvedEntries
+          .filter((entry): entry is ContentDirectoryEntry => entry !== null)
           .sort((left, right) => {
             if (left.kind !== right.kind) {
               return left.kind === 'directory' ? -1 : 1;
@@ -105,6 +141,13 @@ export function createFileSystemContentStore(rootDir: string): ContentStore {
       }
     },
   };
+}
+
+function isVisiblePathWithinRoot(rootDir: string, candidatePath: string): boolean {
+  return (
+    candidatePath === rootDir ||
+    candidatePath.startsWith(`${rootDir}${path.sep}`)
+  );
 }
 
 export function createNodeRequestListener(options: NodeAdapterOptions) {

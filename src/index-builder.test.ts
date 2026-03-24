@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -231,5 +231,43 @@ test('buildDirectoryIndexes does not recurse into skill support directories', as
   );
   assert.ok(
     !result.updatedFiles.some((entry) => entry.endsWith('/find-skills/scripts/README.md')),
+  );
+});
+
+test('buildDirectoryIndexes follows symlinked skill directories', async () => {
+  const workspaceDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-index-symlink-skill-'));
+  const rootDir = path.join(workspaceDir, 'docs', 'site');
+  const skillsDir = path.join(workspaceDir, 'skills');
+  await mkdir(rootDir, { recursive: true });
+  await mkdir(path.join(skillsDir, 'find-skills', 'scripts'), { recursive: true });
+  await writeFile(path.join(rootDir, 'README.md'), '# Skills\n', 'utf8');
+  await writeFile(
+    path.join(skillsDir, 'find-skills', 'SKILL.md'),
+    [
+      '---',
+      'name: find-skills',
+      'description: Discover skills from the ecosystem.',
+      '---',
+      '',
+      '# Find Skills',
+    ].join('\n'),
+    'utf8',
+  );
+  await writeFile(
+    path.join(skillsDir, 'find-skills', 'scripts', 'README.md'),
+    '# Script helpers\n',
+    'utf8',
+  );
+  await symlink(path.join(workspaceDir, 'skills'), path.join(rootDir, 'skills'));
+
+  const result = await buildDirectoryIndexes({ rootDir });
+  const rootIndex = await readFile(path.join(rootDir, 'README.md'), 'utf8');
+
+  assert.match(rootIndex, /\[skills\]\(\.\/skills\/\)/);
+  assert.ok(
+    result.skippedDirectories.some((entry) => entry.endsWith('/docs/site/skills/find-skills')),
+  );
+  assert.ok(
+    !result.updatedFiles.some((entry) => entry.endsWith('/skills/find-skills/scripts/README.md')),
   );
 });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -109,4 +109,45 @@ test('initCloudflareProject derives worker name from site title when name is omi
   const configSource = await readFile(result.configFile, 'utf8');
   assert.match(configSource, /"name": "example-notes"/);
   assert.match(configSource, /"compatibility_flags": \["nodejs_compat"\]/);
+});
+
+test('buildCloudflareManifest follows directory symlinks', async () => {
+  const workspaceDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-symlink-'));
+  const rootDir = path.join(workspaceDir, 'docs', 'site');
+  const skillsDir = path.join(workspaceDir, 'skills');
+  await mkdir(rootDir, { recursive: true });
+  await mkdir(path.join(skillsDir, 'find-skills'), { recursive: true });
+  await writeFile(path.join(rootDir, 'README.md'), '# Home\n', 'utf8');
+  await writeFile(
+    path.join(skillsDir, 'find-skills', 'SKILL.md'),
+    ['---', 'name: find-skills', 'description: Discover skills.', '---', '', '# Find Skills'].join('\n'),
+    'utf8',
+  );
+  await symlink(path.join(workspaceDir, 'skills'), path.join(rootDir, 'skills'));
+
+  const manifest = await buildCloudflareManifest({
+    rootDir,
+    siteConfig: {
+      siteTitle: 'Manifest Site',
+      siteUrl: undefined,
+      favicon: undefined,
+      logo: undefined,
+      showDate: true,
+      showSummary: true,
+      theme: 'paper',
+      template: 'document',
+      topNav: [],
+      footerNav: [],
+      footerText: undefined,
+      socialLinks: [],
+      editLink: undefined,
+      showHomeIndex: true,
+      catalogInitialPostCount: 10,
+      catalogLoadMoreStep: 10,
+      siteTitleConfigured: true,
+      siteDescriptionConfigured: false,
+    },
+  });
+
+  assert.ok(manifest.entries.some((entry) => entry.path === 'skills/find-skills/SKILL.md'));
 });
