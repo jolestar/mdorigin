@@ -2,7 +2,15 @@
 
 `mdorigin` is a markdown-first publishing engine.
 
-It treats markdown as the only source of truth, serves raw `.md` directly for agents, renders `.html` views for humans from the same directory tree, can return markdown from extensionless routes when clients send `Accept: text/markdown`, supports frontmatter aliases for old URL redirects, and can publish skill-style bundles built around `SKILL.md`.
+It treats markdown as the only source of truth, serves raw `.md` directly for agents, renders HTML for humans from the same directory tree, and can expose the same content to both browsers and tools through stable routes.
+
+## Why mdorigin
+
+- markdown stays directly accessible at `.md` routes
+- extensionless routes render human-friendly HTML from the same files
+- `README.md`, `index.md`, and `SKILL.md` all fit into one routing model
+- the same core works in local preview and Cloudflare Workers
+- optional search is powered by [`indexbind`](https://github.com/jolestar/indexbind)
 
 ## Install
 
@@ -17,6 +25,16 @@ mdorigin dev --root docs/site
 ```
 
 If you prefer a project-local install instead, use `npm install --save-dev mdorigin` and run it with `npx --no-install mdorigin ...`.
+
+## Quick Start
+
+```bash
+mdorigin dev --root docs/site
+mdorigin build index --root docs/site
+mdorigin build cloudflare --root docs/site
+```
+
+That is enough to preview a site locally, keep directory indexes up to date, and generate a Cloudflare Worker bundle.
 
 ## Optional Search
 
@@ -46,30 +64,9 @@ Runtime endpoints:
 - `/api/search?q=cloudflare+deploy`
 - `/api/openapi.json`
 
-## Repo Development
-
-```bash
-npm install
-npm run check
-npm run dev -- --root docs/site
-npm run build:index -- --root docs/site
-```
-
-## Release
-
-Publishing is handled by GitHub Actions through npm trusted publishing.
-
-- workflow: `.github/workflows/release.yml`
-- trigger: push a tag like `v0.1.2`, or run the workflow manually
-
-The npm package settings still need a one-time trusted publisher entry for:
-
-- owner: `jolestar`
-- repository: `mdorigin`
-- workflow file: `release.yml`
-
 ## Docs
 
+- Docs site: <https://mdorigin.jolestar.workers.dev>
 - Getting started: [`docs/site/guides/getting-started.md`](docs/site/guides/getting-started.md)
 - Routing model: [`docs/site/concepts/routing.md`](docs/site/concepts/routing.md)
 - Directory indexes: [`docs/site/concepts/directory-indexes.md`](docs/site/concepts/directory-indexes.md)

@@ -2,12 +2,12 @@
   "name": "mdorigin",
   "version": "0.1.2",
   "type": "module",
-  "description": "Markdown-first publishing engine with raw Markdown and HTML views.",
+  "description": "Markdown-first publishing for humans and agents.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jolestar/mdorigin.git"
   },
-  "homepage": "https://github.com/jolestar/mdorigin#readme",
+  "homepage": "https://mdorigin.jolestar.workers.dev",
   "bugs": {
     "url": "https://github.com/jolestar/mdorigin/issues"
   },
@@ -16,6 +16,8 @@
     "publishing",
     "static-site",
     "cloudflare-workers",
+    "agents",
+    "skills",
     "cli"
   ],
   "bin": {
