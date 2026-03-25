@@ -15,6 +15,7 @@ Useful fields:
 - `siteDescription`
 - `siteUrl`
 - `favicon`
+- `socialImage`
 - `logo`
 - `theme`
 - `template`
@@ -52,6 +53,7 @@ Useful fields:
 - `siteUrl` sets the canonical site origin and is used for canonical links in rendered HTML.
 - `siteUrl` also enables `/sitemap.xml`, which emits absolute canonical URLs.
 - `favicon` adds a standard favicon link tag.
+- `socialImage` emits absolute `og:image` and `twitter:image` metadata when `siteUrl` is set.
 - `logo` renders a small site logo in the header.
 
 Example:
@@ -60,6 +62,7 @@ Example:
 {
   "siteUrl": "https://example.com",
   "favicon": "/favicon.svg",
+  "socialImage": "/og.svg",
   "logo": {
     "src": "/logo.svg",
     "alt": "Example"

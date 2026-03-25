@@ -12,6 +12,7 @@ export interface RenderDocumentOptions {
   siteDescription?: string;
   siteUrl?: string;
   favicon?: string;
+  socialImage?: string;
   logo?: SiteLogo;
   title: string;
   body: string;
@@ -53,6 +54,14 @@ export function renderDocument(options: RenderDocumentOptions) {
       : '';
   const faviconMeta = options.favicon
     ? `<link rel="icon" href="${escapeHtml(options.favicon)}">`
+    : '';
+  const absoluteSocialImageUrl = getAbsoluteSiteAssetUrl(options.siteUrl, options.socialImage);
+  const socialImageMeta = absoluteSocialImageUrl
+    ? [
+        `<meta property="og:image" content="${escapeHtml(absoluteSocialImageUrl)}">`,
+        '<meta name="twitter:card" content="summary_large_image">',
+        `<meta name="twitter:image" content="${escapeHtml(absoluteSocialImageUrl)}">`,
+      ].join('')
     : '';
   const alternateMarkdownMeta = options.alternateMarkdownPath
     ? `<link rel="alternate" type="text/markdown" href="${escapeHtml(
@@ -154,6 +163,7 @@ export function renderDocument(options: RenderDocumentOptions) {
     summaryMeta,
     canonicalMeta,
     faviconMeta,
+    socialImageMeta,
     alternateMarkdownMeta,
     stylesheetBlock,
     '</head>',
@@ -167,6 +177,22 @@ export function renderDocument(options: RenderDocumentOptions) {
     '</body>',
     '</html>',
   ].join('');
+}
+
+function getAbsoluteSiteAssetUrl(siteUrl: string | undefined, href: string | undefined): string | undefined {
+  if (!href) {
+    return undefined;
+  }
+
+  if (/^[a-zA-Z][a-zA-Z\d+.-]*:/.test(href) || href.startsWith('//')) {
+    return href;
+  }
+
+  if (!siteUrl) {
+    return undefined;
+  }
+
+  return new URL(href.replace(/^\//, ''), `${siteUrl}/`).toString();
 }
 
 export function escapeHtml(value: string): string {

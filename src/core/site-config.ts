@@ -33,6 +33,7 @@ export interface SiteConfig {
   siteDescription?: string;
   siteUrl?: string;
   favicon?: string;
+  socialImage?: string;
   logo?: SiteLogo;
   showDate?: boolean;
   showSummary?: boolean;
@@ -54,6 +55,7 @@ export interface ResolvedSiteConfig {
   siteDescription?: string;
   siteUrl?: string;
   favicon?: string;
+  socialImage?: string;
   logo?: SiteLogo;
   showDate: boolean;
   showSummary: boolean;
@@ -116,6 +118,7 @@ export async function loadSiteConfig(
         : undefined,
     siteUrl: normalizeSiteUrl(parsedConfig.siteUrl),
     favicon: normalizeSiteHref(parsedConfig.favicon),
+    socialImage: normalizeSiteHref(parsedConfig.socialImage),
     logo: normalizeLogo(parsedConfig.logo),
     showDate: parsedConfig.showDate ?? true,
     showSummary: parsedConfig.showSummary ?? true,

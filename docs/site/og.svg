@@ -1,0 +1,93 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">mdorigin social preview</title>
+  <desc id="desc">One markdown tree. Two views: human HTML and agent-readable source.</desc>
+  <defs>
+    <linearGradient id="bg" x1="88" y1="72" x2="1058" y2="570" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F9FBFF"/>
+      <stop offset="0.55" stop-color="#EEF4FB"/>
+      <stop offset="1" stop-color="#E3EDF9"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="777" y1="118" x2="1160" y2="448" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#F3F7FD"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#0F5BD7"/>
+      <stop offset="1" stop-color="#35A0FF"/>
+    </linearGradient>
+    <filter id="shadow" x="727" y="84" width="485" height="408" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="14"/>
+      <feGaussianBlur stdDeviation="24"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.0627451 0 0 0 0 0.12549 0 0 0 0 0.2 0 0 0 0.14 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_0_1"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_0_1" result="shape"/>
+    </filter>
+    <style>
+      .brand { font-family: sans-serif; font-size: 28px; font-weight: 700; fill: #102033; }
+      .eyebrow { font-family: sans-serif; font-size: 18px; font-weight: 700; letter-spacing: 0.12em; fill: #5A6A7B; }
+      .headline { font-family: sans-serif; font-size: 48px; font-weight: 800; fill: #102033; }
+      .copy { font-family: sans-serif; font-size: 20px; font-weight: 500; fill: #405468; }
+      .chip { font-family: sans-serif; font-size: 20px; font-weight: 700; fill: #0F5BD7; }
+      .panelTitle { font-family: monospace; font-size: 18px; font-weight: 700; fill: #102033; }
+      .panelCopy { font-family: monospace; font-size: 16px; font-weight: 500; fill: #48627A; }
+      .panelDim { fill: #7A8B9D; }
+      .panelStrong { fill: #0F5BD7; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <circle cx="1048" cy="118" r="190" fill="#D9E8FF" fill-opacity="0.58"/>
+  <circle cx="112" cy="566" r="164" fill="#D6E7FF" fill-opacity="0.42"/>
+  <path d="M0 520C184 444 285 462 402 493C535 528 648 551 807 478C932 420 1034 402 1200 441V630H0V520Z" fill="#EDF4FD"/>
+
+  <g transform="translate(88 92)">
+    <g transform="translate(0 0)">
+      <rect x="0" y="0" width="44" height="44" rx="12" fill="url(#accent)"/>
+      <path d="M11 12H18.2L25 24.4L31.8 12H39V32H31.8V23.6L27.6 31.2H22.4L18.2 23.6V32H11V12Z" fill="white"/>
+      <text x="62" y="30" class="brand">mdorigin</text>
+    </g>
+
+    <text x="0" y="104" class="eyebrow">Markdown-First Publishing</text>
+    <text x="0" y="176" class="headline">
+      <tspan x="0" dy="0">One markdown tree.</tspan>
+      <tspan x="0" dy="54">Two views: human HTML</tspan>
+      <tspan x="0" dy="54">and agent-readable source.</tspan>
+    </text>
+
+    <text x="0" y="350" class="copy">
+      <tspan x="0" dy="0">Serve raw markdown for tools, render extensionless HTML for</tspan>
+      <tspan x="0" dy="30">people, and ship the same content tree to local preview or</tspan>
+      <tspan x="0" dy="30">Cloudflare Workers.</tspan>
+    </text>
+
+    <g transform="translate(0 466)">
+      <rect x="0" y="-24" width="160" height="48" rx="24" fill="#FFFFFF" stroke="#D7E1EC"/>
+      <text x="26" y="8" class="chip">raw .md</text>
+
+      <rect x="182" y="-24" width="192" height="48" rx="24" fill="#FFFFFF" stroke="#D7E1EC"/>
+      <text x="208" y="8" class="chip">human HTML</text>
+
+      <rect x="396" y="-24" width="178" height="48" rx="24" fill="#FFFFFF" stroke="#D7E1EC"/>
+      <text x="422" y="8" class="chip">search API</text>
+    </g>
+  </g>
+
+  <g filter="url(#shadow)">
+    <rect x="765" y="118" width="361" height="316" rx="28" fill="url(#panel)" stroke="#D7E1EC"/>
+    <rect x="787" y="144" width="317" height="54" rx="16" fill="#F6FAFF" stroke="#D7E1EC"/>
+    <circle cx="809" cy="171" r="8" fill="#0F5BD7"/>
+    <text x="827" y="178" class="panelTitle">/api/search?q=cloudflare</text>
+
+    <rect x="787" y="222" width="317" height="92" rx="18" fill="#FFFFFF" stroke="#D7E1EC"/>
+    <text x="807" y="250" class="panelTitle">Cloudflare Deployment</text>
+    <text x="807" y="276" class="panelCopy">Build a Worker bundle and</text>
+    <text x="807" y="298" class="panelCopy">deploy with wrangler.</text>
+
+    <rect x="787" y="322" width="317" height="92" rx="18" fill="#FFFFFF" stroke="#D7E1EC"/>
+    <text x="807" y="350" class="panelTitle">Getting Started</text>
+    <text x="807" y="376" class="panelCopy">Preview locally, build indexes,</text>
+    <text x="807" y="398" class="panelCopy">then publish the same tree.</text>
+  </g>
+</svg>

@@ -746,6 +746,7 @@ test('handleSiteRequest respects site config rendering options', async () => {
       siteDescription: 'Configured description',
       siteUrl: 'https://example.com',
       favicon: '/favicon.ico',
+      socialImage: '/og.svg',
       logo: { src: '/logo.svg', alt: 'Configured Site' },
       showDate: false,
       showSummary: false,
@@ -774,6 +775,14 @@ test('handleSiteRequest respects site config rendering options', async () => {
   assert.match(String(response.body), /body \{ color: red; \}/);
   assert.match(String(response.body), /rel="canonical" href="https:\/\/example\.com\/post"/);
   assert.match(String(response.body), /rel="icon" href="\/favicon\.ico"/);
+  assert.match(
+    String(response.body),
+    /property="og:image" content="https:\/\/example\.com\/og\.svg"/,
+  );
+  assert.match(
+    String(response.body),
+    /name="twitter:image" content="https:\/\/example\.com\/og\.svg"/,
+  );
   assert.match(
     String(response.body),
     /rel="alternate" type="text\/markdown" href="\/post\.md"/,

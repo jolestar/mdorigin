@@ -3,6 +3,7 @@
   "siteDescription": "Markdown-first publishing for humans and agents.",
   "siteUrl": "https://mdorigin.jolestar.workers.dev",
   "favicon": "/favicon.svg",
+  "socialImage": "/og.svg",
   "logo": {
     "src": "/favicon.svg",
     "alt": "mdorigin"
