@@ -22,6 +22,7 @@ If you want to try it quickly, start with [Getting Started](./guides/getting-sta
 - relative assets stay next to content
 - the same core works for local Node preview and Cloudflare Workers
 - optional search and `/api/search` are powered by `indexbind`
+- `indexbind` docs: <https://indexbind.jolestar.workers.dev>
 
 ## Project Note
 

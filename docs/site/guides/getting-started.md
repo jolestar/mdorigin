@@ -41,6 +41,11 @@ mdorigin build search --root docs/site
 mdorigin search --index dist/search "cloudflare deploy"
 ```
 
+`indexbind` documentation:
+
+- Docs: <https://indexbind.jolestar.workers.dev>
+- Repository: <https://github.com/jolestar/indexbind>
+
 `build search` now defaults to the higher-quality `model2vec` backend. If you want the smaller legacy fallback instead, run:
 
 ```bash

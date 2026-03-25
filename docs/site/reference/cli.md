@@ -46,6 +46,11 @@ Search commands require the optional `indexbind` package:
 npm install indexbind
 ```
 
+For `indexbind` runtime and indexing details, see:
+
+- Docs: <https://indexbind.jolestar.workers.dev>
+- Repository: <https://github.com/jolestar/indexbind>
+
 To force the older lightweight backend:
 
 ```bash

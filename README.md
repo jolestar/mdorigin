@@ -38,7 +38,7 @@ That is enough to preview a site locally, keep directory indexes up to date, and
 
 ## Optional Search
 
-`mdorigin` can build a local retrieval bundle through the optional [`indexbind`](https://github.com/jolestar/indexbind) package:
+`mdorigin` can build a local retrieval bundle through the optional [`indexbind`](https://github.com/jolestar/indexbind) package. For the retrieval engine itself, see the `indexbind` docs: <https://indexbind.jolestar.workers.dev>.
 
 ```bash
 npm install indexbind
@@ -72,4 +72,5 @@ Runtime endpoints:
 - Directory indexes: [`docs/site/concepts/directory-indexes.md`](docs/site/concepts/directory-indexes.md)
 - Configuration: [`docs/site/reference/configuration.md`](docs/site/reference/configuration.md)
 - CLI: [`docs/site/reference/cli.md`](docs/site/reference/cli.md)
+- Search setup: [`docs/site/guides/getting-started.md`](docs/site/guides/getting-started.md#quick-start)
 - Cloudflare deployment: [`docs/site/guides/cloudflare.md`](docs/site/guides/cloudflare.md)
