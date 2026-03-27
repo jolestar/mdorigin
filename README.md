@@ -4,6 +4,19 @@
 
 It treats markdown as the only source of truth, serves raw `.md` directly for agents, renders HTML for humans from the same directory tree, and can expose the same content to both browsers and tools through stable routes.
 
+## Core Principle
+
+`mdorigin` is not meant to become a template system.
+
+Its core is:
+
+- routing rules
+- markdown tree normalization
+- document, index, asset, search, and site semantics
+- stable page models derived from the same content tree
+
+That means `mdorigin` should own content semantics, while page rendering remains extensible. In practice, this is the direction for advanced customization: users should be able to replace page-level rendering with code, without replacing the routing and content kernel itself.
+
 ## Why mdorigin
 
 - markdown stays directly accessible at `.md` routes

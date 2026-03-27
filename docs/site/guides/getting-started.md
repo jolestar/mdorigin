@@ -127,6 +127,8 @@ You can also choose a page structure with `template`:
 
 Use `document` for ordinary docs and articles. Use `catalog` for homepages and directory-style collection pages.
 
+Today `template` only selects from built-in page structures. The longer-term direction is not to add a large template system, but to allow code-based extensions to replace page rendering while keeping the same routing and normalized content model.
+
 If you use `catalog`, you can also cap the first batch of article entries:
 
 ```json

@@ -14,6 +14,19 @@ It keeps markdown directly addressable, renders extensionless HTML from the same
 
 If you want to try it quickly, start with [Getting Started](./guides/getting-started.md), then move to [Configuration](./reference/configuration.md) and [Cloudflare Deployment](./guides/cloudflare.md).
 
+## Core Principle
+
+`mdorigin` is not a template system. Its core is the routing model and the normalized content model built from a markdown tree.
+
+That means:
+
+- `mdorigin` owns routing and content semantics
+- default rendering is built in
+- advanced users should be able to replace page rendering with code
+- extensions should not need to replace the request pipeline itself
+
+In other words, `mdorigin` is a programmable publishing core. A future extension system should let users build their own page layouts, including catalog-style pages, on top of the same routing and content kernel.
+
 ## What it does
 
 - filesystem routes map directly to published routes
