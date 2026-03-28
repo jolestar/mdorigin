@@ -62,6 +62,8 @@ test('resolveRequest maps html, markdown, default html, index, and assets', () =
 test('resolveRequest rejects traversal paths', () => {
   assert.equal(resolveRequest('/../secret').kind, 'not-found');
   assert.equal(resolveRequest('/%2E%2E/secret').kind, 'not-found');
+  assert.equal(resolveRequest('/.DS_Store').kind, 'not-found');
+  assert.equal(resolveRequest('/.hidden/note.md').kind, 'not-found');
 });
 
 test('handleSiteRequest renders html and preserves markdown', async () => {

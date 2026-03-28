@@ -1,14 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import {
   buildCloudflareManifest,
   initCloudflareProject,
+  syncCloudflareR2,
   writeCloudflareBundle,
 } from './cloudflare.js';
+
+const TEST_SITE_CONFIG = {
+  siteTitle: 'Manifest Site',
+  siteUrl: undefined,
+  favicon: undefined,
+  logo: undefined,
+  showDate: true,
+  showSummary: true,
+  theme: 'paper' as const,
+  template: 'document' as const,
+  topNav: [],
+  footerNav: [],
+  footerText: undefined,
+  socialLinks: [],
+  editLink: undefined,
+  showHomeIndex: true,
+  catalogInitialPostCount: 10,
+  catalogLoadMoreStep: 10,
+  siteTitleConfigured: true,
+  siteDescriptionConfigured: false,
+};
 
 test('buildCloudflareManifest includes entries and site config', async () => {
   const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-manifest-'));
@@ -16,26 +38,7 @@ test('buildCloudflareManifest includes entries and site config', async () => {
 
   const manifest = await buildCloudflareManifest({
     rootDir,
-    siteConfig: {
-      siteTitle: 'Manifest Site',
-      siteUrl: undefined,
-      favicon: undefined,
-      logo: undefined,
-      showDate: true,
-      showSummary: true,
-      theme: 'paper',
-      template: 'document',
-      topNav: [],
-      footerNav: [],
-      footerText: undefined,
-      socialLinks: [],
-      editLink: undefined,
-      showHomeIndex: true,
-      catalogInitialPostCount: 10,
-      catalogLoadMoreStep: 10,
-      siteTitleConfigured: true,
-      siteDescriptionConfigured: false,
-    },
+    siteConfig: TEST_SITE_CONFIG,
   });
 
   assert.equal(manifest.entries.length, 1);
@@ -52,24 +55,8 @@ test('writeCloudflareBundle writes a user-facing worker entry', async () => {
     rootDir,
     outDir,
     siteConfig: {
+      ...TEST_SITE_CONFIG,
       siteTitle: 'Bundle Site',
-      siteUrl: undefined,
-      favicon: undefined,
-      logo: undefined,
-      showDate: true,
-      showSummary: true,
-      theme: 'paper',
-      template: 'document',
-      topNav: [],
-      footerNav: [],
-      footerText: undefined,
-      socialLinks: [],
-      editLink: undefined,
-      showHomeIndex: true,
-      catalogInitialPostCount: 10,
-      catalogLoadMoreStep: 10,
-      siteTitleConfigured: true,
-      siteDescriptionConfigured: false,
     },
   });
 
@@ -94,24 +81,8 @@ test('writeCloudflareBundle imports code config when configModulePath is provide
     outDir,
     configModulePath: configFile,
     siteConfig: {
+      ...TEST_SITE_CONFIG,
       siteTitle: 'Bundle Site',
-      siteUrl: undefined,
-      favicon: undefined,
-      logo: undefined,
-      showDate: true,
-      showSummary: true,
-      theme: 'paper',
-      template: 'document',
-      topNav: [],
-      footerNav: [],
-      footerText: undefined,
-      socialLinks: [],
-      editLink: undefined,
-      showHomeIndex: true,
-      catalogInitialPostCount: 10,
-      catalogLoadMoreStep: 10,
-      siteTitleConfigured: true,
-      siteDescriptionConfigured: false,
     },
   });
 
@@ -137,24 +108,8 @@ test('writeCloudflareBundle unwraps named config exports for code config modules
     outDir,
     configModulePath: configFile,
     siteConfig: {
+      ...TEST_SITE_CONFIG,
       siteTitle: 'Bundle Site',
-      siteUrl: undefined,
-      favicon: undefined,
-      logo: undefined,
-      showDate: true,
-      showSummary: true,
-      theme: 'paper',
-      template: 'document',
-      topNav: [],
-      footerNav: [],
-      footerText: undefined,
-      socialLinks: [],
-      editLink: undefined,
-      showHomeIndex: true,
-      catalogInitialPostCount: 10,
-      catalogLoadMoreStep: 10,
-      siteTitleConfigured: true,
-      siteDescriptionConfigured: false,
     },
   });
 
@@ -211,26 +166,7 @@ test('buildCloudflareManifest follows directory symlinks', async () => {
 
   const manifest = await buildCloudflareManifest({
     rootDir,
-    siteConfig: {
-      siteTitle: 'Manifest Site',
-      siteUrl: undefined,
-      favicon: undefined,
-      logo: undefined,
-      showDate: true,
-      showSummary: true,
-      theme: 'paper',
-      template: 'document',
-      topNav: [],
-      footerNav: [],
-      footerText: undefined,
-      socialLinks: [],
-      editLink: undefined,
-      showHomeIndex: true,
-      catalogInitialPostCount: 10,
-      catalogLoadMoreStep: 10,
-      siteTitleConfigured: true,
-      siteDescriptionConfigured: false,
-    },
+    siteConfig: TEST_SITE_CONFIG,
   });
 
   assert.ok(manifest.entries.some((entry) => entry.path === 'skills/find-skills/SKILL.md'));
@@ -249,27 +185,155 @@ test('buildCloudflareManifest includes optional search bundle entries', async ()
   const manifest = await buildCloudflareManifest({
     rootDir,
     searchDir,
-    siteConfig: {
-      siteTitle: 'Manifest Site',
-      siteUrl: undefined,
-      favicon: undefined,
-      logo: undefined,
-      showDate: true,
-      showSummary: true,
-      theme: 'paper',
-      template: 'document',
-      topNav: [],
-      footerNav: [],
-      footerText: undefined,
-      socialLinks: [],
-      editLink: undefined,
-      showHomeIndex: true,
-      catalogInitialPostCount: 10,
-      catalogLoadMoreStep: 10,
-      siteTitleConfigured: true,
-      siteDescriptionConfigured: false,
-    },
+    siteConfig: TEST_SITE_CONFIG,
   });
 
   assert.equal(manifest.searchEntries?.[0]?.path, 'manifest.json');
+});
+
+test('buildCloudflareManifest externalizes binaries and ignores hidden files', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-external-'));
+  await mkdir(path.join(rootDir, '.private'), { recursive: true });
+  await writeFile(path.join(rootDir, 'index.md'), '# Home\n', 'utf8');
+  await writeFile(path.join(rootDir, '.DS_Store'), 'junk', 'utf8');
+  await writeFile(path.join(rootDir, '.private', 'note.md'), '# Hidden\n', 'utf8');
+  await writeFile(path.join(rootDir, 'small.png'), Uint8Array.from([1, 2, 3]));
+  await writeFile(path.join(rootDir, 'large.mp4'), Uint8Array.from([1, 2, 3, 4, 5, 6]));
+
+  const manifest = await buildCloudflareManifest({
+    rootDir,
+    siteConfig: TEST_SITE_CONFIG,
+    binaryMode: 'external',
+    assetsMaxBytes: 4,
+  });
+
+  assert.equal(manifest.runtime?.binaryMode, 'external');
+  assert.ok(!manifest.entries.some((entry) => entry.path === '.DS_Store'));
+  assert.ok(!manifest.entries.some((entry) => entry.path === '.private/note.md'));
+
+  const assetEntry = manifest.entries.find((entry) => entry.path === 'small.png');
+  assert.deepEqual(assetEntry, {
+    path: 'small.png',
+    kind: 'binary',
+    mediaType: 'image/png',
+    storageKind: 'assets',
+    storageKey: 'small.png',
+    byteSize: 3,
+  });
+
+  const r2Entry = manifest.entries.find((entry) => entry.path === 'large.mp4');
+  assert.equal(r2Entry?.kind, 'binary');
+  assert.equal('storageKind' in (r2Entry ?? {}) && r2Entry.storageKind, 'r2');
+  assert.match(
+    'storageKey' in (r2Entry ?? {}) ? r2Entry.storageKey : '',
+    /^binary\/[a-f0-9]{64}\.mp4$/,
+  );
+});
+
+test('writeCloudflareBundle writes staging metadata for external binaries', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-stage-root-'));
+  const outDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-stage-out-'));
+  await writeFile(path.join(rootDir, 'index.md'), '# Home\n', 'utf8');
+  await writeFile(path.join(rootDir, 'small.png'), Uint8Array.from([1, 2, 3]));
+  await writeFile(path.join(rootDir, 'large.mp4'), Uint8Array.from([1, 2, 3, 4, 5, 6]));
+
+  const result = await writeCloudflareBundle({
+    rootDir,
+    outDir,
+    siteConfig: TEST_SITE_CONFIG,
+    binaryMode: 'external',
+    assetsMaxBytes: 4,
+  });
+
+  const workerSource = await readFile(result.workerFile, 'utf8');
+  const bundleMetadata = JSON.parse(
+    await readFile(result.bundleFile, 'utf8'),
+  ) as {
+    binaryMode: string;
+    r2Objects: Array<{ file: string; storageKey: string }>;
+  };
+
+  assert.match(workerSource, /"storageKind": "assets"/);
+  assert.match(workerSource, /"storageKind": "r2"/);
+  assert.ok(!workerSource.includes('"base64"'));
+  assert.equal(bundleMetadata.binaryMode, 'external');
+  assert.equal(bundleMetadata.r2Objects.length, 1);
+  await stat(path.join(outDir, 'assets', 'small.png'));
+  await stat(path.join(outDir, bundleMetadata.r2Objects[0]!.file));
+});
+
+test('initCloudflareProject writes assets and r2 config for external bundle', async () => {
+  const projectDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-init-external-'));
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-init-root-'));
+  const outDir = path.join(projectDir, 'dist', 'cloudflare');
+  await writeFile(path.join(rootDir, 'index.md'), '# Home\n', 'utf8');
+  await writeFile(path.join(rootDir, 'large.mp4'), Uint8Array.from([1, 2, 3, 4, 5, 6]));
+
+  const bundle = await writeCloudflareBundle({
+    rootDir,
+    outDir,
+    siteConfig: TEST_SITE_CONFIG,
+    binaryMode: 'external',
+    assetsMaxBytes: 4,
+  });
+
+  const result = await initCloudflareProject({
+    projectDir,
+    workerEntry: bundle.workerFile,
+    compatibilityDate: '2026-03-20',
+    r2Bucket: 'media-bucket',
+  });
+
+  const configSource = await readFile(result.configFile, 'utf8');
+  assert.match(configSource, /"assets": \{/);
+  assert.match(configSource, /"directory": "dist\/cloudflare\/assets"/);
+  assert.match(configSource, /"run_worker_first": true/);
+  assert.match(configSource, /"binding": "MDORIGIN_R2"/);
+  assert.match(configSource, /"bucket_name": "media-bucket"/);
+});
+
+test('syncCloudflareR2 uploads only missing objects and writes sync state', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-sync-root-'));
+  const outDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-sync-out-'));
+  await writeFile(path.join(rootDir, 'index.md'), '# Home\n', 'utf8');
+  await writeFile(path.join(rootDir, 'large.mp4'), Uint8Array.from([1, 2, 3, 4, 5, 6]));
+
+  await writeCloudflareBundle({
+    rootDir,
+    outDir,
+    siteConfig: TEST_SITE_CONFIG,
+    binaryMode: 'external',
+    assetsMaxBytes: 4,
+  });
+
+  const calls: string[] = [];
+  const runCommand = (command: string, args: string[]) => {
+    calls.push([command, ...args].join(' '));
+    return { status: 0, stderr: '' };
+  };
+
+  const first = await syncCloudflareR2({
+    dir: outDir,
+    bucketName: 'media-bucket',
+    runCommand,
+  });
+  const second = await syncCloudflareR2({
+    dir: outDir,
+    bucketName: 'media-bucket',
+    runCommand,
+  });
+  const third = await syncCloudflareR2({
+    dir: outDir,
+    bucketName: 'media-bucket',
+    force: true,
+    runCommand,
+  });
+
+  assert.equal(first.uploadedCount, 1);
+  assert.equal(first.skippedCount, 0);
+  assert.equal(second.uploadedCount, 0);
+  assert.equal(second.skippedCount, 1);
+  assert.equal(third.uploadedCount, 1);
+  assert.equal(calls.length, 2);
+  await stat(first.stateFile);
 });

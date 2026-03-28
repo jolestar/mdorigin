@@ -2,6 +2,7 @@ import { readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { applyIndexTransforms, type MdoPlugin } from './core/extensions.js';
+import { isIgnoredContentName } from './core/content-store.js';
 import { inferDirectoryContentType } from './core/content-type.js';
 import { getDirectoryIndexCandidates } from './core/directory-index.js';
 import {
@@ -140,7 +141,7 @@ export async function buildManagedIndexBlock(
   const articles: ArticleIndexEntry[] = [];
 
   for (const entry of entries) {
-    if (entry.name.startsWith('.')) {
+    if (isIgnoredContentName(entry.name)) {
       continue;
     }
 
@@ -325,7 +326,7 @@ async function listDirectoriesRecursivelyInternal(
   const rootShape = await inspectDirectoryShape(rootDir);
 
   for (const entry of entries) {
-    if (entry.name.startsWith('.')) {
+    if (isIgnoredContentName(entry.name)) {
       continue;
     }
 
@@ -393,7 +394,7 @@ async function hasMeaningfulDirectoryContent(
 
   const entries = await readdir(directoryPath, { withFileTypes: true });
   for (const entry of entries) {
-    if (entry.name.startsWith('.')) {
+    if (isIgnoredContentName(entry.name)) {
       continue;
     }
 
@@ -429,7 +430,7 @@ async function inspectDirectoryShape(directoryPath: string): Promise<{
   let hasAssetFiles = false;
 
   for (const entry of entries) {
-    if (entry.name.startsWith('.')) {
+    if (isIgnoredContentName(entry.name)) {
       continue;
     }
 

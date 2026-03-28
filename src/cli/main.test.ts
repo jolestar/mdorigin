@@ -78,6 +78,13 @@ test('mdorigin help init prints init usage', () => {
   assert.match(result.stdout, /mdorigin init cloudflare/);
 });
 
+test('mdorigin --help prints sync cloudflare-r2 usage', () => {
+  const result = runCli(['--help']);
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /mdorigin sync cloudflare-r2/);
+});
+
 test('mdorigin dev --help prints command usage', () => {
   const result = runCli(['dev', '--help']);
 
@@ -112,4 +119,11 @@ test('mdorigin search rejects unknown arguments', () => {
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /Unknown argument for mdorigin search: --wat/);
+});
+
+test('mdorigin sync cloudflare-r2 rejects unknown arguments', () => {
+  const result = runCli(['sync', 'cloudflare-r2', '--wat']);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Unknown argument for mdorigin sync cloudflare-r2: --wat/);
 });

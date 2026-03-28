@@ -21,6 +21,10 @@ export interface ContentStore {
   listDirectory(contentPath: string): Promise<ContentDirectoryEntry[] | null>;
 }
 
+export function isIgnoredContentName(name: string): boolean {
+  return name.startsWith('.');
+}
+
 export class MemoryContentStore implements ContentStore {
   private readonly entries: Map<string, ContentEntry>;
 
@@ -54,7 +58,7 @@ export class MemoryContentStore implements ContentStore {
       }
 
       const [firstSegment, ...rest] = remainder.split('/');
-      if (firstSegment.startsWith('.')) {
+      if (isIgnoredContentName(firstSegment)) {
         continue;
       }
 
@@ -125,6 +129,10 @@ export function normalizeContentPath(inputPath: string): string | null {
     resolved.startsWith('../') ||
     resolved.includes('/../')
   ) {
+    return null;
+  }
+
+  if (resolved.split('/').some(isIgnoredContentName)) {
     return null;
   }
 

@@ -5,6 +5,7 @@ import type {
   ContentEntry,
   ContentStore,
 } from './content-store.js';
+import { isIgnoredContentName } from './content-store.js';
 import { inferDirectoryContentType } from './content-type.js';
 import { getDirectoryIndexCandidates } from './directory-index.js';
 import {
@@ -1112,7 +1113,7 @@ async function inspectDirectoryShape(
   let hasAssetFiles = false;
 
   for (const entry of entries) {
-    if (entry.name.startsWith('.')) {
+    if (isIgnoredContentName(entry.name)) {
       continue;
     }
 

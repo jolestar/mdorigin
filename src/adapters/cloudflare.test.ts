@@ -132,3 +132,115 @@ test('cloudflare worker supports page render plugins', async () => {
   assert.equal(response.status, 200);
   assert.match(await response.text(), /class="worker-plugin"/);
 });
+
+test('cloudflare worker serves assets-backed binaries through ASSETS binding', async () => {
+  const worker = createCloudflareWorker({
+    siteConfig: {
+      siteTitle: 'Worker Test',
+      siteUrl: undefined,
+      favicon: undefined,
+      logo: undefined,
+      showDate: true,
+      showSummary: true,
+      theme: 'paper',
+      template: 'document',
+      topNav: [],
+      footerNav: [],
+      footerText: undefined,
+      socialLinks: [],
+      editLink: undefined,
+      showHomeIndex: true,
+      catalogInitialPostCount: 10,
+      catalogLoadMoreStep: 10,
+      siteTitleConfigured: true,
+      siteDescriptionConfigured: false,
+    },
+    runtime: {
+      binaryMode: 'external',
+    },
+    entries: [
+      {
+        path: 'images/cat.png',
+        kind: 'binary',
+        mediaType: 'image/png',
+        storageKind: 'assets',
+        storageKey: 'images/cat.png',
+        byteSize: 3,
+      },
+    ],
+  });
+
+  const response = await worker.fetch(
+    new Request('https://example.com/images/cat.png'),
+    {
+      ASSETS: {
+        fetch: async () => new Response(Uint8Array.from([1, 2, 3]), {
+          headers: { 'content-type': 'image/png' },
+        }),
+      },
+    },
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(
+    Array.from(new Uint8Array(await response.arrayBuffer())),
+    [1, 2, 3],
+  );
+});
+
+test('cloudflare worker serves r2-backed binaries through configured bucket binding', async () => {
+  const worker = createCloudflareWorker({
+    siteConfig: {
+      siteTitle: 'Worker Test',
+      siteUrl: undefined,
+      favicon: undefined,
+      logo: undefined,
+      showDate: true,
+      showSummary: true,
+      theme: 'paper',
+      template: 'document',
+      topNav: [],
+      footerNav: [],
+      footerText: undefined,
+      socialLinks: [],
+      editLink: undefined,
+      showHomeIndex: true,
+      catalogInitialPostCount: 10,
+      catalogLoadMoreStep: 10,
+      siteTitleConfigured: true,
+      siteDescriptionConfigured: false,
+    },
+    runtime: {
+      binaryMode: 'external',
+      r2Binding: 'MDORIGIN_R2',
+    },
+    entries: [
+      {
+        path: 'videos/demo.mp4',
+        kind: 'binary',
+        mediaType: 'video/mp4',
+        storageKind: 'r2',
+        storageKey: 'binary/abcd.mp4',
+        byteSize: 4,
+      },
+    ],
+  });
+
+  const response = await worker.fetch(
+    new Request('https://example.com/videos/demo.mp4'),
+    {
+      MDORIGIN_R2: {
+        get: async () => ({
+          body: null,
+          arrayBuffer: async () => Uint8Array.from([4, 5, 6, 7]).buffer,
+        }),
+      },
+    },
+  );
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(
+    Array.from(new Uint8Array(await response.arrayBuffer())),
+    [4, 5, 6, 7],
+  );
+});

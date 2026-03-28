@@ -1,13 +1,27 @@
-import { mkdir, readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import {
+  copyFile,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import path from 'node:path';
 
 import type {
+  CloudflareBundleRuntimeConfig,
   CloudflareManifest,
   CloudflareManifestEntry,
+  ExternalBinaryCloudflareManifestEntry,
 } from './adapters/cloudflare.js';
 import { createCloudflareWorker } from './adapters/cloudflare.js';
 import {
   getMediaTypeForPath,
+  isIgnoredContentName,
   isLikelyTextPath,
   normalizeContentPath,
 } from './core/content-store.js';
@@ -15,21 +29,45 @@ import type { ResolvedSiteConfig } from './core/site-config.js';
 import type { SearchBundleEntry } from './search.js';
 
 export { createCloudflareWorker };
-export type { CloudflareManifest, CloudflareManifestEntry };
+export type {
+  CloudflareBundleRuntimeConfig,
+  CloudflareManifest,
+  CloudflareManifestEntry,
+};
+
+export type CloudflareBinaryMode = 'inline' | 'external';
 
 export interface BuildCloudflareManifestOptions {
   rootDir: string;
   siteConfig: ResolvedSiteConfig;
   searchDir?: string;
+  binaryMode?: CloudflareBinaryMode;
+  assetsMaxBytes?: number;
+  r2Binding?: string;
 }
 
-export interface WriteCloudflareBundleOptions {
-  rootDir: string;
+export interface WriteCloudflareBundleOptions extends BuildCloudflareManifestOptions {
   outDir: string;
-  siteConfig: ResolvedSiteConfig;
   packageImport?: string;
-  searchDir?: string;
   configModulePath?: string;
+}
+
+export interface CloudflareBundleMetadata {
+  version: 1;
+  workerEntry: string;
+  binaryMode: CloudflareBinaryMode;
+  assetsMaxBytes?: number;
+  assetsDir?: string;
+  r2Dir?: string;
+  r2Binding?: string;
+  siteTitle?: string;
+  r2Objects: Array<{
+    path: string;
+    mediaType: string;
+    storageKey: string;
+    file: string;
+    byteSize: number;
+  }>;
 }
 
 export interface InitCloudflareProjectOptions {
@@ -38,8 +76,32 @@ export interface InitCloudflareProjectOptions {
   workerName?: string;
   siteTitle?: string;
   compatibilityDate?: string;
+  r2Bucket?: string;
   force?: boolean;
 }
+
+export interface SyncCloudflareR2Options {
+  dir: string;
+  bucketName: string;
+  force?: boolean;
+  runCommand?: typeof runWranglerCommand;
+}
+
+export interface SyncCloudflareR2Result {
+  uploadedCount: number;
+  skippedCount: number;
+  stateFile: string;
+}
+
+interface CloudflareR2SyncState {
+  version: 1;
+  uploaded: Record<string, { syncedAt: string }>;
+}
+
+const DEFAULT_ASSETS_MAX_BYTES = 25 * 1024 * 1024;
+const DEFAULT_R2_BINDING = 'MDORIGIN_R2';
+const BUNDLE_FILE_NAME = 'bundle.json';
+const R2_STATE_FILE_NAME = 'r2-sync-state.json';
 
 export async function buildCloudflareManifest(
   options: BuildCloudflareManifestOptions,
@@ -47,6 +109,9 @@ export async function buildCloudflareManifest(
   const rootDir = path.resolve(options.rootDir);
   const files = await listFiles(rootDir);
   const entries: CloudflareManifestEntry[] = [];
+  const binaryMode = options.binaryMode ?? 'inline';
+  const assetsMaxBytes = options.assetsMaxBytes ?? DEFAULT_ASSETS_MAX_BYTES;
+  const r2Binding = options.r2Binding ?? DEFAULT_R2_BINDING;
 
   for (const filePath of files) {
     const relativePath = path.relative(rootDir, filePath).replaceAll(path.sep, '/');
@@ -66,12 +131,21 @@ export async function buildCloudflareManifest(
       continue;
     }
 
-    entries.push({
-      path: normalizedPath,
-      kind: 'binary',
-      mediaType,
-      base64: (await readFile(filePath)).toString('base64'),
-    });
+    const bytes = await readFile(filePath);
+    if (binaryMode === 'inline') {
+      entries.push({
+        path: normalizedPath,
+        kind: 'binary',
+        mediaType,
+        base64: bytes.toString('base64'),
+      });
+      continue;
+    }
+
+    entries.push(buildExternalBinaryEntry(normalizedPath, mediaType, bytes, {
+      assetsMaxBytes,
+      r2Binding,
+    }));
   }
 
   const searchEntries = options.searchDir
@@ -83,20 +157,36 @@ export async function buildCloudflareManifest(
     entries,
     siteConfig: options.siteConfig,
     searchEntries,
+    runtime:
+      binaryMode === 'external'
+        ? {
+            binaryMode,
+            r2Binding,
+          }
+        : {
+            binaryMode,
+          },
   };
 }
 
 export async function writeCloudflareBundle(
   options: WriteCloudflareBundleOptions,
-): Promise<{ manifest: CloudflareManifest; workerFile: string }> {
+): Promise<{ manifest: CloudflareManifest; workerFile: string; bundleFile: string }> {
   const outDir = path.resolve(options.outDir);
+  const binaryMode = options.binaryMode ?? 'inline';
+  const assetsMaxBytes = options.assetsMaxBytes ?? DEFAULT_ASSETS_MAX_BYTES;
+  const r2Binding = options.r2Binding ?? DEFAULT_R2_BINDING;
   const manifest = await buildCloudflareManifest({
     rootDir: options.rootDir,
     siteConfig: options.siteConfig,
     searchDir: options.searchDir,
+    binaryMode,
+    assetsMaxBytes,
+    r2Binding,
   });
   const packageImport = options.packageImport ?? 'mdorigin/cloudflare-runtime';
   const workerFile = path.join(outDir, 'worker.mjs');
+  const bundleFile = path.join(outDir, BUNDLE_FILE_NAME);
   const configImportPath = options.configModulePath
     ? toPosixPath(path.relative(outDir, options.configModulePath))
     : null;
@@ -132,11 +222,24 @@ export async function writeCloudflareBundle(
   ].join('\n');
 
   await mkdir(outDir, { recursive: true });
+  const metadata = await writeExternalBinaryStaging(
+    path.resolve(options.rootDir),
+    outDir,
+    manifest,
+    {
+      binaryMode,
+      assetsMaxBytes,
+      r2Binding,
+      siteTitle: options.siteConfig.siteTitle,
+    },
+  );
   await writeFile(workerFile, workerSource, 'utf8');
+  await writeFile(bundleFile, JSON.stringify(metadata, null, 2), 'utf8');
 
   return {
     manifest,
     workerFile,
+    bundleFile,
   };
 }
 
@@ -152,8 +255,20 @@ export async function initCloudflareProject(
     );
   }
 
+  const bundleMetadata = await readCloudflareBundleMetadata(options.workerEntry);
+  if (
+    bundleMetadata?.binaryMode === 'external' &&
+    bundleMetadata.r2Objects.length > 0 &&
+    !options.r2Bucket
+  ) {
+    throw new Error(
+      'Cloudflare bundle contains R2-backed binaries. Re-run init cloudflare with --r2-bucket <bucket-name>.',
+    );
+  }
+
   const workerName =
     options.workerName ??
+    bundleMetadata?.siteTitle ??
     slugifyWorkerName(options.siteTitle) ??
     'mdorigin-site';
   const compatibilityDate = options.compatibilityDate ?? '2026-03-20';
@@ -164,14 +279,237 @@ export async function initCloudflareProject(
     `  "main": ${JSON.stringify(toPosixPath(path.relative(projectDir, options.workerEntry)))},`,
     `  "compatibility_date": ${JSON.stringify(compatibilityDate)},`,
     '  "compatibility_flags": ["nodejs_compat"]',
+    bundleMetadata?.binaryMode === 'external' && bundleMetadata.assetsDir
+      ? [
+          ',',
+          '  "assets": {',
+          `    "directory": ${JSON.stringify(toPosixPath(path.relative(projectDir, path.join(path.dirname(options.workerEntry), bundleMetadata.assetsDir))))},`,
+          '    "run_worker_first": true',
+          '  }',
+        ].join('\n')
+      : '',
+    bundleMetadata?.binaryMode === 'external' &&
+    bundleMetadata.r2Objects.length > 0 &&
+    bundleMetadata.r2Binding &&
+    options.r2Bucket
+      ? [
+          ',',
+          '  "r2_buckets": [',
+          '    {',
+          `      "binding": ${JSON.stringify(bundleMetadata.r2Binding)},`,
+          `      "bucket_name": ${JSON.stringify(options.r2Bucket)}`,
+          '    }',
+          '  ]',
+        ].join('\n')
+      : '',
     '}',
     '',
-  ].join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   await mkdir(projectDir, { recursive: true });
   await writeFile(configFile, wranglerConfig, 'utf8');
 
   return { configFile };
+}
+
+export async function syncCloudflareR2(
+  options: SyncCloudflareR2Options,
+): Promise<SyncCloudflareR2Result> {
+  const outDir = path.resolve(options.dir);
+  const bundleFile = path.join(outDir, BUNDLE_FILE_NAME);
+  const metadata = await readBundleMetadataFile(bundleFile);
+  if (metadata.binaryMode !== 'external' || metadata.r2Objects.length === 0) {
+    throw new Error(`No R2-backed binaries found in ${bundleFile}.`);
+  }
+
+  const stateFile = path.join(outDir, R2_STATE_FILE_NAME);
+  const state = await readR2SyncState(stateFile);
+  const runCommand = options.runCommand ?? runWranglerCommand;
+  let uploadedCount = 0;
+  let skippedCount = 0;
+
+  for (const object of metadata.r2Objects) {
+    const stateKey = `${options.bucketName}:${object.storageKey}`;
+    if (!options.force && state.uploaded[stateKey]) {
+      skippedCount += 1;
+      continue;
+    }
+
+    const filePath = path.join(outDir, object.file);
+    const result = runCommand('wrangler', [
+      'r2',
+      'object',
+      'put',
+      `${options.bucketName}/${object.storageKey}`,
+      '--file',
+      filePath,
+      '--content-type',
+      object.mediaType,
+      '--remote',
+    ]);
+    if (result.status !== 0) {
+      throw new Error(result.stderr || `Failed to upload R2 object ${object.storageKey}.`);
+    }
+
+    state.uploaded[stateKey] = {
+      syncedAt: new Date().toISOString(),
+    };
+    uploadedCount += 1;
+  }
+
+  await writeFile(stateFile, JSON.stringify(state, null, 2), 'utf8');
+  return {
+    uploadedCount,
+    skippedCount,
+    stateFile,
+  };
+}
+
+function buildExternalBinaryEntry(
+  normalizedPath: string,
+  mediaType: string,
+  bytes: Buffer,
+  options: { assetsMaxBytes: number; r2Binding: string },
+): ExternalBinaryCloudflareManifestEntry {
+  if (bytes.byteLength <= options.assetsMaxBytes) {
+    return {
+      path: normalizedPath,
+      kind: 'binary',
+      mediaType,
+      storageKind: 'assets',
+      storageKey: normalizedPath,
+      byteSize: bytes.byteLength,
+    };
+  }
+
+  return {
+    path: normalizedPath,
+    kind: 'binary',
+    mediaType,
+    storageKind: 'r2',
+    storageKey: buildR2StorageKey(normalizedPath, bytes),
+    byteSize: bytes.byteLength,
+  };
+}
+
+async function writeExternalBinaryStaging(
+  rootDir: string,
+  outDir: string,
+  manifest: CloudflareManifest,
+  options: {
+    binaryMode: CloudflareBinaryMode;
+    assetsMaxBytes: number;
+    r2Binding: string;
+    siteTitle?: string;
+  },
+): Promise<CloudflareBundleMetadata> {
+  const assetsDir = path.join(outDir, 'assets');
+  const r2Dir = path.join(outDir, 'r2');
+  await rm(assetsDir, { recursive: true, force: true });
+  await rm(r2Dir, { recursive: true, force: true });
+
+  const r2Objects = new Map<
+    string,
+    CloudflareBundleMetadata['r2Objects'][number]
+  >();
+  if (options.binaryMode === 'external') {
+    for (const entry of manifest.entries) {
+      if (entry.kind !== 'binary' || !('storageKind' in entry)) {
+        continue;
+      }
+
+      const sourceFile = path.resolve(rootDir, entry.path);
+      if (entry.storageKind === 'assets') {
+        const targetFile = path.join(assetsDir, entry.storageKey);
+        await mkdir(path.dirname(targetFile), { recursive: true });
+        await copyFile(sourceFile, targetFile);
+        continue;
+      }
+
+      const relativeFile = toPosixPath(path.join('r2', entry.storageKey));
+      const targetFile = path.join(outDir, relativeFile);
+      if (!r2Objects.has(entry.storageKey)) {
+        await mkdir(path.dirname(targetFile), { recursive: true });
+        await copyFile(sourceFile, targetFile);
+        r2Objects.set(entry.storageKey, {
+          path: entry.path,
+          mediaType: entry.mediaType,
+          storageKey: entry.storageKey,
+          file: relativeFile,
+          byteSize: entry.byteSize,
+        });
+      }
+    }
+  }
+
+  return {
+    version: 1,
+    workerEntry: 'worker.mjs',
+    binaryMode: options.binaryMode,
+    assetsMaxBytes: options.binaryMode === 'external' ? options.assetsMaxBytes : undefined,
+    assetsDir: options.binaryMode === 'external' ? 'assets' : undefined,
+    r2Dir: options.binaryMode === 'external' ? 'r2' : undefined,
+    r2Binding:
+      options.binaryMode === 'external' && r2Objects.size > 0
+        ? options.r2Binding
+        : undefined,
+    siteTitle: options.siteTitle,
+    r2Objects: Array.from(r2Objects.values()).sort((left, right) =>
+      left.storageKey.localeCompare(right.storageKey),
+    ),
+  };
+}
+
+async function readCloudflareBundleMetadata(
+  workerEntry: string,
+): Promise<CloudflareBundleMetadata | null> {
+  const bundleFile = path.join(path.dirname(workerEntry), BUNDLE_FILE_NAME);
+  if (!(await pathExists(bundleFile))) {
+    return null;
+  }
+
+  return readBundleMetadataFile(bundleFile);
+}
+
+async function readBundleMetadataFile(
+  bundleFile: string,
+): Promise<CloudflareBundleMetadata> {
+  return JSON.parse(await readFile(bundleFile, 'utf8')) as CloudflareBundleMetadata;
+}
+
+async function readR2SyncState(stateFile: string): Promise<CloudflareR2SyncState> {
+  if (!(await pathExists(stateFile))) {
+    return { version: 1, uploaded: {} };
+  }
+
+  return JSON.parse(await readFile(stateFile, 'utf8')) as CloudflareR2SyncState;
+}
+
+function buildR2StorageKey(normalizedPath: string, bytes: Buffer): string {
+  const extension = path.posix.extname(normalizedPath).toLowerCase();
+  const hash = createHash('sha256').update(bytes).digest('hex');
+  return extension ? `binary/${hash}${extension}` : `binary/${hash}`;
+}
+
+function runWranglerCommand(
+  command: string,
+  args: string[],
+): { status: number | null; stderr: string } {
+  const result = spawnSync(command, args, {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  return {
+    status: result.status,
+    stderr: result.stderr ?? '',
+  };
 }
 
 async function listFiles(
@@ -188,6 +526,10 @@ async function listFiles(
   const files: string[] = [];
 
   for (const entry of entries) {
+    if (isIgnoredContentName(entry.name)) {
+      continue;
+    }
+
     const fullPath = path.join(directory, entry.name);
     const entryStats = await stat(fullPath);
     if (entryStats.isDirectory()) {

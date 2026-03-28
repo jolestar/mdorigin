@@ -1,29 +1,83 @@
-import {
-  MemoryContentStore,
-  type ContentEntry,
-  type ContentEntryKind,
+import type {
+  ContentDirectoryEntry,
+  ContentEntry,
+  ContentEntryKind,
+  ContentStore,
 } from '../core/content-store.js';
+import { MemoryContentStore } from '../core/content-store.js';
 import type { MdoPlugin } from '../core/extensions.js';
 import { handleSiteRequest } from '../core/request-handler.js';
 import type { ResolvedSiteConfig } from '../core/site-config.js';
 import { createSearchApiFromBundle, type SearchBundleEntry } from '../search.js';
 
-export interface CloudflareManifestEntry {
+export interface TextCloudflareManifestEntry {
   path: string;
-  kind: ContentEntryKind;
+  kind: 'text';
   mediaType: string;
   text?: string;
+}
+
+export interface InlineBinaryCloudflareManifestEntry {
+  path: string;
+  kind: 'binary';
+  mediaType: string;
   base64?: string;
+}
+
+export interface ExternalBinaryCloudflareManifestEntry {
+  path: string;
+  kind: 'binary';
+  mediaType: string;
+  storageKind: 'assets' | 'r2';
+  storageKey: string;
+  byteSize: number;
+}
+
+export type CloudflareManifestEntry =
+  | TextCloudflareManifestEntry
+  | InlineBinaryCloudflareManifestEntry
+  | ExternalBinaryCloudflareManifestEntry;
+
+export interface CloudflareBundleRuntimeConfig {
+  binaryMode: 'inline' | 'external';
+  r2Binding?: string;
 }
 
 export interface CloudflareManifest {
   entries: CloudflareManifestEntry[];
   siteConfig?: ResolvedSiteConfig;
   searchEntries?: SearchBundleEntry[];
+  runtime?: CloudflareBundleRuntimeConfig;
+}
+
+export interface CloudflareAssetsBindingLike {
+  fetch(request: Request): Promise<Response>;
+}
+
+export interface CloudflareR2ObjectBodyLike {
+  arrayBuffer(): Promise<ArrayBuffer>;
+}
+
+export interface CloudflareR2ObjectLike {
+  body: CloudflareR2ObjectBodyLike | ReadableStream | null;
+  arrayBuffer?: () => Promise<ArrayBuffer>;
+}
+
+export interface CloudflareR2BucketLike {
+  get(key: string): Promise<CloudflareR2ObjectLike | null>;
+}
+
+export interface CloudflareWorkerEnv {
+  ASSETS?: CloudflareAssetsBindingLike;
+  [binding: string]: unknown;
 }
 
 export interface ExportedHandlerLike {
-  fetch(request: Request): Promise<Response>;
+  fetch(
+    request: Request,
+    env?: CloudflareWorkerEnv,
+    ctx?: unknown,
+  ): Promise<Response>;
 }
 
 export interface CreateCloudflareWorkerOptions {
@@ -34,7 +88,7 @@ export function createCloudflareWorker(
   manifest: CloudflareManifest,
   options: CreateCloudflareWorkerOptions = {},
 ): ExportedHandlerLike {
-  const store = new MemoryContentStore(
+  const storeIndex = new MemoryContentStore(
     manifest.entries.map((entry): ContentEntry => {
       if (entry.kind === 'text') {
         return {
@@ -42,6 +96,14 @@ export function createCloudflareWorker(
           kind: 'text',
           mediaType: entry.mediaType,
           text: entry.text ?? '',
+        };
+      }
+
+      if ('storageKind' in entry) {
+        return {
+          path: entry.path,
+          kind: 'binary',
+          mediaType: entry.mediaType,
         };
       }
 
@@ -59,8 +121,9 @@ export function createCloudflareWorker(
       : undefined;
 
   return {
-    async fetch(request: Request): Promise<Response> {
+    async fetch(request: Request, env?: CloudflareWorkerEnv): Promise<Response> {
       const url = new URL(request.url);
+      const store = new CloudflareManifestContentStore(manifest, storeIndex, request, env);
       const siteResponse = await handleSiteRequest(store, url.pathname, {
         draftMode: 'exclude',
         siteConfig: manifest.siteConfig ?? {
@@ -104,6 +167,105 @@ export function createCloudflareWorker(
       });
     },
   };
+}
+
+class CloudflareManifestContentStore implements ContentStore {
+  private readonly entries: Map<string, CloudflareManifestEntry>;
+  private readonly runtime: CloudflareBundleRuntimeConfig | undefined;
+
+  constructor(
+    manifest: CloudflareManifest,
+    private readonly storeIndex: MemoryContentStore,
+    private readonly request: Request,
+    private readonly env: CloudflareWorkerEnv | undefined,
+  ) {
+    this.entries = new Map(manifest.entries.map((entry) => [entry.path, entry]));
+    this.runtime = manifest.runtime;
+  }
+
+  async get(contentPath: string): Promise<ContentEntry | null> {
+    const baseEntry = await this.storeIndex.get(contentPath);
+    if (baseEntry === null) {
+      return null;
+    }
+
+    const manifestEntry = this.entries.get(contentPath);
+    if (!manifestEntry || manifestEntry.kind === 'text') {
+      return baseEntry;
+    }
+
+    if (!('storageKind' in manifestEntry)) {
+      return baseEntry;
+    }
+
+    if (manifestEntry.storageKind === 'assets') {
+      const assetsBinding = this.env?.ASSETS;
+      if (!assetsBinding) {
+        throw new Error(
+          `Cloudflare ASSETS binding is required to serve ${manifestEntry.path}.`,
+        );
+      }
+
+      const assetResponse = await assetsBinding.fetch(
+        new Request(new URL(`/${manifestEntry.storageKey}`, this.request.url), {
+          method: 'GET',
+        }),
+      );
+      if (!assetResponse.ok) {
+        return null;
+      }
+
+      return {
+        path: manifestEntry.path,
+        kind: 'binary',
+        mediaType: manifestEntry.mediaType,
+        bytes: new Uint8Array(await assetResponse.arrayBuffer()),
+      };
+    }
+
+    const r2BindingName = this.findR2BindingName(manifestEntry);
+    const bucket = this.env?.[r2BindingName] as CloudflareR2BucketLike | undefined;
+    if (!bucket) {
+      throw new Error(
+        `Cloudflare R2 binding ${r2BindingName} is required to serve ${manifestEntry.path}.`,
+      );
+    }
+
+    const object = await bucket.get(manifestEntry.storageKey);
+    if (!object) {
+      return null;
+    }
+
+    const arrayBuffer =
+      typeof object.arrayBuffer === 'function'
+        ? await object.arrayBuffer()
+        : object.body instanceof ReadableStream
+          ? await new Response(object.body).arrayBuffer()
+          : object.body && 'arrayBuffer' in object.body
+            ? await object.body.arrayBuffer()
+            : new ArrayBuffer(0);
+
+    return {
+      path: manifestEntry.path,
+      kind: 'binary',
+      mediaType: manifestEntry.mediaType,
+      bytes: new Uint8Array(arrayBuffer),
+    };
+  }
+
+  async listDirectory(contentPath: string): Promise<ContentDirectoryEntry[] | null> {
+    return this.storeIndex.listDirectory(contentPath);
+  }
+
+  private findR2BindingName(
+    entry: ExternalBinaryCloudflareManifestEntry,
+  ): string {
+    if (entry.storageKind !== 'r2') {
+      return 'ASSETS';
+    }
+
+    return this.runtime?.r2Binding ?? 'MDORIGIN_R2';
+  }
 }
 
 function decodeBase64(value: string): Uint8Array {
