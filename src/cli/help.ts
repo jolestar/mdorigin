@@ -6,6 +6,7 @@ export const ROOT_USAGE_LINES = [
   '  mdorigin build cloudflare --root <content-dir> [--out ./dist/cloudflare] [--config <config-file>] [--search ./dist/search]',
   '  mdorigin init cloudflare [--dir .] [--entry ./dist/cloudflare/worker.mjs] [--name <worker-name>] [--compatibility-date 2026-03-20] [--force]',
   '  mdorigin search --index <search-dir> [--top-k 10] <query>',
+  '  mdorigin version',
   '',
   'Global options:',
   '  -h, --help     Show help',

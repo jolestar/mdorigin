@@ -26,6 +26,7 @@ export async function runSearchCommand(rawArgs: string[]) {
 function parseArgs(rawArgs: string[]) {
   const flags: Record<string, string> = {};
   const positionals: string[] = [];
+  const supportedFlags = new Set(['index', 'top-k']);
 
   for (let index = 0; index < rawArgs.length; index += 1) {
     const arg = rawArgs[index];
@@ -34,14 +35,19 @@ function parseArgs(rawArgs: string[]) {
       continue;
     }
     if (arg.startsWith('--')) {
+      const flag = arg.slice(2);
+      if (!supportedFlags.has(flag)) {
+        throw new Error(`Unknown argument for mdorigin search: ${arg}`);
+      }
+
       const value = rawArgs[index + 1];
       if (value && !value.startsWith('--')) {
-        flags[arg.slice(2)] = value;
+        flags[flag] = value;
         index += 1;
         continue;
       }
 
-      throw new Error(`Unknown or incomplete argument for mdorigin search: ${arg}`);
+      throw new Error(`Incomplete argument for mdorigin search: ${arg}`);
     }
 
     positionals.push(arg);
