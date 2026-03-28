@@ -84,3 +84,51 @@ test('cloudflare worker serves html and hides drafts', async () => {
   assert.equal(listingResponse.status, 200);
   assert.match(await listingResponse.text(), /href="\/browse\/entry"/);
 });
+
+test('cloudflare worker supports page render plugins', async () => {
+  const worker = createCloudflareWorker(
+    {
+      siteConfig: {
+        siteTitle: 'Worker Test',
+        siteUrl: undefined,
+        favicon: undefined,
+        logo: undefined,
+        showDate: true,
+        showSummary: true,
+        theme: 'paper',
+        template: 'document',
+        topNav: [],
+        footerNav: [],
+        footerText: undefined,
+        socialLinks: [],
+        editLink: undefined,
+        showHomeIndex: true,
+        catalogInitialPostCount: 10,
+        catalogLoadMoreStep: 10,
+        siteTitleConfigured: true,
+        siteDescriptionConfigured: false,
+      },
+      entries: [
+        {
+          path: 'README.md',
+          kind: 'text',
+          mediaType: 'text/markdown; charset=utf-8',
+          text: '# Hello',
+        },
+      ],
+    },
+    {
+      plugins: [
+        {
+          renderPage(page) {
+            return `<html><body><main class="worker-plugin">${page.title}</main></body></html>`;
+          },
+        },
+      ],
+    },
+  );
+
+  const response = await worker.fetch(new Request('https://example.com/'));
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /class="worker-plugin"/);
+});

@@ -63,6 +63,36 @@ test('buildManagedIndexBlock renders directories and articles with sorting', asy
   assert.ok(block.indexOf('New Post') < block.indexOf('Old Post'));
 });
 
+test('buildManagedIndexBlock applies transformIndex plugins', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-index-plugin-'));
+  await writeFile(path.join(rootDir, 'README.md'), '# Root\n', 'utf8');
+  await writeFile(
+    path.join(rootDir, 'guide.md'),
+    ['---', 'title: Guide', 'summary: Intro guide', '---', '', '# Guide'].join('\n'),
+    'utf8',
+  );
+
+  const block = await buildManagedIndexBlock(rootDir, [
+    {
+      name: 'rewrite-index',
+      transformIndex(entries) {
+        return entries.map((entry) =>
+          entry.kind === 'article'
+            ? {
+                ...entry,
+                title: `${entry.title} Updated`,
+                detail: 'Plugin detail',
+              }
+            : entry,
+        );
+      },
+    },
+  ]);
+
+  assert.match(block, /\[Guide Updated\]\(\.\/guide\.md\)/);
+  assert.match(block, /Plugin detail/);
+});
+
 test('upsertManagedIndexBlock replaces existing managed section', () => {
   const source = [
     '# Writing',

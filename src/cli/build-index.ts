@@ -1,20 +1,30 @@
 import path from 'node:path';
 
 import { buildDirectoryIndexes } from '../index-builder.js';
+import { loadUserSiteConfig } from '../core/site-config.js';
 
 export async function runBuildIndexCommand(argv: string[]) {
   const args = parseArgs(argv);
   if (!args.root && !args.dir) {
     console.error(
-      'Usage: mdorigin build index (--root <content-dir> | --dir <content-dir>)',
+      'Usage: mdorigin build index (--root <content-dir> | --dir <content-dir>) [--config <config-file>]',
     );
     process.exitCode = 1;
     return;
   }
 
+  const rootDir = args.root ? path.resolve(args.root) : undefined;
+  const dir = args.dir ? path.resolve(args.dir) : undefined;
+  const loadedConfig = await loadUserSiteConfig({
+    cwd: process.cwd(),
+    rootDir: rootDir ?? dir,
+    configPath: args.config,
+  });
+
   const result = await buildDirectoryIndexes({
-    rootDir: args.root ? path.resolve(args.root) : undefined,
-    dir: args.dir ? path.resolve(args.dir) : undefined,
+    rootDir,
+    dir,
+    plugins: loadedConfig.plugins,
   });
 
   console.log(`updated ${result.updatedFiles.length} index file(s)`);
@@ -24,7 +34,7 @@ export async function runBuildIndexCommand(argv: string[]) {
 }
 
 function parseArgs(argv: string[]) {
-  const result: { root?: string; dir?: string } = {};
+  const result: { root?: string; dir?: string; config?: string } = {};
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -38,6 +48,12 @@ function parseArgs(argv: string[]) {
 
     if (argument === '--dir' && nextValue) {
       result.dir = nextValue;
+      index += 1;
+      continue;
+    }
+
+    if (argument === '--config' && nextValue) {
+      result.config = nextValue;
       index += 1;
     }
   }

@@ -3,6 +3,7 @@ import {
   type ContentEntry,
   type ContentEntryKind,
 } from '../core/content-store.js';
+import type { MdoPlugin } from '../core/extensions.js';
 import { handleSiteRequest } from '../core/request-handler.js';
 import type { ResolvedSiteConfig } from '../core/site-config.js';
 import { createSearchApiFromBundle, type SearchBundleEntry } from '../search.js';
@@ -25,8 +26,13 @@ export interface ExportedHandlerLike {
   fetch(request: Request): Promise<Response>;
 }
 
+export interface CreateCloudflareWorkerOptions {
+  plugins?: MdoPlugin[];
+}
+
 export function createCloudflareWorker(
   manifest: CloudflareManifest,
+  options: CreateCloudflareWorkerOptions = {},
 ): ExportedHandlerLike {
   const store = new MemoryContentStore(
     manifest.entries.map((entry): ContentEntry => {
@@ -81,6 +87,7 @@ export function createCloudflareWorker(
         searchParams: url.searchParams,
         requestUrl: request.url,
         searchApi,
+        plugins: options.plugins,
       });
 
       const headers = new Headers(siteResponse.headers);

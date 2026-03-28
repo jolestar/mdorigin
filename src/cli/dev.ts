@@ -3,7 +3,7 @@ import path from 'node:path';
 import { createFileSystemContentStore, createNodeServer } from '../adapters/node.js';
 import {
   applySiteConfigFrontmatterDefaults,
-  loadSiteConfig,
+  loadUserSiteConfig,
 } from '../core/site-config.js';
 import { createSearchApiFromDirectory } from '../search.js';
 
@@ -11,7 +11,7 @@ export async function runDevCommand(argv: string[]) {
   const args = parseArgs(argv);
   if (!args.root) {
     console.error(
-      'Usage: mdorigin dev --root <content-dir> [--port 3000] [--config mdorigin.config.json] [--search ./dist/search]',
+      'Usage: mdorigin dev --root <content-dir> [--port 3000] [--config <config-file>] [--search ./dist/search]',
     );
     process.exitCode = 1;
     return;
@@ -19,13 +19,16 @@ export async function runDevCommand(argv: string[]) {
 
   const rootDir = path.resolve(args.root);
   const port = args.port ?? 3000;
-  const loadedSiteConfig = await loadSiteConfig({
+  const loadedConfig = await loadUserSiteConfig({
     cwd: process.cwd(),
     rootDir,
     configPath: args.config,
   });
   const store = createFileSystemContentStore(rootDir);
-  const siteConfig = await applySiteConfigFrontmatterDefaults(store, loadedSiteConfig);
+  const siteConfig = await applySiteConfigFrontmatterDefaults(
+    store,
+    loadedConfig.siteConfig,
+  );
   const server = createNodeServer({
     rootDir,
     draftMode: 'include',
@@ -33,6 +36,7 @@ export async function runDevCommand(argv: string[]) {
     searchApi: args.search
       ? await createSearchApiFromDirectory(path.resolve(args.search))
       : undefined,
+    plugins: loadedConfig.plugins,
   });
 
   await new Promise<void>((resolve, reject) => {

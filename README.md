@@ -49,6 +49,40 @@ mdorigin build cloudflare --root docs/site
 
 That is enough to preview a site locally, keep directory indexes up to date, and generate a Cloudflare Worker bundle.
 
+## Code-Based Extensions
+
+`mdorigin` now supports a code config alongside `mdorigin.config.json`.
+
+Use `mdorigin.config.ts` when you want to customize rendering or indexing with code instead of asking for a template system:
+
+```ts
+export default {
+  siteTitle: "My Site",
+  plugins: [
+    {
+      name: "custom-footer",
+      renderFooter() {
+        return '<footer class="custom-footer">Built with mdorigin</footer>';
+      },
+    },
+  ],
+};
+```
+
+Current stable hooks are:
+
+- `transformIndex(entries, context)`
+- `renderHeader(context)`
+- `renderFooter(context)`
+- `renderPage(page, context, next)`
+- `transformHtml(html, context)`
+
+The intended boundary is:
+
+- `mdorigin` owns routing and normalized content semantics
+- plugins may replace page rendering
+- plugins do not replace the request kernel itself
+
 ## Optional Search
 
 `mdorigin` can build a local retrieval bundle through the optional [`indexbind`](https://github.com/jolestar/indexbind) package. For the retrieval engine itself, see the `indexbind` docs: <https://indexbind.jolestar.workers.dev>.
