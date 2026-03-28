@@ -116,8 +116,50 @@ test('writeCloudflareBundle imports code config when configModulePath is provide
   });
 
   const workerSource = await readFile(result.workerFile, 'utf8');
-  assert.match(workerSource, /import userConfig from/);
+  assert.match(workerSource, /import \* as userConfigModule from/);
+  assert.match(workerSource, /function unwrapUserConfigModule/);
   assert.match(workerSource, /plugins: Array\.isArray\(userConfig\?\.plugins\)/);
+});
+
+test('writeCloudflareBundle unwraps named config exports for code config modules', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-config-root-'));
+  const outDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-config-out-'));
+  const configFile = path.join(rootDir, 'mdorigin.config.ts');
+  await writeFile(path.join(rootDir, 'index.md'), '# Home\n', 'utf8');
+  await writeFile(
+    configFile,
+    'export const config = { plugins: [{ name: "custom" }] };\n',
+    'utf8',
+  );
+
+  const result = await writeCloudflareBundle({
+    rootDir,
+    outDir,
+    configModulePath: configFile,
+    siteConfig: {
+      siteTitle: 'Bundle Site',
+      siteUrl: undefined,
+      favicon: undefined,
+      logo: undefined,
+      showDate: true,
+      showSummary: true,
+      theme: 'paper',
+      template: 'document',
+      topNav: [],
+      footerNav: [],
+      footerText: undefined,
+      socialLinks: [],
+      editLink: undefined,
+      showHomeIndex: true,
+      catalogInitialPostCount: 10,
+      catalogLoadMoreStep: 10,
+      siteTitleConfigured: true,
+      siteDescriptionConfigured: false,
+    },
+  });
+
+  const workerSource = await readFile(result.workerFile, 'utf8');
+  assert.match(workerSource, /const userConfig = unwrapUserConfigModule\(userConfigModule\);/);
 });
 
 test('initCloudflareProject writes wrangler config', async () => {

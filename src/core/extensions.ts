@@ -134,29 +134,47 @@ export async function renderPageWithPlugins(
   plugins: MdoPlugin[],
   context: RenderHookContext,
   renderDefault: (page: PageRenderModel) => MaybePromise<string>,
-): Promise<string> {
+): Promise<{ html: string; page: PageRenderModel }> {
   const renderers = plugins
     .map((plugin) => plugin.renderPage)
     .filter((renderPage): renderPage is NonNullable<MdoPlugin['renderPage']> =>
       typeof renderPage === 'function',
     );
 
+  let finalPage = page;
+
   const dispatch = async (index: number, currentPage: PageRenderModel): Promise<string> => {
     const renderPage = renderers[index];
     if (!renderPage) {
+      finalPage = currentPage;
       return renderDefault(currentPage);
     }
 
-    const next = (nextPage: PageRenderModel) => dispatch(index + 1, nextPage);
-    const rendered = await renderPage(currentPage, context, next);
+    const currentContext: RenderHookContext = {
+      ...context,
+      page: currentPage,
+    };
+    let nextInvoked = false;
+    const next = async (nextPage: PageRenderModel) => {
+      nextInvoked = true;
+      finalPage = nextPage;
+      return dispatch(index + 1, nextPage);
+    };
+    const rendered = await renderPage(currentPage, currentContext, next);
     if (typeof rendered === 'string') {
+      if (!nextInvoked) {
+        finalPage = currentPage;
+      }
       return rendered;
     }
 
     return next(currentPage);
   };
 
-  return dispatch(0, page);
+  return {
+    html: await dispatch(0, page),
+    page: finalPage,
+  };
 }
 
 export async function transformHtmlWithPlugins(
@@ -170,7 +188,15 @@ export async function transformHtmlWithPlugins(
       continue;
     }
 
-    current = await plugin.transformHtml(current, context);
+    const result = await plugin.transformHtml(current, context);
+    if (typeof result !== 'string') {
+      const pluginName = plugin.name ?? 'unknown plugin';
+      throw new Error(
+        `transformHtmlWithPlugins expected plugin "${pluginName}" to return a string, but got ${typeof result}`,
+      );
+    }
+
+    current = result;
   }
 
   return current;

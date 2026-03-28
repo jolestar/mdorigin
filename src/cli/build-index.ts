@@ -7,7 +7,7 @@ export async function runBuildIndexCommand(argv: string[]) {
   const args = parseArgs(argv);
   if (!args.root && !args.dir) {
     console.error(
-      'Usage: mdorigin build index (--root <content-dir> | --dir <content-dir>) [--config mdorigin.config.ts]',
+      'Usage: mdorigin build index (--root <content-dir> | --dir <content-dir>) [--config <config-file>]',
     );
     process.exitCode = 1;
     return;

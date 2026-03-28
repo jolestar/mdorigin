@@ -108,9 +108,8 @@ If no config file is present, `mdorigin` falls back to the root homepage frontma
 If `stylesheet` is set, the CSS file is read and inlined into rendered HTML for both local preview and Cloudflare bundles. By default the loader prefers:
 
 1. `--config`
-2. `<content-root>/mdorigin.config.ts`
-3. `<content-root>/mdorigin.config.json`
-4. current working directory `mdorigin.config.ts` or `mdorigin.config.json`
+2. `<content-root>/mdorigin.config.ts`, `.mjs`, `.js`, or `.json`
+3. current working directory `mdorigin.config.ts`, `.mjs`, `.js`, or `.json`
 
 You can also choose a page structure with `template`:
 

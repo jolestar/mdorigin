@@ -162,6 +162,40 @@ test('handleSiteRequest supports page render plugins', async () => {
   assert.doesNotMatch(String(response.body), /class="site-header"/);
 });
 
+test('handleSiteRequest uses the final page model for downstream plugin hooks', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Home', '---', '', '# Home', '', 'Welcome.'].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+    plugins: [
+      {
+        name: 'rename-page',
+        renderPage(page, _context, next) {
+          return next({
+            ...page,
+            title: 'Renamed Home',
+          });
+        },
+        transformHtml(html, context) {
+          return html.replace('</body>', `<meta data-title="${context.page.title}"></body>`);
+        },
+      },
+    ],
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(String(response.body), /<title>Renamed Home \| Test Site<\/title>/);
+  assert.match(String(response.body), /data-title="Renamed Home"/);
+});
+
 test('handleSiteRequest serves markdown on extensionless routes when accept asks for markdown', async () => {
   const store = new MemoryContentStore([
     {

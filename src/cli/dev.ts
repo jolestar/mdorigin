@@ -11,7 +11,7 @@ export async function runDevCommand(argv: string[]) {
   const args = parseArgs(argv);
   if (!args.root) {
     console.error(
-      'Usage: mdorigin dev --root <content-dir> [--port 3000] [--config mdorigin.config.ts] [--search ./dist/search]',
+      'Usage: mdorigin dev --root <content-dir> [--port 3000] [--config <config-file>] [--search ./dist/search]',
     );
     process.exitCode = 1;
     return;

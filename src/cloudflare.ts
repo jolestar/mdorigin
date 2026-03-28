@@ -102,10 +102,29 @@ export async function writeCloudflareBundle(
     : null;
   const workerSource = [
     `import { createCloudflareWorker } from '${packageImport}';`,
-    configImportPath ? `import userConfig from '${configImportPath.startsWith('.') ? configImportPath : `./${configImportPath}`}';` : '',
+    configImportPath
+      ? `import * as userConfigModule from '${configImportPath.startsWith('.') ? configImportPath : `./${configImportPath}`}';`
+      : '',
     '',
     `const manifest = ${JSON.stringify(manifest, null, 2)};`,
     '',
+    configImportPath
+      ? [
+          'function unwrapUserConfigModule(moduleValue) {',
+          '  let current = moduleValue;',
+          "  while (current && typeof current === 'object' && 'default' in current && current.default !== undefined) {",
+          '    current = current.default;',
+          '  }',
+          "  if (current && typeof current === 'object' && 'config' in current && current.config !== undefined) {",
+          '    return current.config;',
+          '  }',
+          '  return current;',
+          '}',
+          '',
+          'const userConfig = unwrapUserConfigModule(userConfigModule);',
+          '',
+        ].join('\n')
+      : '',
     configImportPath
       ? 'export default createCloudflareWorker(manifest, { plugins: Array.isArray(userConfig?.plugins) ? userConfig.plugins : [] });'
       : 'export default createCloudflareWorker(manifest);',

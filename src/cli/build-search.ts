@@ -11,7 +11,7 @@ export async function runBuildSearchCommand(rawArgs: string[]) {
   const args = parseArgs(rawArgs);
   if (!args.root) {
     throw new Error(
-      'Usage: mdorigin build search --root <content-dir> [--out ./dist/search] [--embedding-backend model2vec|hashing] [--model sentence-transformers/all-MiniLM-L6-v2] [--config mdorigin.config.ts]',
+      'Usage: mdorigin build search --root <content-dir> [--out ./dist/search] [--embedding-backend model2vec|hashing] [--model sentence-transformers/all-MiniLM-L6-v2] [--config <config-file>]',
     );
   }
 

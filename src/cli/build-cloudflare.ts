@@ -11,7 +11,7 @@ export async function runBuildCloudflareCommand(argv: string[]) {
   const args = parseArgs(argv);
   if (!args.root) {
     console.error(
-      'Usage: mdorigin build cloudflare --root <content-dir> [--out ./dist/cloudflare] [--config mdorigin.config.ts] [--search ./dist/search]',
+      'Usage: mdorigin build cloudflare --root <content-dir> [--out ./dist/cloudflare] [--config <config-file>] [--search ./dist/search]',
     );
     process.exitCode = 1;
     return;

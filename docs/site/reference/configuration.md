@@ -16,7 +16,7 @@ Supported config entry files:
 - `<content-root>/mdorigin.config.js`
 - `<content-root>/mdorigin.config.json`
 
-When multiple files exist, `mdorigin.config.ts` wins over the JSON form.
+When multiple files exist, `mdorigin` prefers `.ts`, then `.mjs`, then `.js`, then `.json`.
 
 Useful fields:
 

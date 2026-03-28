@@ -20,6 +20,7 @@ import {
   applyIndexTransforms,
   renderFooterOverride,
   renderHeaderOverride,
+  renderPageWithPlugins,
   transformHtmlWithPlugins,
 } from './extensions.js';
 import type { ResolvedSiteConfig, SiteNavItem } from './site-config.js';
@@ -301,36 +302,6 @@ function buildPageRenderModel(options: {
   };
 }
 
-async function renderPageThroughPlugins(
-  page: PageRenderModel,
-  plugins: MdoPlugin[],
-  context: RenderHookContext,
-  renderDefault: (page: PageRenderModel) => string,
-): Promise<string> {
-  const renderers = plugins.filter(
-    (plugin): plugin is MdoPlugin & { renderPage: NonNullable<MdoPlugin['renderPage']> } =>
-      typeof plugin.renderPage === 'function',
-  );
-
-  const dispatch = async (index: number, currentPage: PageRenderModel): Promise<string> => {
-    const plugin = renderers[index];
-    if (!plugin) {
-      return renderDefault(currentPage);
-    }
-
-    const rendered = await plugin.renderPage(currentPage, context, (nextPage) =>
-      dispatch(index + 1, nextPage),
-    );
-    if (typeof rendered === 'string') {
-      return rendered;
-    }
-
-    return dispatch(index + 1, currentPage);
-  };
-
-  return dispatch(0, page);
-}
-
 async function renderStructuredPage(options: {
   requestPath: string;
   sourcePath: string;
@@ -357,13 +328,18 @@ async function renderStructuredPage(options: {
     page,
     siteConfig: options.siteConfig,
   };
-  const headerHtml = await renderHeaderOverride(options.plugins, renderContext);
-  const footerHtml = await renderFooterOverride(options.plugins, renderContext);
-  const renderedHtml = await renderPageThroughPlugins(
+  const renderedPage = await renderPageWithPlugins(
     page,
     options.plugins,
     renderContext,
-    (currentPage) =>
+    async (currentPage) => {
+      const currentContext: RenderHookContext = {
+        page: currentPage,
+        siteConfig: options.siteConfig,
+      };
+      const headerHtml = await renderHeaderOverride(options.plugins, currentContext);
+      const footerHtml = await renderFooterOverride(options.plugins, currentContext);
+      return (
       renderDocument({
         siteTitle: currentPage.siteTitle,
         siteDescription: currentPage.siteDescription,
@@ -394,12 +370,17 @@ async function renderStructuredPage(options: {
         searchEnabled: currentPage.searchEnabled,
         headerHtml,
         footerHtml,
-      }),
+      })
+      );
+    },
   );
   const finalHtml = await transformHtmlWithPlugins(
-    renderedHtml,
+    renderedPage.html,
     options.plugins,
-    renderContext,
+    {
+      page: renderedPage.page,
+      siteConfig: options.siteConfig,
+    },
   );
 
   return {
