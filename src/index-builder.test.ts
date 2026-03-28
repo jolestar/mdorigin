@@ -129,6 +129,23 @@ test('buildManagedIndexBlock leaves empty directories blank', async () => {
   assert.equal(block, ['<!-- INDEX:START -->', '', '<!-- INDEX:END -->'].join('\n'));
 });
 
+test('buildManagedIndexBlock ignores empty child directories', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-index-empty-child-'));
+  await writeFile(path.join(rootDir, 'README.md'), '# Home\n', 'utf8');
+  await mkdir(path.join(rootDir, 'real-post'));
+  await writeFile(
+    path.join(rootDir, 'real-post', 'README.md'),
+    ['---', 'title: Real Post', 'type: post', '---', '', '# Real Post'].join('\n'),
+    'utf8',
+  );
+  await mkdir(path.join(rootDir, 'empty-dir'));
+
+  const block = await buildManagedIndexBlock(rootDir);
+
+  assert.match(block, /\[Real Post\]\(\.\/real-post\/\)/);
+  assert.doesNotMatch(block, /\[empty-dir\]\(\.\/empty-dir\/\)/);
+});
+
 test('buildDirectoryIndexes updates existing index files recursively', async () => {
   const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-index-build-'));
   await writeFile(path.join(rootDir, 'index.md'), '# Root\n', 'utf8');
@@ -157,6 +174,31 @@ test('buildDirectoryIndexes updates existing index files recursively', async () 
   const postsIndex = await readFile(path.join(rootDir, 'posts', 'index.md'), 'utf8');
   assert.match(postsIndex, /\[Hello\]\(\.\/hello\.md\)/);
   assert.doesNotMatch(postsIndex, /draft/i);
+});
+
+test('buildDirectoryIndexes skips empty directories and nested empty directories', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-index-skip-empty-'));
+  await writeFile(path.join(rootDir, 'README.md'), '# Root\n', 'utf8');
+  await mkdir(path.join(rootDir, 'real-section'));
+  await writeFile(path.join(rootDir, 'real-section', 'README.md'), '# Real Section\n', 'utf8');
+  await writeFile(
+    path.join(rootDir, 'real-section', 'hello.md'),
+    ['---', 'title: Hello', '---', '', '# Hello'].join('\n'),
+    'utf8',
+  );
+  await mkdir(path.join(rootDir, 'empty-dir'));
+  await mkdir(path.join(rootDir, 'empty-parent', 'empty-child'), { recursive: true });
+
+  const result = await buildDirectoryIndexes({ rootDir });
+  const rootIndex = await readFile(path.join(rootDir, 'README.md'), 'utf8');
+
+  assert.ok(!result.skippedDirectories.some((entry) => entry.endsWith('/empty-dir')));
+  assert.ok(!result.skippedDirectories.some((entry) => entry.endsWith('/empty-parent')));
+  assert.ok(!result.updatedFiles.some((entry) => entry.endsWith('/empty-dir/index.md')));
+  assert.ok(!result.updatedFiles.some((entry) => entry.endsWith('/empty-parent/index.md')));
+  assert.match(rootIndex, /\[Real Section\]\(\.\/real-section\/\)/);
+  assert.doesNotMatch(rootIndex, /\[empty-dir\]\(\.\/empty-dir\/\)/);
+  assert.doesNotMatch(rootIndex, /\[empty-parent\]\(\.\/empty-parent\/\)/);
 });
 
 test('buildDirectoryIndexes updates README.md when index.md is missing', async () => {

@@ -147,6 +147,10 @@ export async function buildManagedIndexBlock(
     const fullPath = path.join(directoryPath, entry.name);
     const entryStats = await stat(fullPath);
     if (entryStats.isDirectory()) {
+      if (!(await hasMeaningfulDirectoryContent(fullPath))) {
+        continue;
+      }
+
       const resolvedEntry = await resolveDirectoryEntry(fullPath, entry.name);
       if (resolvedEntry.draft) {
         continue;
@@ -334,6 +338,10 @@ async function listDirectoriesRecursivelyInternal(
       continue;
     }
 
+    if (!(await hasMeaningfulDirectoryContent(childPath))) {
+      continue;
+    }
+
     directories.push(childPath);
 
     const childIndexPath = await resolveDirectoryIndexFile(childPath);
@@ -355,6 +363,55 @@ async function listDirectoriesRecursivelyInternal(
   }
 
   return directories;
+}
+
+async function hasMeaningfulDirectoryContent(
+  directoryPath: string,
+  visitedRealDirectories: Set<string> = new Set(),
+): Promise<boolean> {
+  const realDirectoryPath = await realpath(directoryPath);
+  if (visitedRealDirectories.has(realDirectoryPath)) {
+    return false;
+  }
+  visitedRealDirectories.add(realDirectoryPath);
+
+  const shape = await inspectDirectoryShape(directoryPath);
+  const indexPath = await resolveDirectoryIndexFile(directoryPath);
+  if (
+    indexPath !== null ||
+    shape.hasExtraMarkdownFiles ||
+    shape.hasAssetFiles ||
+    shape.hasSkillIndex
+  ) {
+    return true;
+  }
+
+  if (!shape.hasChildDirectories) {
+    return false;
+  }
+
+  const entries = await readdir(directoryPath, { withFileTypes: true });
+  for (const entry of entries) {
+    if (entry.name.startsWith('.')) {
+      continue;
+    }
+
+    if (shape.hasSkillIndex && isIgnoredSkillSupportDirectory(entry.name)) {
+      continue;
+    }
+
+    const childPath = path.join(directoryPath, entry.name);
+    const childStats = await stat(childPath);
+    if (!childStats.isDirectory()) {
+      continue;
+    }
+
+    if (await hasMeaningfulDirectoryContent(childPath, visitedRealDirectories)) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 async function inspectDirectoryShape(directoryPath: string): Promise<{
