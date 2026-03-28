@@ -1112,3 +1112,73 @@ test('handleSiteRequest loads additional catalog articles in batches', async () 
   assert.equal(payload.hasMore, true);
   assert.equal(payload.nextOffset, 2);
 });
+
+test('handleSiteRequest paginates post directory bundles in catalog template', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: [
+        '---',
+        'title: Catalog Home',
+        '---',
+        '',
+        '# Catalog Home',
+        '',
+        '<!-- INDEX:START -->',
+        '',
+        '- [Post A](./post-a/)',
+        '  2026-03-28 · First bundled post.',
+        '  <!-- mdorigin:index kind=article -->',
+        '',
+        '- [Post B](./post-b/)',
+        '  2026-03-27 · Second bundled post.',
+        '  <!-- mdorigin:index kind=article -->',
+        '',
+        '<!-- INDEX:END -->',
+      ].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/', {
+    draftMode: 'include',
+    siteConfig: {
+      ...TEST_SITE_CONFIG,
+      template: 'catalog',
+      catalogInitialPostCount: 1,
+      catalogLoadMoreStep: 1,
+    },
+  });
+
+  assert.equal(response.status, 200);
+  const body = String(response.body);
+  assert.match(body, /Post A/);
+  assert.doesNotMatch(body, /Second bundled post\./);
+  assert.match(body, /data-catalog-load-more/);
+
+  const fragmentResponse = await handleSiteRequest(store, '/', {
+    draftMode: 'include',
+    siteConfig: {
+      ...TEST_SITE_CONFIG,
+      template: 'catalog',
+      catalogInitialPostCount: 1,
+      catalogLoadMoreStep: 1,
+    },
+    searchParams: new URLSearchParams({
+      'catalog-format': 'posts',
+      'catalog-offset': '1',
+      'catalog-limit': '1',
+    }),
+  });
+
+  assert.equal(fragmentResponse.status, 200);
+  const payload = JSON.parse(String(fragmentResponse.body)) as {
+    itemsHtml: string;
+    hasMore: boolean;
+    nextOffset: number;
+  };
+  assert.match(payload.itemsHtml, /Post B/);
+  assert.equal(payload.hasMore, false);
+  assert.equal(payload.nextOffset, 2);
+});

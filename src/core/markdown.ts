@@ -146,15 +146,47 @@ export function extractManagedIndexEntries(markdown: string): ManagedIndexEntry[
 
     const rawHref = entryMatch[2];
     const href = rewriteMarkdownHref(rawHref);
+    const explicitKind = extractManagedIndexKind(lines.slice(1));
     entries.push({
-      kind: href.endsWith('/') ? 'directory' : 'article',
+      kind: explicitKind ?? (href.endsWith('/') ? 'directory' : 'article'),
       title: entryMatch[1],
       href,
-      detail: lines[1]?.trim() || undefined,
+      detail: extractManagedIndexDetail(lines.slice(1)),
     });
   }
 
   return entries;
+}
+
+function extractManagedIndexKind(
+  lines: readonly string[],
+): ManagedIndexEntry['kind'] | undefined {
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const match = trimmed.match(/^<!--\s*mdorigin:index\s+kind=(article|directory)\s*-->$/);
+    if (match) {
+      return match[1] as ManagedIndexEntry['kind'];
+    }
+  }
+
+  return undefined;
+}
+
+function extractManagedIndexDetail(lines: readonly string[]): string | undefined {
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === '') {
+      continue;
+    }
+
+    if (/^<!--\s*mdorigin:index\s+kind=(article|directory)\s*-->$/.test(trimmed)) {
+      continue;
+    }
+
+    return trimmed;
+  }
+
+  return undefined;
 }
 
 function normalizeMeta(data: Record<string, unknown>): ParsedDocumentMeta {

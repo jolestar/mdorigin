@@ -270,6 +270,7 @@ function renderManagedIndexBlock(entries: ManagedIndexEntry[]): string {
       if (entry.detail) {
         lines.push(`  ${entry.detail}`);
       }
+      lines.push(`  <!-- mdorigin:index kind=${entry.kind} -->`);
       lines.push('');
     }
   }
