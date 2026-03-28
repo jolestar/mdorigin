@@ -5,6 +5,12 @@ import { loadUserSiteConfig } from '../core/site-config.js';
 
 export async function runBuildIndexCommand(argv: string[]) {
   const args = parseArgs(argv);
+  if (args.help) {
+    console.log(
+      'Usage: mdorigin build index (--root <content-dir> | --dir <content-dir>) [--config <config-file>]',
+    );
+    return;
+  }
   if (!args.root && !args.dir) {
     console.error(
       'Usage: mdorigin build index (--root <content-dir> | --dir <content-dir>) [--config <config-file>]',
@@ -34,11 +40,16 @@ export async function runBuildIndexCommand(argv: string[]) {
 }
 
 function parseArgs(argv: string[]) {
-  const result: { root?: string; dir?: string; config?: string } = {};
+  const result: { root?: string; dir?: string; config?: string; help?: boolean } = {};
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     const nextValue = argv[index + 1];
+
+    if (argument === '--help' || argument === '-h') {
+      result.help = true;
+      continue;
+    }
 
     if (argument === '--root' && nextValue) {
       result.root = nextValue;
@@ -55,7 +66,10 @@ function parseArgs(argv: string[]) {
     if (argument === '--config' && nextValue) {
       result.config = nextValue;
       index += 1;
+      continue;
     }
+
+    throw new Error(`Unknown argument for mdorigin build index: ${argument}`);
   }
 
   return result;
