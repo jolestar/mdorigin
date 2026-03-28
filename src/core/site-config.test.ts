@@ -8,6 +8,7 @@ import { MemoryContentStore } from './content-store.js';
 import {
   applySiteConfigFrontmatterDefaults,
   loadSiteConfig,
+  loadUserSiteConfig,
 } from './site-config.js';
 
 test('loadSiteConfig prefers content root config over cwd config', async () => {
@@ -127,4 +128,38 @@ test('applySiteConfigFrontmatterDefaults does not override explicit config value
 
   assert.equal(resolved.siteTitle, 'Configured Title');
   assert.equal(resolved.siteDescription, 'Configured Description');
+});
+
+test('loadUserSiteConfig prefers mdorigin.config.ts and exposes plugins', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-config-ts-'));
+  await writeFile(
+    path.join(rootDir, 'mdorigin.config.ts'),
+    [
+      'export default {',
+      '  siteTitle: "TS Config",',
+      '  theme: "atlas",',
+      '  plugins: [',
+      '    {',
+      '      name: "example",',
+      '      transformHtml(html) {',
+      '        return html.replace("</body>", "<!-- plugin --></body>");',
+      '      },',
+      '    },',
+      '  ],',
+      '};',
+    ].join('\n'),
+    'utf8',
+  );
+  await writeFile(
+    path.join(rootDir, 'mdorigin.config.json'),
+    JSON.stringify({ siteTitle: 'JSON Config', theme: 'paper' }, null, 2),
+    'utf8',
+  );
+
+  const loaded = await loadUserSiteConfig({ rootDir });
+
+  assert.equal(loaded.siteConfig.siteTitle, 'TS Config');
+  assert.equal(loaded.siteConfig.theme, 'atlas');
+  assert.equal(loaded.plugins.length, 1);
+  assert.match(loaded.configModulePath ?? '', /mdorigin\.config\.ts$/);
 });

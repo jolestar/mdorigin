@@ -10,6 +10,7 @@ import {
   normalizeDirectoryPath,
   type ContentDirectoryEntry,
 } from '../core/content-store.js';
+import type { MdoPlugin } from '../core/extensions.js';
 import { handleSiteRequest } from '../core/request-handler.js';
 import type { ResolvedSiteConfig } from '../core/site-config.js';
 import type { SearchApi } from '../search.js';
@@ -19,6 +20,7 @@ export interface NodeAdapterOptions {
   draftMode: 'include' | 'exclude';
   siteConfig: ResolvedSiteConfig;
   searchApi?: SearchApi;
+  plugins?: MdoPlugin[];
 }
 
 export function createFileSystemContentStore(rootDir: string): ContentStore {
@@ -168,6 +170,7 @@ export function createNodeRequestListener(options: NodeAdapterOptions) {
         searchParams: url.searchParams,
         requestUrl: url.toString(),
         searchApi: options.searchApi,
+        plugins: options.plugins,
       });
 
       response.statusCode = siteResponse.status;

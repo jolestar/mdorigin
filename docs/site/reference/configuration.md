@@ -7,7 +7,16 @@ summary: Site-level configuration fields and their behavior.
 
 # Configuration
 
-Site configuration lives in `<content-root>/mdorigin.config.json`.
+Site configuration lives in the content root.
+
+Supported config entry files:
+
+- `<content-root>/mdorigin.config.ts`
+- `<content-root>/mdorigin.config.mjs`
+- `<content-root>/mdorigin.config.js`
+- `<content-root>/mdorigin.config.json`
+
+When multiple files exist, `mdorigin.config.ts` wins over the JSON form.
 
 Useful fields:
 
@@ -30,6 +39,54 @@ Useful fields:
 - `showDate`
 - `showSummary`
 - `stylesheet`
+- `plugins`
+
+## Code Config
+
+Use `mdorigin.config.ts` when you want code-based customization instead of pure static settings.
+
+Example:
+
+```ts
+import { defineConfig } from "mdorigin";
+
+export default defineConfig({
+  siteTitle: "My Site",
+  plugins: [
+    {
+      name: "custom-layout",
+      renderPage(page, _context, next) {
+        if (page.kind !== "catalog") {
+          return next(page);
+        }
+
+        return [
+          "<!doctype html>",
+          "<html><body>",
+          `<main class="custom-catalog"><h1>${page.title}</h1>${page.bodyHtml}</main>`,
+          "</body></html>",
+        ].join("");
+      },
+    },
+  ],
+});
+```
+
+`defineConfig` is optional. A plain default export object also works.
+
+Current stable plugin hooks:
+
+- `transformIndex(entries, context)`
+- `renderHeader(context)`
+- `renderFooter(context)`
+- `renderPage(page, context, next)`
+- `transformHtml(html, context)`
+
+The design boundary is:
+
+- `mdorigin` owns routing and content semantics
+- plugins may fully replace page rendering
+- plugins should not replace the request kernel itself
 
 ## Site Metadata
 

@@ -1,9 +1,12 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { tsImport } from 'tsx/esm/api';
 
 import type { ContentStore } from './content-store.js';
 import { getDirectoryIndexCandidates } from './directory-index.js';
 import { parseMarkdownDocument } from './markdown.js';
+import type { MdoPlugin } from './extensions.js';
 import type { TemplateName } from '../html/template-kind.js';
 import type { BuiltInThemeName } from '../html/theme.js';
 
@@ -50,6 +53,10 @@ export interface SiteConfig {
   catalogLoadMoreStep?: number;
 }
 
+export interface UserSiteConfig extends SiteConfig {
+  plugins?: MdoPlugin[];
+}
+
 export interface ResolvedSiteConfig {
   siteTitle: string;
   siteDescription?: string;
@@ -80,24 +87,29 @@ export interface LoadSiteConfigOptions {
   configPath?: string;
 }
 
+export interface LoadedSiteConfig {
+  siteConfig: ResolvedSiteConfig;
+  plugins: MdoPlugin[];
+  configFilePath: string;
+  configModulePath?: string;
+}
+
 export async function loadSiteConfig(
   options: LoadSiteConfigOptions = {},
 ): Promise<ResolvedSiteConfig> {
+  return (await loadUserSiteConfig(options)).siteConfig;
+}
+
+export async function loadUserSiteConfig(
+  options: LoadSiteConfigOptions = {},
+): Promise<LoadedSiteConfig> {
   const cwd = path.resolve(options.cwd ?? process.cwd());
   const rootDir = options.rootDir ? path.resolve(options.rootDir) : null;
   const configFilePath = options.configPath
     ? path.resolve(cwd, options.configPath)
     : await resolveDefaultConfigPath(cwd, rootDir);
 
-  let parsedConfig: SiteConfig = {};
-  try {
-    const configSource = await readFile(configFilePath, 'utf8');
-    parsedConfig = JSON.parse(configSource) as SiteConfig;
-  } catch (error) {
-    if (!isNodeNotFound(error)) {
-      throw error;
-    }
-  }
+  const parsedConfig = await loadConfigSource(configFilePath);
 
   const stylesheetPath = parsedConfig.stylesheet
     ? path.resolve(path.dirname(configFilePath), parsedConfig.stylesheet)
@@ -106,7 +118,7 @@ export async function loadSiteConfig(
     ? await readFile(stylesheetPath, 'utf8')
     : undefined;
 
-  return {
+  const siteConfig: ResolvedSiteConfig = {
     siteTitle:
       typeof parsedConfig.siteTitle === 'string' && parsedConfig.siteTitle !== ''
         ? parsedConfig.siteTitle
@@ -151,6 +163,13 @@ export async function loadSiteConfig(
       typeof parsedConfig.siteDescription === 'string' &&
       parsedConfig.siteDescription !== '',
   };
+
+  return {
+    siteConfig,
+    plugins: Array.isArray(parsedConfig.plugins) ? parsedConfig.plugins : [],
+    configFilePath,
+    configModulePath: isCodeConfigPath(configFilePath) ? configFilePath : undefined,
+  };
 }
 
 export async function applySiteConfigFrontmatterDefaults(
@@ -193,12 +212,12 @@ async function resolveDefaultConfigPath(
   cwd: string,
   rootDir: string | null,
 ): Promise<string> {
-  const rootConfigPath = rootDir ? path.join(rootDir, 'mdorigin.config.json') : null;
-  if (rootConfigPath && (await pathExists(rootConfigPath))) {
+  const rootConfigPath = rootDir ? await findConfigPath(rootDir) : null;
+  if (rootConfigPath) {
     return rootConfigPath;
   }
 
-  return path.join(cwd, 'mdorigin.config.json');
+  return (await findConfigPath(cwd)) ?? path.join(cwd, 'mdorigin.config.json');
 }
 
 function isBuiltInThemeName(value: unknown): value is BuiltInThemeName {
@@ -220,7 +239,7 @@ function isNodeNotFound(error: unknown): error is NodeJS.ErrnoException {
 
 async function pathExists(filePath: string): Promise<boolean> {
   try {
-    await readFile(filePath, 'utf8');
+    await stat(filePath);
     return true;
   } catch (error) {
     if (isNodeNotFound(error)) {
@@ -229,6 +248,77 @@ async function pathExists(filePath: string): Promise<boolean> {
 
     throw error;
   }
+}
+
+async function findConfigPath(directory: string): Promise<string | null> {
+  for (const candidate of getConfigCandidates(directory)) {
+    if (await pathExists(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function getConfigCandidates(directory: string): string[] {
+  return [
+    path.join(directory, 'mdorigin.config.ts'),
+    path.join(directory, 'mdorigin.config.mjs'),
+    path.join(directory, 'mdorigin.config.js'),
+    path.join(directory, 'mdorigin.config.json'),
+  ];
+}
+
+async function loadConfigSource(configFilePath: string): Promise<UserSiteConfig> {
+  if (!(await pathExists(configFilePath))) {
+    return {};
+  }
+
+  if (configFilePath.endsWith('.json')) {
+    const configSource = await readFile(configFilePath, 'utf8');
+    return JSON.parse(configSource) as UserSiteConfig;
+  }
+
+  const imported = configFilePath.endsWith('.ts')
+    ? await tsImport(configFilePath, import.meta.url)
+    : await import(pathToFileURL(configFilePath).href);
+  const config = unwrapConfigModule(imported);
+  if (typeof config !== 'object' || config === null) {
+    throw new Error(`${configFilePath} must export a config object`);
+  }
+
+  return config as UserSiteConfig;
+}
+
+function isCodeConfigPath(filePath: string): boolean {
+  return /\.(mjs|js|ts)$/.test(filePath);
+}
+
+export function defineConfig(config: UserSiteConfig): UserSiteConfig {
+  return config;
+}
+
+function unwrapConfigModule(moduleValue: unknown): unknown {
+  let current = moduleValue;
+  while (
+    typeof current === 'object' &&
+    current !== null &&
+    'default' in current &&
+    (current as { default?: unknown }).default !== undefined
+  ) {
+    current = (current as { default: unknown }).default;
+  }
+
+  if (
+    typeof current === 'object' &&
+    current !== null &&
+    'config' in current &&
+    (current as { config?: unknown }).config !== undefined
+  ) {
+    return (current as { config: unknown }).config;
+  }
+
+  return current;
 }
 
 function normalizeTopNav(value: unknown): SiteNavItem[] {

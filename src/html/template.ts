@@ -35,6 +35,8 @@ export interface RenderDocumentOptions {
   catalogInitialPostCount?: number;
   catalogLoadMoreStep?: number;
   searchEnabled?: boolean;
+  headerHtml?: string;
+  footerHtml?: string;
 }
 
 export function renderDocument(options: RenderDocumentOptions) {
@@ -153,6 +155,11 @@ export function renderDocument(options: RenderDocumentOptions) {
       : options.body;
   const searchScript = options.searchEnabled ? renderSearchScript() : '';
 
+  const headerBlock =
+    options.headerHtml ??
+    `<header class="site-header"><div class="site-header__inner"><div class="site-header__brand"><p class="site-header__title"><a href="${brandHref}">${logoBlock}<span>${siteTitle}</span></a></p>${siteDescriptionBlock}</div><div class="site-header__actions">${navBlock}${searchToggleBlock}</div></div></header>`;
+  const renderedFooterBlock = options.footerHtml ?? footerBlock;
+
   return [
     '<!doctype html>',
     '<html lang="en">',
@@ -168,11 +175,11 @@ export function renderDocument(options: RenderDocumentOptions) {
     stylesheetBlock,
     '</head>',
     `<body data-theme="${options.theme}" data-template="${options.template}">`,
-    `<header class="site-header"><div class="site-header__inner"><div class="site-header__brand"><p class="site-header__title"><a href="${brandHref}">${logoBlock}<span>${siteTitle}</span></a></p>${siteDescriptionBlock}</div><div class="site-header__actions">${navBlock}${searchToggleBlock}</div></div></header>`,
+    headerBlock,
     '<main>',
     `<article>${articleBody}</article>`,
     '</main>',
-    footerBlock,
+    renderedFooterBlock,
     searchScript,
     '</body>',
     '</html>',

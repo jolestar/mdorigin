@@ -15,6 +15,13 @@ import {
   stripManagedIndexBlock,
   stripManagedIndexLinks,
 } from './markdown.js';
+import type { MdoPlugin, PageRenderModel, RenderHookContext } from './extensions.js';
+import {
+  applyIndexTransforms,
+  renderFooterOverride,
+  renderHeaderOverride,
+  transformHtmlWithPlugins,
+} from './extensions.js';
 import type { ResolvedSiteConfig, SiteNavItem } from './site-config.js';
 import { handleApiRoute } from './api.js';
 import { normalizeRequestPath, resolveRequest } from './router.js';
@@ -32,6 +39,7 @@ export interface HandleSiteRequestOptions {
   searchParams?: URLSearchParams;
   requestUrl?: string;
   searchApi?: SearchApi;
+  plugins?: MdoPlugin[];
 }
 
 export interface SiteResponse {
@@ -45,6 +53,7 @@ export async function handleSiteRequest(
   pathname: string,
   options: HandleSiteRequestOptions,
 ): Promise<SiteResponse> {
+  const plugins = options.plugins ?? [];
   const searchEnabled = options.searchApi !== undefined;
   const apiRoute = await handleApiRoute(pathname, options.searchParams, {
     searchApi: options.searchApi,
@@ -164,7 +173,16 @@ export async function handleSiteRequest(
       : entry.text;
   const catalogEntries =
     options.siteConfig.template === 'catalog'
-      ? extractManagedIndexEntries(renderedBody)
+      ? await applyIndexTransforms(
+          extractManagedIndexEntries(renderedBody),
+          plugins,
+          {
+            mode: 'render',
+            requestPath: resolved.requestPath,
+            sourcePath: resolved.sourcePath,
+            siteConfig: options.siteConfig,
+          },
+        )
       : [];
   if (
     catalogFragmentRequest !== null &&
@@ -180,47 +198,18 @@ export async function handleSiteRequest(
     ? parsed
     : await parseMarkdownDocument(resolved.sourcePath, documentBody);
 
-  return {
-    status: 200,
-    headers: withVaryAcceptIfNeeded(
-      {
-      'content-type': 'text/html; charset=utf-8',
-      },
-      shouldVaryOnAccept(resolved),
-    ),
-    body: renderDocument({
-      siteTitle: options.siteConfig.siteTitle,
-      siteDescription: options.siteConfig.siteDescription,
-      siteUrl: options.siteConfig.siteUrl,
-      favicon: options.siteConfig.favicon,
-      socialImage: options.siteConfig.socialImage,
-      logo: options.siteConfig.logo,
-      title: getDocumentTitle(parsed),
-      body: renderedParsed.html,
-      summary:
-        options.siteConfig.showSummary === false
-          ? undefined
-          : getDocumentSummary(parsed.meta, parsed.body),
-      date: options.siteConfig.showDate === false ? undefined : parsed.meta.date,
-      showSummary: options.siteConfig.showSummary,
-      showDate: options.siteConfig.showDate,
-      theme: options.siteConfig.theme,
-      template: options.siteConfig.template,
-      topNav: navigation.items,
-      footerNav: options.siteConfig.footerNav,
-      footerText: options.siteConfig.footerText,
-      socialLinks: options.siteConfig.socialLinks,
-      editLinkHref: getEditLinkHref(options.siteConfig, resolved.sourcePath),
-      stylesheetContent: options.siteConfig.stylesheetContent,
-      canonicalPath: getCanonicalHtmlPathForContentPath(resolved.sourcePath),
-      alternateMarkdownPath: getMarkdownRequestPathForContentPath(resolved.sourcePath),
-      catalogEntries,
-      catalogRequestPath: resolved.requestPath,
-      catalogInitialPostCount: options.siteConfig.catalogInitialPostCount,
-      catalogLoadMoreStep: options.siteConfig.catalogLoadMoreStep,
-      searchEnabled,
-    }),
-  };
+  return renderStructuredPage({
+    requestPath: resolved.requestPath,
+    sourcePath: resolved.sourcePath,
+    parsed,
+    renderedParsed,
+    siteConfig: options.siteConfig,
+    topNav: navigation.items,
+    catalogEntries,
+    searchEnabled,
+    plugins,
+    varyOnAccept: shouldVaryOnAccept(resolved),
+  });
 }
 
 interface CatalogFragmentRequest {
@@ -261,6 +250,168 @@ function normalizePositiveInteger(value: string | null): number | null {
 
   const parsed = Number.parseInt(value, 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function buildPageRenderModel(options: {
+  resolvedRequestPath: string;
+  sourcePath: string;
+  renderedBodyHtml: string;
+  parsed: Awaited<ReturnType<typeof parseMarkdownDocument>>;
+  siteConfig: ResolvedSiteConfig;
+  topNav: SiteNavItem[];
+  catalogEntries: ReturnType<typeof extractManagedIndexEntries>;
+  searchEnabled: boolean;
+}): PageRenderModel {
+  return {
+    kind: options.siteConfig.template === 'catalog' ? 'catalog' : 'document',
+    requestPath: options.resolvedRequestPath,
+    sourcePath: options.sourcePath,
+    siteTitle: options.siteConfig.siteTitle,
+    siteDescription: options.siteConfig.siteDescription,
+    siteUrl: options.siteConfig.siteUrl,
+    favicon: options.siteConfig.favicon,
+    socialImage: options.siteConfig.socialImage,
+    logo: options.siteConfig.logo,
+    title: getDocumentTitle(options.parsed),
+    bodyHtml: options.renderedBodyHtml,
+    summary:
+      options.siteConfig.showSummary === false
+        ? undefined
+        : getDocumentSummary(options.parsed.meta, options.parsed.body),
+    date:
+      options.siteConfig.showDate === false ? undefined : options.parsed.meta.date,
+    showSummary: options.siteConfig.showSummary,
+    showDate: options.siteConfig.showDate,
+    theme: options.siteConfig.theme,
+    template: options.siteConfig.template,
+    topNav: options.topNav,
+    footerNav: options.siteConfig.footerNav,
+    footerText: options.siteConfig.footerText,
+    socialLinks: options.siteConfig.socialLinks,
+    editLink: options.siteConfig.editLink,
+    editLinkHref: getEditLinkHref(options.siteConfig, options.sourcePath),
+    stylesheetContent: options.siteConfig.stylesheetContent,
+    canonicalPath: getCanonicalHtmlPathForContentPath(options.sourcePath),
+    alternateMarkdownPath: getMarkdownRequestPathForContentPath(options.sourcePath),
+    catalogEntries: options.catalogEntries,
+    catalogRequestPath: options.resolvedRequestPath,
+    catalogInitialPostCount: options.siteConfig.catalogInitialPostCount,
+    catalogLoadMoreStep: options.siteConfig.catalogLoadMoreStep,
+    searchEnabled: options.searchEnabled,
+  };
+}
+
+async function renderPageThroughPlugins(
+  page: PageRenderModel,
+  plugins: MdoPlugin[],
+  context: RenderHookContext,
+  renderDefault: (page: PageRenderModel) => string,
+): Promise<string> {
+  const renderers = plugins.filter(
+    (plugin): plugin is MdoPlugin & { renderPage: NonNullable<MdoPlugin['renderPage']> } =>
+      typeof plugin.renderPage === 'function',
+  );
+
+  const dispatch = async (index: number, currentPage: PageRenderModel): Promise<string> => {
+    const plugin = renderers[index];
+    if (!plugin) {
+      return renderDefault(currentPage);
+    }
+
+    const rendered = await plugin.renderPage(currentPage, context, (nextPage) =>
+      dispatch(index + 1, nextPage),
+    );
+    if (typeof rendered === 'string') {
+      return rendered;
+    }
+
+    return dispatch(index + 1, currentPage);
+  };
+
+  return dispatch(0, page);
+}
+
+async function renderStructuredPage(options: {
+  requestPath: string;
+  sourcePath: string;
+  parsed: Awaited<ReturnType<typeof parseMarkdownDocument>>;
+  renderedParsed: Awaited<ReturnType<typeof parseMarkdownDocument>>;
+  siteConfig: ResolvedSiteConfig;
+  topNav: SiteNavItem[];
+  catalogEntries: ReturnType<typeof extractManagedIndexEntries>;
+  searchEnabled: boolean;
+  plugins: MdoPlugin[];
+  varyOnAccept?: boolean;
+}): Promise<SiteResponse> {
+  const page = buildPageRenderModel({
+    resolvedRequestPath: options.requestPath,
+    sourcePath: options.sourcePath,
+    renderedBodyHtml: options.renderedParsed.html,
+    parsed: options.parsed,
+    siteConfig: options.siteConfig,
+    topNav: options.topNav,
+    catalogEntries: options.catalogEntries,
+    searchEnabled: options.searchEnabled,
+  });
+  const renderContext: RenderHookContext = {
+    page,
+    siteConfig: options.siteConfig,
+  };
+  const headerHtml = await renderHeaderOverride(options.plugins, renderContext);
+  const footerHtml = await renderFooterOverride(options.plugins, renderContext);
+  const renderedHtml = await renderPageThroughPlugins(
+    page,
+    options.plugins,
+    renderContext,
+    (currentPage) =>
+      renderDocument({
+        siteTitle: currentPage.siteTitle,
+        siteDescription: currentPage.siteDescription,
+        siteUrl: currentPage.siteUrl,
+        favicon: currentPage.favicon,
+        socialImage: currentPage.socialImage,
+        logo: currentPage.logo,
+        title: currentPage.title,
+        body: currentPage.bodyHtml,
+        summary: currentPage.summary,
+        date: currentPage.date,
+        showSummary: currentPage.showSummary,
+        showDate: currentPage.showDate,
+        theme: currentPage.theme,
+        template: currentPage.template,
+        topNav: currentPage.topNav,
+        footerNav: currentPage.footerNav,
+        footerText: currentPage.footerText,
+        socialLinks: currentPage.socialLinks,
+        editLinkHref: currentPage.editLinkHref,
+        stylesheetContent: currentPage.stylesheetContent,
+        canonicalPath: currentPage.canonicalPath,
+        alternateMarkdownPath: currentPage.alternateMarkdownPath,
+        catalogEntries: currentPage.catalogEntries,
+        catalogRequestPath: currentPage.catalogRequestPath,
+        catalogInitialPostCount: currentPage.catalogInitialPostCount,
+        catalogLoadMoreStep: currentPage.catalogLoadMoreStep,
+        searchEnabled: currentPage.searchEnabled,
+        headerHtml,
+        footerHtml,
+      }),
+  );
+  const finalHtml = await transformHtmlWithPlugins(
+    renderedHtml,
+    options.plugins,
+    renderContext,
+  );
+
+  return {
+    status: 200,
+    headers: withVaryAcceptIfNeeded(
+      {
+        'content-type': 'text/html; charset=utf-8',
+      },
+      options.varyOnAccept ?? false,
+    ),
+    body: finalHtml,
+  };
 }
 
 function renderCatalogPostsFragment(
@@ -564,6 +715,7 @@ async function tryRenderAlternateDirectoryIndex(
   requestPath: string,
   options: HandleSiteRequestOptions,
 ): Promise<SiteResponse | null> {
+  const plugins = options.plugins ?? [];
   const directoryPath =
     requestPath === '/' ? '' : requestPath.slice(1).replace(/\/$/, '');
 
@@ -593,7 +745,16 @@ async function tryRenderAlternateDirectoryIndex(
         : entry.text;
     const catalogEntries =
       options.siteConfig.template === 'catalog'
-        ? extractManagedIndexEntries(renderedBody)
+        ? await applyIndexTransforms(
+            extractManagedIndexEntries(renderedBody),
+            plugins,
+            {
+              mode: 'render',
+              requestPath,
+              sourcePath: candidatePath,
+              siteConfig: options.siteConfig,
+            },
+          )
         : [];
     const catalogFragmentRequest = getCatalogFragmentRequest(options.searchParams);
     if (
@@ -610,44 +771,17 @@ async function tryRenderAlternateDirectoryIndex(
       ? parsed
       : await parseMarkdownDocument(candidatePath, documentBody);
 
-    return {
-      status: 200,
-      headers: {
-        'content-type': 'text/html; charset=utf-8',
-      },
-      body: renderDocument({
-        siteTitle: options.siteConfig.siteTitle,
-        siteDescription: options.siteConfig.siteDescription,
-        siteUrl: options.siteConfig.siteUrl,
-        favicon: options.siteConfig.favicon,
-        socialImage: options.siteConfig.socialImage,
-        logo: options.siteConfig.logo,
-        title: getDocumentTitle(parsed),
-        body: renderedParsed.html,
-        summary:
-          options.siteConfig.showSummary === false
-            ? undefined
-            : getDocumentSummary(parsed.meta, parsed.body),
-        date: options.siteConfig.showDate === false ? undefined : parsed.meta.date,
-        showSummary: options.siteConfig.showSummary,
-        showDate: options.siteConfig.showDate,
-        theme: options.siteConfig.theme,
-        template: options.siteConfig.template,
-        topNav: navigation.items,
-        footerNav: options.siteConfig.footerNav,
-        footerText: options.siteConfig.footerText,
-        socialLinks: options.siteConfig.socialLinks,
-        editLinkHref: getEditLinkHref(options.siteConfig, candidatePath),
-        stylesheetContent: options.siteConfig.stylesheetContent,
-        canonicalPath: requestPath,
-        alternateMarkdownPath: getMarkdownRequestPathForContentPath(candidatePath),
-        catalogEntries,
-        catalogRequestPath: requestPath,
-        catalogInitialPostCount: options.siteConfig.catalogInitialPostCount,
-        catalogLoadMoreStep: options.siteConfig.catalogLoadMoreStep,
-        searchEnabled: options.searchApi !== undefined,
-      }),
-    };
+    return renderStructuredPage({
+      requestPath,
+      sourcePath: candidatePath,
+      parsed,
+      renderedParsed,
+      siteConfig: options.siteConfig,
+      topNav: navigation.items,
+      catalogEntries,
+      searchEnabled: options.searchApi !== undefined,
+      plugins,
+    });
   }
 
   return null;

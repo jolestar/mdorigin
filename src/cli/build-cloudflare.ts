@@ -4,32 +4,36 @@ import { createFileSystemContentStore } from '../adapters/node.js';
 import { writeCloudflareBundle } from '../cloudflare.js';
 import {
   applySiteConfigFrontmatterDefaults,
-  loadSiteConfig,
+  loadUserSiteConfig,
 } from '../core/site-config.js';
 
 export async function runBuildCloudflareCommand(argv: string[]) {
   const args = parseArgs(argv);
   if (!args.root) {
     console.error(
-      'Usage: mdorigin build cloudflare --root <content-dir> [--out ./dist/cloudflare] [--config mdorigin.config.json] [--search ./dist/search]',
+      'Usage: mdorigin build cloudflare --root <content-dir> [--out ./dist/cloudflare] [--config mdorigin.config.ts] [--search ./dist/search]',
     );
     process.exitCode = 1;
     return;
   }
 
   const rootDir = path.resolve(args.root);
-  const loadedSiteConfig = await loadSiteConfig({
+  const loadedConfig = await loadUserSiteConfig({
     cwd: process.cwd(),
     rootDir,
     configPath: args.config,
   });
   const store = createFileSystemContentStore(rootDir);
-  const siteConfig = await applySiteConfigFrontmatterDefaults(store, loadedSiteConfig);
+  const siteConfig = await applySiteConfigFrontmatterDefaults(
+    store,
+    loadedConfig.siteConfig,
+  );
   const result = await writeCloudflareBundle({
     rootDir,
     outDir: path.resolve(args.out ?? 'dist/cloudflare'),
     siteConfig,
     searchDir: args.search ? path.resolve(args.search) : undefined,
+    configModulePath: loadedConfig.configModulePath,
   });
 
   console.log(`cloudflare worker written to ${result.workerFile}`);

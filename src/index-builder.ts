@@ -1,12 +1,14 @@
 import { readdir, readFile, realpath, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
+import { applyIndexTransforms, type MdoPlugin } from './core/extensions.js';
 import { inferDirectoryContentType } from './core/content-type.js';
 import { getDirectoryIndexCandidates } from './core/directory-index.js';
 import {
   getDocumentSummary,
   getDocumentTitle,
   parseMarkdownDocument,
+  type ManagedIndexEntry,
 } from './core/markdown.js';
 
 const INDEX_START_MARKER = '<!-- INDEX:START -->';
@@ -38,6 +40,7 @@ interface ResolvedDirectoryEntry {
 export interface BuildIndexOptions {
   rootDir?: string;
   dir?: string;
+  plugins?: MdoPlugin[];
 }
 
 export interface BuildIndexResult {
@@ -60,6 +63,7 @@ export async function buildDirectoryIndexes(
     const directoryPath = path.resolve(options.dir);
     const updatedFile = await updateSingleDirectoryIndex(directoryPath, {
       createIfMissing: false,
+      plugins: options.plugins ?? [],
     });
     return {
       updatedFiles: updatedFile ? [updatedFile] : [],
@@ -75,6 +79,7 @@ export async function buildDirectoryIndexes(
   for (const directoryPath of directories) {
     const updatedFile = await updateSingleDirectoryIndex(directoryPath, {
       createIfMissing: false,
+      plugins: options.plugins ?? [],
     });
     if (updatedFile) {
       updatedFiles.push(updatedFile);
@@ -89,6 +94,7 @@ export async function buildDirectoryIndexes(
 
 interface UpdateSingleDirectoryIndexOptions {
   createIfMissing: boolean;
+  plugins: MdoPlugin[];
 }
 
 async function updateSingleDirectoryIndex(
@@ -113,7 +119,7 @@ async function updateSingleDirectoryIndex(
   const existingContent = indexFilePath
     ? await readFile(indexFilePath, 'utf8')
     : '';
-  const block = await buildManagedIndexBlock(directoryPath);
+  const block = await buildManagedIndexBlock(directoryPath, options.plugins);
   const nextContent = upsertManagedIndexBlock(existingContent, block, {
     directoryPath,
   });
@@ -125,7 +131,10 @@ async function updateSingleDirectoryIndex(
   return targetFilePath;
 }
 
-export async function buildManagedIndexBlock(directoryPath: string): Promise<string> {
+export async function buildManagedIndexBlock(
+  directoryPath: string,
+  plugins: MdoPlugin[] = [],
+): Promise<string> {
   const entries = await readdir(directoryPath, { withFileTypes: true });
   const directories: DirectoryIndexEntry[] = [];
   const articles: ArticleIndexEntry[] = [];
@@ -191,7 +200,32 @@ export async function buildManagedIndexBlock(directoryPath: string): Promise<str
   directories.sort(compareDirectories);
   articles.sort(compareArticles);
 
-  return renderManagedIndexBlock(directories, articles);
+  const transformedEntries = await applyIndexTransforms(
+    [
+      ...directories.map(
+        (entry): ManagedIndexEntry => ({
+          kind: 'directory',
+          title: entry.title,
+          href: entry.link,
+        }),
+      ),
+      ...articles.map(
+        (entry): ManagedIndexEntry => ({
+          kind: 'article',
+          title: entry.title,
+          href: entry.link,
+          detail: [entry.date, entry.summary].filter(Boolean).join(' · ') || undefined,
+        }),
+      ),
+    ],
+    plugins,
+    {
+      mode: 'build',
+      directoryPath,
+    },
+  );
+
+  return renderManagedIndexBlock(transformedEntries);
 }
 
 export function upsertManagedIndexBlock(
@@ -223,25 +257,14 @@ export function upsertManagedIndexBlock(
   return `${trimmed}\n\n${block}\n`;
 }
 
-function renderManagedIndexBlock(
-  directories: DirectoryIndexEntry[],
-  articles: ArticleIndexEntry[],
-): string {
+function renderManagedIndexBlock(entries: ManagedIndexEntry[]): string {
   const lines = [INDEX_START_MARKER, ''];
 
-  if (directories.length > 0) {
-    for (const entry of directories) {
-      lines.push(`- [${entry.title}](${entry.link})`);
-    }
-    lines.push('');
-  }
-
-  if (articles.length > 0) {
-    for (const article of articles) {
-      lines.push(`- [${article.title}](${article.link})`);
-      const detail = [article.date, article.summary].filter(Boolean).join(' · ');
-      if (detail !== '') {
-        lines.push(`  ${detail}`);
+  if (entries.length > 0) {
+    for (const entry of entries) {
+      lines.push(`- [${entry.title}](${entry.href})`);
+      if (entry.detail) {
+        lines.push(`  ${entry.detail}`);
       }
       lines.push('');
     }

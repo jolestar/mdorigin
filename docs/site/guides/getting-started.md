@@ -98,7 +98,7 @@ curl -H "Accept: text/markdown" http://localhost:3000/guides/getting-started
 
 ## Site config
 
-Create `mdorigin.config.json` inside the content root, for example `docs/site/mdorigin.config.json`.
+Create a config file inside the content root, for example `docs/site/mdorigin.config.json` or `docs/site/mdorigin.config.ts`.
 
 If no config file is present, `mdorigin` falls back to the root homepage frontmatter:
 
@@ -108,8 +108,9 @@ If no config file is present, `mdorigin` falls back to the root homepage frontma
 If `stylesheet` is set, the CSS file is read and inlined into rendered HTML for both local preview and Cloudflare bundles. By default the loader prefers:
 
 1. `--config`
-2. `<content-root>/mdorigin.config.json`
-3. current working directory `mdorigin.config.json`
+2. `<content-root>/mdorigin.config.ts`
+3. `<content-root>/mdorigin.config.json`
+4. current working directory `mdorigin.config.ts` or `mdorigin.config.json`
 
 You can also choose a page structure with `template`:
 
@@ -128,6 +129,8 @@ You can also choose a page structure with `template`:
 Use `document` for ordinary docs and articles. Use `catalog` for homepages and directory-style collection pages.
 
 Today `template` only selects from built-in page structures. The longer-term direction is not to add a large template system, but to allow code-based extensions to replace page rendering while keeping the same routing and normalized content model.
+
+If you want to start using code-based extensions now, switch from JSON config to `mdorigin.config.ts` and export a config object with `plugins`.
 
 If you use `catalog`, you can also cap the first batch of article entries:
 

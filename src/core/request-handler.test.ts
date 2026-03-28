@@ -134,6 +134,34 @@ test('handleSiteRequest renders html and preserves markdown', async () => {
   assert.match(String(defaultHtmlResponse.body), /href="\.\.\/"/);
 });
 
+test('handleSiteRequest supports page render plugins', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Home', '---', '', '# Home', '', 'Welcome.'].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+    plugins: [
+      {
+        name: 'custom-page',
+        renderPage(page) {
+          return `<html><body><main class="custom-page"><h1>${page.title}</h1><div>${page.bodyHtml}</div></main></body></html>`;
+        },
+      },
+    ],
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(String(response.body), /class="custom-page"/);
+  assert.doesNotMatch(String(response.body), /class="site-header"/);
+});
+
 test('handleSiteRequest serves markdown on extensionless routes when accept asks for markdown', async () => {
   const store = new MemoryContentStore([
     {
