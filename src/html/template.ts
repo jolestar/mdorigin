@@ -131,14 +131,18 @@ export function renderDocument(options: RenderDocumentOptions) {
     ? `<a class="site-footer__edit-link" href="${escapeHtml(options.editLinkHref)}">Edit this page</a>`
     : '';
   const markdownViewBlock = options.alternateMarkdownPath
-    ? `<a class="site-footer__markdown-link" href="${escapeHtml(options.alternateMarkdownPath)}">MD View</a>`
+    ? `<a class="site-footer__markdown-link" href="${escapeHtml(options.alternateMarkdownPath)}" aria-label="View Markdown source">MD View</a>`
     : '';
+  const footerActionsBlock =
+    markdownViewBlock || editLinkBlock
+      ? `<div class="site-footer__actions">${markdownViewBlock}${editLinkBlock}</div>`
+      : '';
   const footerTextBlock = options.footerText
     ? `<p class="site-footer__text">${escapeHtml(options.footerText)}</p>`
     : '';
   const footerMetaBlock =
-    socialLinksBlock || markdownViewBlock || editLinkBlock
-      ? `<div class="site-footer__meta">${socialLinksBlock}<div class="site-footer__actions">${markdownViewBlock}${editLinkBlock}</div></div>`
+    socialLinksBlock || footerActionsBlock
+      ? `<div class="site-footer__meta">${socialLinksBlock}${footerActionsBlock}</div>`
       : '';
   const footerBlock =
     footerNavBlock || footerTextBlock || footerMetaBlock
