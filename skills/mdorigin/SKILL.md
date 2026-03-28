@@ -25,6 +25,7 @@ npm install --save-dev mdorigin
 
 - local preview with `mdorigin dev`
 - directory index generation with `mdorigin build index`
+- search index generation with `mdorigin build search`
 - Cloudflare Worker bundle output with `mdorigin build cloudflare`
 - markdown and HTML route behavior, including `Accept: text/markdown`
 
@@ -33,11 +34,32 @@ npm install --save-dev mdorigin
 ```bash
 mdorigin dev --root docs/site
 mdorigin build index --root docs/site
+mdorigin build search --root docs/site
 mdorigin build cloudflare --root docs/site
 ```
 
-## Notes
+## Remote docs
 
-- `index.md`, `README.md`, and `SKILL.md` can all act as directory homepage files
-- skills are published as post bundles, so they appear in article flows instead of directory flows
-- helper files under `scripts/`, `references/`, `assets/`, and `templates/` stay directly accessible but are not indexed as content
+When an agent needs details, prefer the published docs instead of duplicating everything in the skill:
+
+- HTML docs: `https://mdorigin.jolestar.workers.dev`
+- Raw markdown home: `https://mdorigin.jolestar.workers.dev/README.md`
+- Routing docs: `https://mdorigin.jolestar.workers.dev/concepts/routing.md`
+- Configuration docs: `https://mdorigin.jolestar.workers.dev/reference/configuration.md`
+- Extensions docs: `https://mdorigin.jolestar.workers.dev/guides/extensions.md`
+
+Extensionless routes also return markdown when the client sends `Accept: text/markdown`.
+
+## Search
+
+Use search when you need the right doc page before opening it:
+
+- Search API: `https://mdorigin.jolestar.workers.dev/api/search?q=<query>`
+- OpenAPI schema: `https://mdorigin.jolestar.workers.dev/api/openapi.json`
+
+Examples:
+
+```bash
+curl 'https://mdorigin.jolestar.workers.dev/api/search?q=cloudflare%20deploy'
+curl -H 'Accept: text/markdown' 'https://mdorigin.jolestar.workers.dev/guides/getting-started'
+```
