@@ -9,6 +9,12 @@ import { createFileSystemContentStore } from '../adapters/node.js';
 
 export async function runBuildSearchCommand(rawArgs: string[]) {
   const args = parseArgs(rawArgs);
+  if (args.help) {
+    console.log(
+      'Usage: mdorigin build search --root <content-dir> [--out ./dist/search] [--embedding-backend model2vec|hashing] [--model sentence-transformers/all-MiniLM-L6-v2] [--config <config-file>]',
+    );
+    return;
+  }
   if (!args.root) {
     throw new Error(
       'Usage: mdorigin build search --root <content-dir> [--out ./dist/search] [--embedding-backend model2vec|hashing] [--model sentence-transformers/all-MiniLM-L6-v2] [--config <config-file>]',
@@ -43,13 +49,22 @@ function parseArgs(rawArgs: string[]) {
 
   for (let index = 0; index < rawArgs.length; index += 1) {
     const arg = rawArgs[index];
+    if (arg === '--help' || arg === '-h') {
+      parsed.help = 'true';
+      continue;
+    }
     if (arg.startsWith('--')) {
       const value = rawArgs[index + 1];
       if (value && !value.startsWith('--')) {
         parsed[arg.slice(2)] = value;
         index += 1;
+        continue;
       }
+
+      throw new Error(`Unknown or incomplete argument for mdorigin build search: ${arg}`);
     }
+
+    throw new Error(`Unknown positional argument for mdorigin build search: ${arg}`);
   }
 
   return {
@@ -58,5 +73,6 @@ function parseArgs(rawArgs: string[]) {
     embeddingBackend: parsed['embedding-backend'] as 'hashing' | 'model2vec' | undefined,
     model: parsed.model,
     config: parsed.config,
+    help: parsed.help === 'true',
   };
 }

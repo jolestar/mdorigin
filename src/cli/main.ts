@@ -1,17 +1,49 @@
 #!/usr/bin/env node
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { runBuildIndexCommand } from './build-index.js';
 import { runBuildCloudflareCommand } from './build-cloudflare.js';
 import { runBuildSearchCommand } from './build-search.js';
 import { runDevCommand } from './dev.js';
+import { BUILD_USAGE_LINES, INIT_USAGE_LINES, ROOT_USAGE_LINES, printUsage } from './help.js';
 import { runInitCloudflareCommand } from './init-cloudflare.js';
 import { runSearchCommand } from './search.js';
 
 async function main() {
-  const [command, subcommand, ...rest] = process.argv.slice(2);
+  const argv = process.argv.slice(2);
+  const [command, subcommand, ...rest] = argv;
+
+  if (argv.length === 0 || command === 'help' || command === '--help' || command === '-h') {
+    if (command === 'help' && subcommand === 'build') {
+      printUsage(BUILD_USAGE_LINES);
+      return;
+    }
+
+    if (command === 'help' && subcommand === 'init') {
+      printUsage(INIT_USAGE_LINES);
+      return;
+    }
+
+    printUsage(ROOT_USAGE_LINES);
+    return;
+  }
+
+  if (command === '--version' || command === '-V' || command === 'version') {
+    console.log(getCliVersion());
+    return;
+  }
 
   if (command === 'dev') {
     await runDevCommand([subcommand, ...rest].filter(isDefined));
+    return;
+  }
+
+  if (command === 'build' && (subcommand === '--help' || subcommand === '-h' || !subcommand)) {
+    printUsage(BUILD_USAGE_LINES, subcommand === undefined);
+    process.exitCode = subcommand === undefined ? 1 : 0;
     return;
   }
 
@@ -35,20 +67,19 @@ async function main() {
     return;
   }
 
+  if (command === 'init' && (subcommand === '--help' || subcommand === '-h' || !subcommand)) {
+    printUsage(INIT_USAGE_LINES, subcommand === undefined);
+    process.exitCode = subcommand === undefined ? 1 : 0;
+    return;
+  }
+
   if (command === 'search') {
     await runSearchCommand([subcommand, ...rest].filter(isDefined));
     return;
   }
 
-  console.error([
-    'Usage:',
-    '  mdorigin dev --root <content-dir> [--port 3000] [--config <config-file>] [--search ./dist/search]',
-    '  mdorigin build index (--root <content-dir> | --dir <content-dir>) [--config <config-file>]',
-    '  mdorigin build search --root <content-dir> [--out ./dist/search] [--embedding-backend model2vec|hashing] [--model sentence-transformers/all-MiniLM-L6-v2] [--config <config-file>]',
-    '  mdorigin build cloudflare --root <content-dir> [--out ./dist/cloudflare] [--config <config-file>] [--search ./dist/search]',
-    '  mdorigin init cloudflare [--dir .] [--entry ./dist/cloudflare/worker.mjs] [--name <worker-name>] [--compatibility-date 2026-03-20] [--force]',
-    '  mdorigin search --index <search-dir> [--top-k 10] <query>',
-  ].join('\n'));
+  console.error(`Unknown command: ${argv.join(' ')}`);
+  printUsage(ROOT_USAGE_LINES, true);
   process.exitCode = 1;
 }
 
@@ -59,4 +90,15 @@ void main().catch((error) => {
 
 function isDefined(value: string | undefined): value is string {
   return value !== undefined;
+}
+
+function getCliVersion(): string {
+  const packageJsonPath = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '..',
+    '..',
+    'package.json',
+  );
+  const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as { version?: string };
+  return packageJson.version ?? '0.0.0';
 }

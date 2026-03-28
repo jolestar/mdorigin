@@ -9,6 +9,12 @@ import {
 
 export async function runBuildCloudflareCommand(argv: string[]) {
   const args = parseArgs(argv);
+  if (args.help) {
+    console.log(
+      'Usage: mdorigin build cloudflare --root <content-dir> [--out ./dist/cloudflare] [--config <config-file>] [--search ./dist/search]',
+    );
+    return;
+  }
   if (!args.root) {
     console.error(
       'Usage: mdorigin build cloudflare --root <content-dir> [--out ./dist/cloudflare] [--config <config-file>] [--search ./dist/search]',
@@ -40,11 +46,22 @@ export async function runBuildCloudflareCommand(argv: string[]) {
 }
 
 function parseArgs(argv: string[]) {
-  const result: { root?: string; out?: string; config?: string; search?: string } = {};
+  const result: {
+    root?: string;
+    out?: string;
+    config?: string;
+    search?: string;
+    help?: boolean;
+  } = {};
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     const nextValue = argv[index + 1];
+
+    if (argument === '--help' || argument === '-h') {
+      result.help = true;
+      continue;
+    }
 
     if (argument === '--root' && nextValue) {
       result.root = nextValue;
@@ -67,7 +84,10 @@ function parseArgs(argv: string[]) {
     if (argument === '--search' && nextValue) {
       result.search = nextValue;
       index += 1;
+      continue;
     }
+
+    throw new Error(`Unknown argument for mdorigin build cloudflare: ${argument}`);
   }
 
   return result;

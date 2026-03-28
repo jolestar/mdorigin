@@ -5,6 +5,12 @@ import { initCloudflareProject } from '../cloudflare.js';
 
 export async function runInitCloudflareCommand(argv: string[]) {
   const args = parseArgs(argv);
+  if (args.help) {
+    console.log(
+      'Usage: mdorigin init cloudflare [--dir .] [--entry ./dist/cloudflare/worker.mjs] [--name <worker-name>] [--compatibility-date 2026-03-20] [--force]',
+    );
+    return;
+  }
   const projectDir = path.resolve(args.dir ?? '.');
   const workerEntry = path.resolve(
     projectDir,
@@ -31,11 +37,17 @@ function parseArgs(argv: string[]) {
     name?: string;
     compatibilityDate?: string;
     force?: boolean;
+    help?: boolean;
   } = {};
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     const nextValue = argv[index + 1];
+
+    if (argument === '--help' || argument === '-h') {
+      result.help = true;
+      continue;
+    }
 
     if (argument === '--dir' && nextValue) {
       result.dir = nextValue;
@@ -63,7 +75,10 @@ function parseArgs(argv: string[]) {
 
     if (argument === '--force') {
       result.force = true;
+      continue;
     }
+
+    throw new Error(`Unknown argument for mdorigin init cloudflare: ${argument}`);
   }
 
   return result;
