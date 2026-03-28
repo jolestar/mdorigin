@@ -12,7 +12,7 @@ summary: Markdown-first publishing for human HTML and agent-readable raw markdow
 
 It keeps markdown directly addressable, renders extensionless HTML from the same files, and can publish the same content tree to local preview or Cloudflare Workers.
 
-If you want to try it quickly, start with [Getting Started](./guides/getting-started.md), then move to [Configuration](./reference/configuration.md) and [Cloudflare Deployment](./guides/cloudflare.md).
+If you want to try it quickly, start with [Getting Started](./guides/getting-started.md), then move to [Configuration](./reference/configuration.md), [Extensions](./guides/extensions.md), and [Cloudflare Deployment](./guides/cloudflare.md).
 
 ## Core Principle
 
@@ -46,8 +46,11 @@ The top navigation and section indexes cover the rest of the documentation.
 <!-- INDEX:START -->
 
 - [Guides](./guides/)
+
 - [Skills](./skills/)
+
 - [Concepts](./concepts/)
+
 - [Reference](./reference/)
 
 - [Why mdorigin exists](./why-mdorigin.md)

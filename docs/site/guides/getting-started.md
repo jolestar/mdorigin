@@ -131,6 +131,8 @@ Today `template` only selects from built-in page structures. The longer-term dir
 
 If you want to start using code-based extensions now, switch from JSON config to `mdorigin.config.ts` and export a config object with `plugins`.
 
+The stable hooks, page model, and plugin data structures are documented in [Extensions](./extensions.md).
+
 If you use `catalog`, you can also cap the first batch of article entries:
 
 ```json

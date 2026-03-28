@@ -17,6 +17,9 @@ It focuses on concrete workflows and command sequences.
 - [Getting Started](./getting-started.md)
   2026-03-20 · Preview content locally, configure a site, and build indexes.
 
+- [Extensions](./extensions.md)
+  2026-03-28 · Stable plugin hooks, data structures, and page rendering contracts for code-based site customization.
+
 - [Cloudflare Deployment](./cloudflare.md)
   2026-03-20 · Build a user-project Worker bundle and initialize Wrangler config.
 
