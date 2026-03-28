@@ -1,6 +1,6 @@
 {
   "name": "mdorigin",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "type": "module",
   "description": "Markdown-first publishing for humans and agents.",
   "repository": {
