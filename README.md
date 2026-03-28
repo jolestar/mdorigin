@@ -77,7 +77,7 @@ Current stable hooks are:
 - `renderPage(page, context, next)`
 - `transformHtml(html, context)`
 
-`renderPage` and `transformHtml` receive `page.meta`, which is the normalized markdown frontmatter for the current document, including custom fields such as `syndication`.
+All render hooks that receive a `RenderHookContext` (`renderHeader`, `renderFooter`, `renderPage`, and `transformHtml`) can read the normalized markdown frontmatter for the current document via `context.page.meta`, including custom fields such as `syndication`.
 
 The intended boundary is:
 
