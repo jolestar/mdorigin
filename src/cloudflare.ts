@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { createReadStream } from 'node:fs';
 import {
   copyFile,
   mkdir,
@@ -131,8 +132,8 @@ export async function buildCloudflareManifest(
       continue;
     }
 
-    const bytes = await readFile(filePath);
     if (binaryMode === 'inline') {
+      const bytes = await readFile(filePath);
       entries.push({
         path: normalizedPath,
         kind: 'binary',
@@ -142,10 +143,13 @@ export async function buildCloudflareManifest(
       continue;
     }
 
-    entries.push(buildExternalBinaryEntry(normalizedPath, mediaType, bytes, {
-      assetsMaxBytes,
-      r2Binding,
-    }));
+    const fileStats = await stat(filePath);
+    entries.push(
+      await buildExternalBinaryEntry(filePath, normalizedPath, mediaType, fileStats.size, {
+        assetsMaxBytes,
+        r2Binding,
+      }),
+    );
   }
 
   const searchEntries = options.searchDir
@@ -268,8 +272,7 @@ export async function initCloudflareProject(
 
   const workerName =
     options.workerName ??
-    bundleMetadata?.siteTitle ??
-    slugifyWorkerName(options.siteTitle) ??
+    slugifyWorkerName(bundleMetadata?.siteTitle ?? options.siteTitle) ??
     'mdorigin-site';
   const compatibilityDate = options.compatibilityDate ?? '2026-03-20';
   const wranglerConfig = [
@@ -367,20 +370,21 @@ export async function syncCloudflareR2(
   };
 }
 
-function buildExternalBinaryEntry(
+async function buildExternalBinaryEntry(
+  filePath: string,
   normalizedPath: string,
   mediaType: string,
-  bytes: Buffer,
+  byteSize: number,
   options: { assetsMaxBytes: number; r2Binding: string },
-): ExternalBinaryCloudflareManifestEntry {
-  if (bytes.byteLength <= options.assetsMaxBytes) {
+): Promise<ExternalBinaryCloudflareManifestEntry> {
+  if (byteSize <= options.assetsMaxBytes) {
     return {
       path: normalizedPath,
       kind: 'binary',
       mediaType,
       storageKind: 'assets',
       storageKey: normalizedPath,
-      byteSize: bytes.byteLength,
+      byteSize,
     };
   }
 
@@ -389,8 +393,8 @@ function buildExternalBinaryEntry(
     kind: 'binary',
     mediaType,
     storageKind: 'r2',
-    storageKey: buildR2StorageKey(normalizedPath, bytes),
-    byteSize: bytes.byteLength,
+    storageKey: await buildR2StorageKey(filePath, normalizedPath),
+    byteSize,
   };
 }
 
@@ -487,10 +491,28 @@ async function readR2SyncState(stateFile: string): Promise<CloudflareR2SyncState
   return JSON.parse(await readFile(stateFile, 'utf8')) as CloudflareR2SyncState;
 }
 
-function buildR2StorageKey(normalizedPath: string, bytes: Buffer): string {
+async function buildR2StorageKey(
+  filePath: string,
+  normalizedPath: string,
+): Promise<string> {
   const extension = path.posix.extname(normalizedPath).toLowerCase();
-  const hash = createHash('sha256').update(bytes).digest('hex');
+  const hash = await hashFile(filePath);
   return extension ? `binary/${hash}${extension}` : `binary/${hash}`;
+}
+
+async function hashFile(filePath: string): Promise<string> {
+  const hash = createHash('sha256');
+
+  await new Promise<void>((resolve, reject) => {
+    const stream = createReadStream(filePath);
+    stream.on('data', (chunk) => {
+      hash.update(chunk);
+    });
+    stream.on('end', () => resolve());
+    stream.on('error', reject);
+  });
+
+  return hash.digest('hex');
 }
 
 function runWranglerCommand(

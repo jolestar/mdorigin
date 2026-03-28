@@ -170,18 +170,23 @@ test('cloudflare worker serves assets-backed binaries through ASSETS binding', a
     ],
   });
 
+  let fetchedRequest: Request | undefined;
   const response = await worker.fetch(
     new Request('https://example.com/images/cat.png'),
     {
       ASSETS: {
-        fetch: async () => new Response(Uint8Array.from([1, 2, 3]), {
-          headers: { 'content-type': 'image/png' },
-        }),
+        fetch: async (request) => {
+          fetchedRequest = request;
+          return new Response(Uint8Array.from([1, 2, 3]), {
+            headers: { 'content-type': 'image/png' },
+          });
+        },
       },
     },
   );
 
   assert.equal(response.status, 200);
+  assert.equal(fetchedRequest?.url, 'https://example.com/images/cat.png');
   assert.deepEqual(
     Array.from(new Uint8Array(await response.arrayBuffer())),
     [1, 2, 3],
@@ -242,5 +247,72 @@ test('cloudflare worker serves r2-backed binaries through configured bucket bind
   assert.deepEqual(
     Array.from(new Uint8Array(await response.arrayBuffer())),
     [4, 5, 6, 7],
+  );
+});
+
+test('cloudflare worker streams r2-backed binaries without buffering into content store', async () => {
+  const worker = createCloudflareWorker({
+    siteConfig: {
+      siteTitle: 'Worker Test',
+      siteUrl: undefined,
+      favicon: undefined,
+      logo: undefined,
+      showDate: true,
+      showSummary: true,
+      theme: 'paper',
+      template: 'document',
+      topNav: [],
+      footerNav: [],
+      footerText: undefined,
+      socialLinks: [],
+      editLink: undefined,
+      showHomeIndex: true,
+      catalogInitialPostCount: 10,
+      catalogLoadMoreStep: 10,
+      siteTitleConfigured: true,
+      siteDescriptionConfigured: false,
+    },
+    runtime: {
+      binaryMode: 'external',
+      r2Binding: 'MDORIGIN_R2',
+    },
+    entries: [
+      {
+        path: 'videos/stream.mp4',
+        kind: 'binary',
+        mediaType: 'video/mp4',
+        storageKind: 'r2',
+        storageKey: 'binary/stream.mp4',
+        byteSize: 4,
+      },
+    ],
+  });
+
+  let arrayBufferCalled = false;
+  const response = await worker.fetch(
+    new Request('https://example.com/videos/stream.mp4'),
+    {
+      MDORIGIN_R2: {
+        get: async () => ({
+          body: new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(Uint8Array.from([9, 8, 7, 6]));
+              controller.close();
+            },
+          }),
+          arrayBuffer: async () => {
+            arrayBufferCalled = true;
+            return Uint8Array.from([9, 8, 7, 6]).buffer;
+          },
+        }),
+      },
+    },
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(arrayBufferCalled, false);
+  assert.deepEqual(
+    Array.from(new Uint8Array(await response.arrayBuffer())),
+    [9, 8, 7, 6],
   );
 });

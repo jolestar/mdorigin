@@ -150,6 +150,35 @@ test('initCloudflareProject derives worker name from site title when name is omi
   assert.match(configSource, /"compatibility_flags": \["nodejs_compat"\]/);
 });
 
+test('initCloudflareProject slugifies site title from bundle metadata when name is omitted', async () => {
+  const projectDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-init-bundle-slug-'));
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-init-bundle-root-'));
+  const outDir = path.join(projectDir, 'dist', 'cloudflare');
+  await writeFile(path.join(rootDir, 'index.md'), '# Home\n', 'utf8');
+  await writeFile(path.join(rootDir, 'large.mp4'), Uint8Array.from([1, 2, 3, 4, 5, 6]));
+
+  const bundle = await writeCloudflareBundle({
+    rootDir,
+    outDir,
+    siteConfig: {
+      ...TEST_SITE_CONFIG,
+      siteTitle: 'Manifest Site',
+    },
+    binaryMode: 'external',
+    assetsMaxBytes: 4,
+  });
+
+  const result = await initCloudflareProject({
+    projectDir,
+    workerEntry: bundle.workerFile,
+    compatibilityDate: '2026-03-20',
+    r2Bucket: 'media-bucket',
+  });
+
+  const configSource = await readFile(result.configFile, 'utf8');
+  assert.match(configSource, /"name": "manifest-site"/);
+});
+
 test('buildCloudflareManifest follows directory symlinks', async () => {
   const workspaceDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-symlink-'));
   const rootDir = path.join(workspaceDir, 'docs', 'site');

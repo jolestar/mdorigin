@@ -7,6 +7,7 @@ import type {
 import { MemoryContentStore } from '../core/content-store.js';
 import type { MdoPlugin } from '../core/extensions.js';
 import { handleSiteRequest } from '../core/request-handler.js';
+import { resolveRequest } from '../core/router.js';
 import type { ResolvedSiteConfig } from '../core/site-config.js';
 import { createSearchApiFromBundle, type SearchBundleEntry } from '../search.js';
 
@@ -61,6 +62,7 @@ export interface CloudflareR2ObjectBodyLike {
 export interface CloudflareR2ObjectLike {
   body: CloudflareR2ObjectBodyLike | ReadableStream | null;
   arrayBuffer?: () => Promise<ArrayBuffer>;
+  httpEtag?: string;
 }
 
 export interface CloudflareR2BucketLike {
@@ -123,6 +125,14 @@ export function createCloudflareWorker(
   return {
     async fetch(request: Request, env?: CloudflareWorkerEnv): Promise<Response> {
       const url = new URL(request.url);
+      const directBinaryResponse = await tryServeExternalBinary(
+        manifest,
+        request,
+        env,
+      );
+      if (directBinaryResponse !== null) {
+        return directBinaryResponse;
+      }
       const store = new CloudflareManifestContentStore(manifest, storeIndex, request, env);
       const siteResponse = await handleSiteRequest(store, url.pathname, {
         draftMode: 'exclude',
@@ -167,6 +177,103 @@ export function createCloudflareWorker(
       });
     },
   };
+}
+
+async function tryServeExternalBinary(
+  manifest: CloudflareManifest,
+  request: Request,
+  env: CloudflareWorkerEnv | undefined,
+): Promise<Response | null> {
+  const resolved = resolveRequest(new URL(request.url).pathname);
+  if (resolved.kind !== 'asset' || !resolved.sourcePath) {
+    return null;
+  }
+
+  const manifestEntry = manifest.entries.find(
+    (entry): entry is ExternalBinaryCloudflareManifestEntry =>
+      entry.path === resolved.sourcePath && isExternalBinaryEntry(entry),
+  );
+  if (!manifestEntry) {
+    return null;
+  }
+
+  if (manifestEntry.storageKind === 'assets') {
+    const assetsBinding = env?.ASSETS;
+    if (!assetsBinding) {
+      throw new Error(
+        `Cloudflare ASSETS binding is required to serve ${manifestEntry.path}.`,
+      );
+    }
+
+    const assetUrl = new URL(request.url);
+    assetUrl.pathname = `/${manifestEntry.storageKey}`;
+    return assetsBinding.fetch(new Request(assetUrl.toString(), request));
+  }
+
+  const bucket = env?.[
+    manifest.runtime?.r2Binding ?? 'MDORIGIN_R2'
+  ] as CloudflareR2BucketLike | undefined;
+  if (!bucket) {
+    throw new Error(
+      `Cloudflare R2 binding ${manifest.runtime?.r2Binding ?? 'MDORIGIN_R2'} is required to serve ${manifestEntry.path}.`,
+    );
+  }
+
+  const object = await bucket.get(manifestEntry.storageKey);
+  if (!object) {
+    return new Response('Not Found', {
+      status: 404,
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+      },
+    });
+  }
+
+  const headers = new Headers({
+    'content-type': manifestEntry.mediaType,
+  });
+  if (object.httpEtag) {
+    headers.set('etag', object.httpEtag);
+  }
+
+  if (request.method === 'HEAD') {
+    return new Response(null, {
+      status: 200,
+      headers,
+    });
+  }
+
+  if (object.body instanceof ReadableStream) {
+    return new Response(object.body, {
+      status: 200,
+      headers,
+    });
+  }
+
+  if (object.body && 'arrayBuffer' in object.body) {
+    return new Response(await object.body.arrayBuffer(), {
+      status: 200,
+      headers,
+    });
+  }
+
+  if (typeof object.arrayBuffer === 'function') {
+    return new Response(await object.arrayBuffer(), {
+      status: 200,
+      headers,
+    });
+  }
+
+  return new Response(null, {
+    status: 200,
+    headers,
+  });
+}
+
+function isExternalBinaryEntry(
+  entry: CloudflareManifestEntry,
+): entry is ExternalBinaryCloudflareManifestEntry {
+  return entry.kind === 'binary' && 'storageKind' in entry;
 }
 
 class CloudflareManifestContentStore implements ContentStore {
