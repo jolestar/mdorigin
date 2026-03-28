@@ -908,6 +908,10 @@ test('handleSiteRequest respects site config rendering options', async () => {
     String(response.body),
     /rel="alternate" type="text\/markdown" href="\/post\.md"/,
   );
+  assert.match(
+    String(response.body),
+    /class="site-footer__markdown-link" href="\/post\.md">MD View</,
+  );
   assert.match(String(response.body), /<img src="\/logo\.svg" alt="Configured Site">/);
   assert.match(String(response.body), /site-footer__nav/);
   assert.match(String(response.body), /Footer note/);
