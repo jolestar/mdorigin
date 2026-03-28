@@ -274,6 +274,7 @@ function buildPageRenderModel(options: {
     socialImage: options.siteConfig.socialImage,
     logo: options.siteConfig.logo,
     title: getDocumentTitle(options.parsed),
+    meta: options.parsed.meta,
     bodyHtml: options.renderedBodyHtml,
     summary:
       options.siteConfig.showSummary === false

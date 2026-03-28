@@ -77,6 +77,8 @@ Current stable hooks are:
 - `renderPage(page, context, next)`
 - `transformHtml(html, context)`
 
+`renderPage` and `transformHtml` receive `page.meta`, which is the normalized markdown frontmatter for the current document, including custom fields such as `syndication`.
+
 The intended boundary is:
 
 - `mdorigin` owns routing and normalized content semantics

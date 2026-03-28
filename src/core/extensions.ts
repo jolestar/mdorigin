@@ -1,4 +1,4 @@
-import type { ManagedIndexEntry } from './markdown.js';
+import type { ManagedIndexEntry, ParsedDocumentMeta } from './markdown.js';
 import type {
   EditLinkConfig,
   ResolvedSiteConfig,
@@ -30,6 +30,7 @@ export interface PageRenderModel {
   socialImage?: string;
   logo?: SiteLogo;
   title: string;
+  meta: ParsedDocumentMeta;
   bodyHtml: string;
   summary?: string;
   date?: string;

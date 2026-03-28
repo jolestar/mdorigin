@@ -13,3 +13,4 @@ export type {
   RenderHookContext,
   IndexTransformContext,
 } from './core/extensions.js';
+export type { ParsedDocumentMeta } from './core/markdown.js';

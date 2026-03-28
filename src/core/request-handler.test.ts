@@ -196,6 +196,65 @@ test('handleSiteRequest uses the final page model for downstream plugin hooks', 
   assert.match(String(response.body), /data-title="Renamed Home"/);
 });
 
+test('handleSiteRequest exposes normalized frontmatter meta to page plugins', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: [
+        '---',
+        'title: Home',
+        'summary: Home summary',
+        'date: 2026-03-28',
+        'syndication:',
+        '  - platform: X / Twitter',
+        '    url: https://x.com/jolestar/status/123',
+        'customMeta: custom-value',
+        '---',
+        '',
+        '# Home',
+      ].join('\n'),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+    plugins: [
+      {
+        name: 'inspect-meta',
+        renderPage(page, _context, next) {
+          assert.equal(page.meta.title, 'Home');
+          assert.equal(page.meta.summary, 'Home summary');
+          assert.equal(page.meta.date, '2026-03-28');
+          assert.equal(page.meta.customMeta, 'custom-value');
+          assert.deepEqual(page.meta.syndication, [
+            {
+              platform: 'X / Twitter',
+              url: 'https://x.com/jolestar/status/123',
+            },
+          ]);
+          return next(page);
+        },
+        transformHtml(html, context) {
+          const items = Array.isArray(context.page.meta.syndication)
+            ? context.page.meta.syndication
+            : [];
+          return html.replace(
+            '</body>',
+            `<meta data-syndication-count="${items.length}" data-custom-meta="${context.page.meta.customMeta}"></body>`,
+          );
+        },
+      },
+    ],
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(String(response.body), /data-syndication-count="1"/);
+  assert.match(String(response.body), /data-custom-meta="custom-value"/);
+});
+
 test('handleSiteRequest serves markdown on extensionless routes when accept asks for markdown', async () => {
   const store = new MemoryContentStore([
     {
