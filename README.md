@@ -77,6 +77,8 @@ Current stable hooks are:
 - `renderPage(page, context, next)`
 - `transformHtml(html, context)`
 
+All render hooks that receive a `RenderHookContext` (`renderHeader`, `renderFooter`, `renderPage`, and `transformHtml`) can read the normalized markdown frontmatter for the current document via `context.page.meta`, including custom fields such as `syndication`.
+
 The intended boundary is:
 
 - `mdorigin` owns routing and normalized content semantics

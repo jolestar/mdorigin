@@ -118,6 +118,7 @@ type PageRenderModel = {
   socialImage?: string;
   logo?: SiteLogo;
   title: string;
+  meta: ParsedDocumentMeta;
   bodyHtml: string;
   summary?: string;
   date?: string;
@@ -152,6 +153,8 @@ The most important fields in practice are:
   - source markdown path inside the content tree
 - `title`
   - normalized page title
+- `meta`
+  - normalized markdown frontmatter, including custom fields
 - `bodyHtml`
   - already-rendered markdown body HTML
 - `summary` and `date`
