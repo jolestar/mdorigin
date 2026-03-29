@@ -26,7 +26,7 @@ Main commands:
 - `mdorigin build index --root <content-dir> --config <config-file>`
 - `mdorigin build search --root <content-dir> --config <config-file>`
 - `mdorigin build search --root <content-dir> --embedding-backend hashing`
- - `mdorigin build search --root <content-dir> --incremental`
+- `mdorigin build search --root <content-dir> --incremental`
 - `mdorigin build cloudflare --root <content-dir> --config <config-file> --search <search-dir> --binary-mode external`
 - `mdorigin init cloudflare --dir . --r2-bucket <bucket-name>`
 - `mdorigin sync cloudflare-r2 --dir <cloudflare-out-dir> --bucket <bucket-name>`

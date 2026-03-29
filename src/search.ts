@@ -1,3 +1,4 @@
+import { rmSync } from 'node:fs';
 import {
   mkdtemp,
   mkdir,
@@ -171,6 +172,10 @@ interface SearchBundleDocument {
   summary?: string | null;
   metadata?: Record<string, JsonValue>;
 }
+
+const OVERVIEW_CONTENT_FILENAMES = new Set(['readme.md', 'index.md', 'skill.md']);
+const materializedSearchBundleDirectories = new Set<string>();
+let searchBundleDirectoryCleanupRegistered = false;
 
 export interface BuildSearchBundleOptions {
   rootDir: string;
@@ -619,11 +624,8 @@ function getSearchSection(relativePath: string): string {
 }
 
 function isOverviewContentPath(relativePath: string): boolean {
-  const baseName = path.posix.basename(relativePath).toLowerCase();
-  return (
-    baseName === 'readme.md' ||
-    baseName === 'index.md' ||
-    baseName === 'skill.md'
+  return OVERVIEW_CONTENT_FILENAMES.has(
+    path.posix.basename(relativePath).toLowerCase(),
   );
 }
 
@@ -855,6 +857,7 @@ async function openWebIndexFromMaterializedBundle<
   loadResponse: (entry: Entry) => Promise<Response>,
 ): Promise<IndexbindWebIndex> {
   const tempDir = await mkdtemp(path.join(os.tmpdir(), 'mdorigin-search-bundle-'));
+  registerMaterializedSearchBundleDirectory(tempDir);
 
   for (const entry of bundleEntries) {
     const response = await loadResponse(entry);
@@ -864,7 +867,7 @@ async function openWebIndexFromMaterializedBundle<
       );
     }
 
-    const outputPath = path.join(tempDir, entry.path);
+    const outputPath = resolveMaterializedSearchBundlePath(tempDir, entry.path);
     await mkdir(path.dirname(outputPath), { recursive: true });
 
     if (entry.mediaType.startsWith('text/') || entry.mediaType.includes('json')) {
@@ -931,7 +934,12 @@ function decodeBase64(value: string): Uint8Array {
 function buildIndexbindSearchOptions(options: SearchQueryOptions): SearchQueryOptions | undefined {
   const normalized: SearchQueryOptions = {};
 
-  if (typeof options.topK === 'number') {
+  if (
+    typeof options.topK === 'number' &&
+    Number.isFinite(options.topK) &&
+    Number.isInteger(options.topK) &&
+    options.topK > 0
+  ) {
     normalized.topK = options.topK;
   }
 
@@ -1040,6 +1048,51 @@ function isNodeRuntime(): boolean {
   );
 }
 
+function resolveMaterializedSearchBundlePath(baseDir: string, entryPath: string): string {
+  if (path.isAbsolute(entryPath)) {
+    throw new Error(`Search bundle path must be relative: ${entryPath}`);
+  }
+
+  const normalizedEntryPath = entryPath.replaceAll('/', path.sep);
+  const outputPath = path.resolve(baseDir, normalizedEntryPath);
+  const relativeOutputPath = path.relative(baseDir, outputPath);
+  if (
+    relativeOutputPath === '' ||
+    relativeOutputPath.startsWith(`..${path.sep}`) ||
+    relativeOutputPath === '..' ||
+    path.isAbsolute(relativeOutputPath)
+  ) {
+    throw new Error(`Search bundle path escapes materialized bundle directory: ${entryPath}`);
+  }
+
+  return outputPath;
+}
+
+function registerMaterializedSearchBundleDirectory(directoryPath: string): void {
+  materializedSearchBundleDirectories.add(directoryPath);
+  if (searchBundleDirectoryCleanupRegistered || !isNodeRuntime()) {
+    return;
+  }
+
+  const cleanup = () => {
+    for (const stagedDirectory of materializedSearchBundleDirectories) {
+      rmSync(stagedDirectory, { recursive: true, force: true });
+    }
+    materializedSearchBundleDirectories.clear();
+  };
+
+  process.once('exit', cleanup);
+  process.once('SIGINT', () => {
+    cleanup();
+    process.exit(130);
+  });
+  process.once('SIGTERM', () => {
+    cleanup();
+    process.exit(143);
+  });
+  searchBundleDirectoryCleanupRegistered = true;
+}
+
 function rerankSearchHits(hits: SearchHit[]): SearchHit[] {
   const remaining = [...hits];
   const ordered: SearchHit[] = [];
@@ -1101,8 +1154,9 @@ function compareHits(left: SearchHit, right: SearchHit): number {
 }
 
 function isOverviewSearchHit(hit: SearchHit): boolean {
-  const baseName = path.posix.basename(hit.relativePath).toLowerCase();
-  return baseName === 'readme.md' || baseName === 'index.md';
+  return OVERVIEW_CONTENT_FILENAMES.has(
+    path.posix.basename(hit.relativePath).toLowerCase(),
+  );
 }
 
 function getTopLevelSection(relativePath: string): string {
