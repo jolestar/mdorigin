@@ -329,6 +329,8 @@ test('writeCloudflareBundle externalizes search bundle files instead of embeddin
   assert.ok(!workerSource.includes('"documents":"documents.json"'));
   assert.match(workerSource, /"externalSearchEntries": \[/);
   assert.equal(bundleMetadata.assetsDir, 'assets');
+  assert.equal(bundleMetadata.r2Dir, undefined);
+  assert.equal(bundleMetadata.r2Binding, undefined);
   assert.deepEqual(
     bundleMetadata.stagedObjects
       .filter((object) => object.kind === 'search')
@@ -400,6 +402,105 @@ test('initCloudflareProject writes assets config for search-only cloudflare bund
   assert.match(configSource, /"assets": \{/);
   assert.match(configSource, /"directory": "dist\/cloudflare\/assets"/);
   assert.match(configSource, /"binding": "ASSETS"/);
+});
+
+test('initCloudflareProject accepts legacy bundle metadata with r2Objects', async () => {
+  const projectDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-init-legacy-'));
+  const workerDir = path.join(projectDir, 'dist', 'cloudflare');
+  const workerEntry = path.join(workerDir, 'worker.mjs');
+  await mkdir(workerDir, { recursive: true });
+  await writeFile(workerEntry, 'export default {};\n', 'utf8');
+  await writeFile(
+    path.join(workerDir, 'bundle.json'),
+    JSON.stringify(
+      {
+        version: 1,
+        workerEntry: 'worker.mjs',
+        binaryMode: 'external',
+        r2Dir: 'r2',
+        r2Binding: 'MDORIGIN_R2',
+        siteTitle: 'Legacy Site',
+        r2Objects: [
+          {
+            path: 'large.mp4',
+            mediaType: 'video/mp4',
+            storageKey: 'binary/legacy.mp4',
+            file: 'r2/binary/legacy.mp4',
+            byteSize: 6,
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+
+  await assert.rejects(
+    initCloudflareProject({
+      projectDir,
+      workerEntry,
+      compatibilityDate: '2026-03-20',
+    }),
+    /R2-backed staged objects/,
+  );
+
+  const result = await initCloudflareProject({
+    projectDir,
+    workerEntry,
+    compatibilityDate: '2026-03-20',
+    r2Bucket: 'legacy-bucket',
+    force: true,
+  });
+
+  const configSource = await readFile(result.configFile, 'utf8');
+  assert.match(configSource, /"binding": "MDORIGIN_R2"/);
+  assert.match(configSource, /"bucket_name": "legacy-bucket"/);
+});
+
+test('syncCloudflareR2 accepts legacy bundle metadata with r2Objects', async () => {
+  const outDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-sync-legacy-'));
+  const stagedFile = path.join(outDir, 'r2', 'binary', 'legacy.mp4');
+  await mkdir(path.dirname(stagedFile), { recursive: true });
+  await writeFile(stagedFile, Uint8Array.from([1, 2, 3, 4]));
+  await writeFile(
+    path.join(outDir, 'bundle.json'),
+    JSON.stringify(
+      {
+        version: 1,
+        workerEntry: 'worker.mjs',
+        binaryMode: 'external',
+        r2Dir: 'r2',
+        r2Binding: 'MDORIGIN_R2',
+        r2Objects: [
+          {
+            path: 'legacy.mp4',
+            mediaType: 'video/mp4',
+            storageKey: 'binary/legacy.mp4',
+            file: 'r2/binary/legacy.mp4',
+            byteSize: 4,
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+
+  const calls: string[] = [];
+  const result = await syncCloudflareR2({
+    dir: outDir,
+    bucketName: 'legacy-bucket',
+    runCommand: (command, args) => {
+      calls.push([command, ...args].join(' '));
+      return { status: 0, stderr: '' };
+    },
+  });
+
+  assert.equal(result.uploadedCount, 1);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0] ?? '', /legacy-bucket\/binary\/legacy\.mp4/);
 });
 
 test('syncCloudflareR2 uploads only missing objects and writes sync state', async () => {

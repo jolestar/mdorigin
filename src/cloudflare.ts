@@ -101,6 +101,24 @@ interface CloudflareR2SyncState {
   uploaded: Record<string, { syncedAt: string }>;
 }
 
+interface CloudflareBundleMetadataV1 {
+  version?: 1;
+  workerEntry: string;
+  binaryMode: CloudflareBinaryMode;
+  assetsMaxBytes?: number;
+  assetsDir?: string;
+  r2Dir?: string;
+  r2Binding?: string;
+  siteTitle?: string;
+  r2Objects?: Array<{
+    path: string;
+    mediaType: string;
+    storageKey: string;
+    file: string;
+    byteSize: number;
+  }>;
+}
+
 const DEFAULT_ASSETS_MAX_BYTES = 25 * 1024 * 1024;
 const DEFAULT_ASSETS_BINDING = 'ASSETS';
 const DEFAULT_R2_BINDING = 'MDORIGIN_R2';
@@ -429,6 +447,7 @@ async function writeExternalStaging(
     CloudflareBundleMetadata['stagedObjects'][number]
   >();
   let hasAssets = false;
+  let hasR2 = false;
   if (options.binaryMode === 'external') {
     for (const entry of manifest.entries) {
       if (entry.kind !== 'binary' || !('storageKind' in entry)) {
@@ -458,6 +477,7 @@ async function writeExternalStaging(
       if (!stagedObjects.has(`r2:${entry.storageKey}`)) {
         await mkdir(path.dirname(targetFile), { recursive: true });
         await copyFile(sourceFile, targetFile);
+        hasR2 = true;
         stagedObjects.set(`r2:${entry.storageKey}`, {
           kind: 'binary',
           path: entry.path,
@@ -496,6 +516,7 @@ async function writeExternalStaging(
       if (!stagedObjects.has(`r2:${entry.storageKey}`)) {
         await mkdir(path.dirname(targetFile), { recursive: true });
         await copyFile(sourceFile, targetFile);
+        hasR2 = true;
         stagedObjects.set(`r2:${entry.storageKey}`, {
           kind: 'search',
           path: entry.path,
@@ -516,11 +537,8 @@ async function writeExternalStaging(
     assetsMaxBytes:
       options.binaryMode === 'external' || searchDir ? options.assetsMaxBytes : undefined,
     assetsDir: hasAssets ? 'assets' : undefined,
-    r2Dir: stagedObjects.size > 0 ? 'r2' : undefined,
-    r2Binding:
-      stagedObjects.size > 0
-        ? options.r2Binding
-        : undefined,
+    r2Dir: hasR2 ? 'r2' : undefined,
+    r2Binding: hasR2 ? options.r2Binding : undefined,
     siteTitle: options.siteTitle,
     stagedObjects: Array.from(stagedObjects.values()).sort((left, right) =>
       left.storageKey.localeCompare(right.storageKey),
@@ -542,7 +560,39 @@ async function readCloudflareBundleMetadata(
 async function readBundleMetadataFile(
   bundleFile: string,
 ): Promise<CloudflareBundleMetadata> {
-  return JSON.parse(await readFile(bundleFile, 'utf8')) as CloudflareBundleMetadata;
+  const parsed = JSON.parse(await readFile(bundleFile, 'utf8')) as
+    | CloudflareBundleMetadata
+    | CloudflareBundleMetadataV1;
+
+  if ('stagedObjects' in parsed && Array.isArray(parsed.stagedObjects)) {
+    return parsed;
+  }
+
+  if ('r2Objects' in parsed && Array.isArray(parsed.r2Objects)) {
+    return {
+      version: 2,
+      workerEntry: parsed.workerEntry,
+      binaryMode: parsed.binaryMode,
+      assetsMaxBytes: parsed.assetsMaxBytes,
+      assetsDir: parsed.assetsDir,
+      r2Dir: parsed.r2Dir,
+      r2Binding: parsed.r2Binding,
+      siteTitle: parsed.siteTitle,
+      stagedObjects: parsed.r2Objects.map((object) => ({
+        kind: 'binary',
+        path: object.path,
+        mediaType: object.mediaType,
+        storageKind: 'r2',
+        storageKey: object.storageKey,
+        file: object.file,
+        byteSize: object.byteSize,
+      })),
+    };
+  }
+
+  throw new Error(
+    `Bundle metadata in ${bundleFile} is not supported. Rebuild the Cloudflare bundle with the current mdorigin CLI.`,
+  );
 }
 
 async function readR2SyncState(stateFile: string): Promise<CloudflareR2SyncState> {

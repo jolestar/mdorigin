@@ -127,29 +127,25 @@ export function createCloudflareWorker(
     manifest.searchEntries && manifest.searchEntries.length > 0
       ? createSearchApiFromBundle(manifest.searchEntries)
       : undefined;
-  let currentEnv: CloudflareWorkerEnv | undefined;
-  let externalSearchApi:
+  const externalSearchApis = new WeakMap<
+    CloudflareWorkerEnv,
+    ReturnType<typeof createSearchApiFromExternalBundle>
+  >();
+  let defaultExternalSearchApi:
     | ReturnType<typeof createSearchApiFromExternalBundle>
     | undefined;
 
   return {
     async fetch(request: Request, env?: CloudflareWorkerEnv): Promise<Response> {
       const url = new URL(request.url);
-      currentEnv = env;
-      if (
-        externalSearchApi === undefined &&
-        manifest.externalSearchEntries &&
-        manifest.externalSearchEntries.length > 0
-      ) {
-        externalSearchApi = createSearchApiFromExternalBundle(
-          manifest.externalSearchEntries,
-          async (entry) =>
-            loadExternalSearchEntryResponse(
-              entry,
-              currentEnv,
-              manifest.runtime?.r2Binding,
-            ),
-        );
+      const externalSearchApi = getExternalSearchApi(
+        manifest,
+        env,
+        externalSearchApis,
+        defaultExternalSearchApi,
+      );
+      if (env === undefined && externalSearchApi !== undefined) {
+        defaultExternalSearchApi = externalSearchApi;
       }
       const directBinaryResponse = await tryServeExternalBinary(
         manifest,
@@ -201,6 +197,41 @@ export function createCloudflareWorker(
       });
     },
   };
+}
+
+function getExternalSearchApi(
+  manifest: CloudflareManifest,
+  env: CloudflareWorkerEnv | undefined,
+  cache: WeakMap<CloudflareWorkerEnv, ReturnType<typeof createSearchApiFromExternalBundle>>,
+  defaultApi: ReturnType<typeof createSearchApiFromExternalBundle> | undefined,
+): ReturnType<typeof createSearchApiFromExternalBundle> | undefined {
+  if (!manifest.externalSearchEntries || manifest.externalSearchEntries.length === 0) {
+    return undefined;
+  }
+
+  if (!env) {
+    return (
+      defaultApi ??
+      createSearchApiFromExternalBundle(
+        manifest.externalSearchEntries,
+        async (entry) =>
+          loadExternalSearchEntryResponse(entry, undefined, manifest.runtime?.r2Binding),
+      )
+    );
+  }
+
+  const cached = cache.get(env);
+  if (cached) {
+    return cached;
+  }
+
+  const searchApi = createSearchApiFromExternalBundle(
+    manifest.externalSearchEntries,
+    async (entry) =>
+      loadExternalSearchEntryResponse(entry, env, manifest.runtime?.r2Binding),
+  );
+  cache.set(env, searchApi);
+  return searchApi;
 }
 
 async function loadExternalSearchEntryResponse(

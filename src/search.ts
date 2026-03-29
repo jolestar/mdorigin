@@ -618,10 +618,32 @@ function createInlineSearchBundleResponse(entry: SearchBundleEntry): Response {
 }
 
 function isCloudflareWasmImportError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    error.message.includes('Unknown file extension ".wasm"')
-  );
+  const targetMessages = [
+    'Unknown file extension ".wasm"',
+    'WebAssembly.Module(): Argument 0 must be a buffer source',
+  ];
+  const visited = new Set<unknown>();
+  let current: unknown = error;
+
+  while (current && typeof current === 'object' && !visited.has(current)) {
+    visited.add(current);
+
+    if (current instanceof Error) {
+      const currentMessage = current.message;
+      if (targetMessages.some((message) => currentMessage.includes(message))) {
+        return true;
+      }
+    }
+
+    const cause = (current as { cause?: unknown }).cause;
+    if (!cause) {
+      break;
+    }
+
+    current = cause;
+  }
+
+  return false;
 }
 
 function decodeBase64(value: string): Uint8Array {
