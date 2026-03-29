@@ -26,10 +26,11 @@ Main commands:
 - `mdorigin build index --root <content-dir> --config <config-file>`
 - `mdorigin build search --root <content-dir> --config <config-file>`
 - `mdorigin build search --root <content-dir> --embedding-backend hashing`
+ - `mdorigin build search --root <content-dir> --incremental`
 - `mdorigin build cloudflare --root <content-dir> --config <config-file> --search <search-dir> --binary-mode external`
 - `mdorigin init cloudflare --dir . --r2-bucket <bucket-name>`
 - `mdorigin sync cloudflare-r2 --dir <cloudflare-out-dir> --bucket <bucket-name>`
-- `mdorigin search --index <search-dir> <query>`
+- `mdorigin search --index <search-dir> --meta type=post <query>`
 
 With a project-local install, run the same commands via `npx --no-install mdorigin ...`.
 
@@ -38,6 +39,7 @@ Useful defaults:
 - `dev`, `build index`, `build search`, and `build cloudflare` all accept `--config`
 - `build search` writes to `dist/search` unless `--out` is provided
 - `build search` defaults to the `model2vec` embedding backend
+- `build search --incremental` keeps an `indexbind` cache beside the output directory to speed up repeated rebuilds
 - `build cloudflare` writes to `dist/cloudflare/worker.mjs` unless `--out` is provided
 - `build cloudflare` defaults to `--binary-mode inline`; use `--binary-mode external` to stage binaries outside the Worker bundle
 - when `build cloudflare` is given `--search`, search files are always staged outside the Worker bundle for Cloudflare and still use `--assets-max-bytes` / `--r2-binding`
@@ -66,5 +68,10 @@ When `dev` or `build cloudflare` is given `--search`, the site exposes:
 
 - `/api/search?q=...`
 - `/api/openapi.json`
+
+Search metadata filters are available through:
+
+- repeated CLI flags such as `mdorigin search --index dist/search --meta type=post --meta section=guides "cloudflare"`
+- query parameters such as `/api/search?q=cloudflare&meta.type=post&meta.section=guides`
 
 Content traversal ignores dotfiles and dot-directories. `.gitignore` does not affect publishing behavior.

@@ -1,4 +1,13 @@
-import { readdir, readFile, realpath, stat } from 'node:fs/promises';
+import {
+  mkdtemp,
+  mkdir,
+  readdir,
+  readFile,
+  realpath,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 
 import { inferDirectoryContentType } from './core/content-type.js';
@@ -48,6 +57,33 @@ interface IndexbindBuildModule {
       overlapTokens?: number;
     },
   ): Promise<{ documentCount: number; chunkCount: number; vectorDimensions: number }>;
+  updateBuildCache(
+    cachePath: string,
+    documents: IndexbindBuildDocument[],
+    options?: {
+      embeddingBackend?: 'hashing' | 'model2vec';
+      hashingDimensions?: number;
+      model?: string;
+      batchSize?: number;
+      sourceRootId?: string;
+      sourceRootPath?: string;
+      targetTokens?: number;
+      overlapTokens?: number;
+    },
+    removedRelativePaths?: string[],
+  ): Promise<{
+    scannedDocumentCount: number;
+    newDocumentCount: number;
+    changedDocumentCount: number;
+    unchangedDocumentCount: number;
+    removedDocumentCount: number;
+    activeDocumentCount: number;
+    activeChunkCount: number;
+  }>;
+  exportCanonicalBundleFromBuildCache(
+    cachePath: string,
+    outputDir: string,
+  ): Promise<{ documentCount: number; chunkCount: number; vectorDimensions: number }>;
 }
 
 export interface SearchHit {
@@ -88,13 +124,16 @@ interface IndexbindCloudflareModule {
   openWebIndex(base: string | URL): Promise<IndexbindWebIndex>;
 }
 
+export interface SearchQueryOptions {
+  topK?: number;
+  relativePathPrefix?: string;
+  metadata?: Record<string, string>;
+}
+
 export interface SearchApi {
   search(
     query: string,
-    options?: {
-      topK?: number;
-      relativePathPrefix?: string;
-    },
+    options?: SearchQueryOptions,
   ): Promise<SearchHit[]>;
 }
 
@@ -119,6 +158,20 @@ interface SearchDocument {
   relativePath: string;
 }
 
+interface SearchBundleManifest {
+  files?: {
+    documents?: string;
+  };
+}
+
+interface SearchBundleDocument {
+  docId: string;
+  canonicalUrl?: string | null;
+  title?: string | null;
+  summary?: string | null;
+  metadata?: Record<string, JsonValue>;
+}
+
 export interface BuildSearchBundleOptions {
   rootDir: string;
   outDir: string;
@@ -126,6 +179,8 @@ export interface BuildSearchBundleOptions {
   draftMode?: 'include' | 'exclude';
   embeddingBackend?: 'hashing' | 'model2vec';
   model?: string;
+  incremental?: boolean;
+  cachePath?: string;
 }
 
 export interface BuildSearchBundleResult {
@@ -133,6 +188,16 @@ export interface BuildSearchBundleResult {
   documentCount: number;
   chunkCount: number;
   vectorDimensions: number;
+  cachePath?: string;
+  incremental?: {
+    scannedDocumentCount: number;
+    newDocumentCount: number;
+    changedDocumentCount: number;
+    unchangedDocumentCount: number;
+    removedDocumentCount: number;
+    activeDocumentCount: number;
+    activeChunkCount: number;
+  };
 }
 
 export interface SearchBundleOptions {
@@ -140,6 +205,7 @@ export interface SearchBundleOptions {
   query: string;
   topK?: number;
   relativePathPrefix?: string;
+  metadata?: Record<string, string>;
 }
 
 export async function buildSearchBundle(
@@ -147,23 +213,56 @@ export async function buildSearchBundle(
 ): Promise<BuildSearchBundleResult> {
   const buildModule = await loadIndexbindBuildModule();
   const rootDir = path.resolve(options.rootDir);
+  const outputDir = path.resolve(options.outDir);
   const documents = await collectSearchDocuments(rootDir, options.siteConfig, {
     draftMode: options.draftMode ?? 'exclude',
   });
+  const buildOptions = {
+    embeddingBackend: options.embeddingBackend ?? 'model2vec',
+    model: options.model,
+    sourceRootId: path.basename(rootDir),
+    sourceRootPath: rootDir,
+  } as const;
+
+  if (options.incremental) {
+    const cachePath = path.resolve(
+      options.cachePath ?? defaultSearchBuildCachePath(outputDir),
+    );
+    await mkdir(path.dirname(cachePath), { recursive: true });
+    const removedRelativePaths = await resolveRemovedRelativePaths(
+      cachePath,
+      documents.map((document) => document.relativePath),
+    );
+    const incrementalStats = await buildModule.updateBuildCache(
+      cachePath,
+      documents,
+      buildOptions,
+      removedRelativePaths,
+    );
+    const stats = await buildModule.exportCanonicalBundleFromBuildCache(
+      cachePath,
+      outputDir,
+    );
+    await writeSearchBuildState(cachePath, documents.map((document) => document.relativePath));
+
+    return {
+      outputDir,
+      documentCount: stats.documentCount,
+      chunkCount: stats.chunkCount,
+      vectorDimensions: stats.vectorDimensions,
+      cachePath,
+      incremental: incrementalStats,
+    };
+  }
 
   const stats = await buildModule.buildCanonicalBundle(
-    path.resolve(options.outDir),
+    outputDir,
     documents,
-    {
-      embeddingBackend: options.embeddingBackend ?? 'model2vec',
-      model: options.model,
-      sourceRootId: path.basename(rootDir),
-      sourceRootPath: rootDir,
-    },
+    buildOptions,
   );
 
   return {
-    outputDir: path.resolve(options.outDir),
+    outputDir,
     documentCount: stats.documentCount,
     chunkCount: stats.chunkCount,
     vectorDimensions: stats.vectorDimensions,
@@ -173,26 +272,38 @@ export async function buildSearchBundle(
 export async function searchBundle(
   options: SearchBundleOptions,
 ): Promise<SearchHit[]> {
-  const webModule = await loadIndexbindWebModule();
-  const index = await webModule.openWebIndex(path.resolve(options.indexDir));
+  const searchContext = await openSearchContextFromDirectory(path.resolve(options.indexDir));
   return rerankSearchHits(
-    await index.search(options.query, {
-      topK: options.topK ?? 10,
-      relativePathPrefix: options.relativePathPrefix,
-    }),
+    hydrateSearchHits(
+      await searchContext.index.search(
+      options.query,
+      buildIndexbindSearchOptions({
+        topK: options.topK ?? 10,
+        relativePathPrefix: options.relativePathPrefix,
+        metadata: options.metadata,
+      }),
+      ),
+      searchContext.documentsById,
+    ),
   );
 }
 
 export async function createSearchApiFromDirectory(indexDir: string): Promise<SearchApi> {
-  const webModule = await loadIndexbindWebModule();
-  const index = await webModule.openWebIndex(path.resolve(indexDir));
+  const searchContext = await openSearchContextFromDirectory(path.resolve(indexDir));
   return {
     async search(query, options) {
       return rerankSearchHits(
-        await index.search(query, {
-          topK: options?.topK,
-          relativePathPrefix: options?.relativePathPrefix,
-        }),
+        hydrateSearchHits(
+          await searchContext.index.search(
+          query,
+          buildIndexbindSearchOptions({
+            topK: options?.topK,
+            relativePathPrefix: options?.relativePathPrefix,
+            metadata: options?.metadata,
+          }),
+          ),
+          searchContext.documentsById,
+        ),
       );
     },
   };
@@ -201,23 +312,33 @@ export async function createSearchApiFromDirectory(indexDir: string): Promise<Se
 export function createSearchApiFromBundle(
   bundleEntries: SearchBundleEntry[],
 ): SearchApi {
-  let indexPromise: Promise<IndexbindWebIndex> | null = null;
+  let searchContextPromise: Promise<{
+    index: IndexbindWebIndex;
+    documentsById: Map<string, SearchBundleDocument>;
+  }> | null = null;
 
   return {
     async search(query, options) {
-      if (indexPromise === null) {
-        indexPromise = openWebIndexFromVirtualBundle(
+      if (searchContextPromise === null) {
+        searchContextPromise = openSearchContextFromBundle(
           bundleEntries,
           async (entry) => createInlineSearchBundleResponse(entry),
         );
       }
 
-      const index = await indexPromise;
+      const searchContext = await searchContextPromise;
       return rerankSearchHits(
-        await index.search(query, {
-          topK: options?.topK,
-          relativePathPrefix: options?.relativePathPrefix,
-        }),
+        hydrateSearchHits(
+          await searchContext.index.search(
+          query,
+          buildIndexbindSearchOptions({
+            topK: options?.topK,
+            relativePathPrefix: options?.relativePathPrefix,
+            metadata: options?.metadata,
+          }),
+          ),
+          searchContext.documentsById,
+        ),
       );
     },
   };
@@ -227,20 +348,30 @@ export function createSearchApiFromExternalBundle(
   bundleEntries: ExternalSearchBundleEntry[],
   loadResponse: (entry: ExternalSearchBundleEntry) => Promise<Response>,
 ): SearchApi {
-  let indexPromise: Promise<IndexbindWebIndex> | null = null;
+  let searchContextPromise: Promise<{
+    index: IndexbindWebIndex;
+    documentsById: Map<string, SearchBundleDocument>;
+  }> | null = null;
 
   return {
     async search(query, options) {
-      if (indexPromise === null) {
-        indexPromise = openWebIndexFromVirtualBundle(bundleEntries, loadResponse);
+      if (searchContextPromise === null) {
+        searchContextPromise = openSearchContextFromBundle(bundleEntries, loadResponse);
       }
 
-      const index = await indexPromise;
+      const searchContext = await searchContextPromise;
       return rerankSearchHits(
-        await index.search(query, {
-          topK: options?.topK,
-          relativePathPrefix: options?.relativePathPrefix,
-        }),
+        hydrateSearchHits(
+          await searchContext.index.search(
+          query,
+          buildIndexbindSearchOptions({
+            topK: options?.topK,
+            relativePathPrefix: options?.relativePathPrefix,
+            metadata: options?.metadata,
+          }),
+          ),
+          searchContext.documentsById,
+        ),
       );
     },
   };
@@ -454,6 +585,8 @@ function buildSearchMetadata(
     markdownPath: `/${relativePath}`,
     canonicalPath,
     siteTitle: siteConfig.siteTitle,
+    section: getSearchSection(relativePath),
+    isOverview: isOverviewContentPath(relativePath),
   };
 
   if (meta.type === 'page' || meta.type === 'post') {
@@ -473,6 +606,25 @@ function buildSearchMetadata(
   }
 
   return metadata;
+}
+
+function getSearchSection(relativePath: string): string {
+  const directory = path.posix.dirname(relativePath.replaceAll('\\', '/'));
+  if (directory === '.') {
+    return '';
+  }
+
+  const [firstSegment] = directory.split('/', 1);
+  return firstSegment ?? '';
+}
+
+function isOverviewContentPath(relativePath: string): boolean {
+  const baseName = path.posix.basename(relativePath).toLowerCase();
+  return (
+    baseName === 'readme.md' ||
+    baseName === 'index.md' ||
+    baseName === 'skill.md'
+  );
 }
 
 function fallbackTitleFromRelativePath(relativePath: string): string {
@@ -524,6 +676,60 @@ async function pathExists(filePath: string): Promise<boolean> {
   }
 }
 
+function defaultSearchBuildCachePath(outputDir: string): string {
+  return path.join(
+    path.dirname(outputDir),
+    `${path.basename(outputDir)}.indexbind-cache.sqlite`,
+  );
+}
+
+function getSearchBuildStatePath(cachePath: string): string {
+  return `${cachePath}.state.json`;
+}
+
+async function resolveRemovedRelativePaths(
+  cachePath: string,
+  currentRelativePaths: readonly string[],
+): Promise<string[]> {
+  const previousRelativePaths = await readSearchBuildState(cachePath);
+  const current = new Set(currentRelativePaths);
+  return previousRelativePaths.filter((relativePath) => !current.has(relativePath));
+}
+
+async function readSearchBuildState(cachePath: string): Promise<string[]> {
+  const statePath = getSearchBuildStatePath(cachePath);
+  if (!(await pathExists(statePath))) {
+    return [];
+  }
+
+  const parsed = JSON.parse(await readFile(statePath, 'utf8')) as {
+    relativePaths?: string[];
+  };
+  return Array.isArray(parsed.relativePaths)
+    ? parsed.relativePaths.filter((value): value is string => typeof value === 'string')
+    : [];
+}
+
+async function writeSearchBuildState(
+  cachePath: string,
+  relativePaths: readonly string[],
+): Promise<void> {
+  await writeFile(
+    getSearchBuildStatePath(cachePath),
+    JSON.stringify(
+      {
+        version: 1,
+        relativePaths: [...relativePaths].sort((left, right) =>
+          left.localeCompare(right),
+        ),
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+}
+
 function isIgnoredSkillSupportDirectory(name: string): boolean {
   return (
     name === 'scripts' ||
@@ -572,6 +778,10 @@ async function openWebIndexFromVirtualBundle<
   bundleEntries: Entry[],
   loadResponse: (entry: Entry) => Promise<Response>,
 ): Promise<IndexbindWebIndex> {
+  if (isNodeRuntime()) {
+    return openWebIndexFromMaterializedBundle(bundleEntries, loadResponse);
+  }
+
   const baseUrl = 'https://mdorigin-search.invalid/';
   const originalFetch = globalThis.fetch;
   const bundleMap = new Map(
@@ -608,6 +818,65 @@ async function openWebIndexFromVirtualBundle<
   } finally {
     globalThis.fetch = originalFetch;
   }
+}
+
+async function openSearchContextFromDirectory(indexDir: string): Promise<{
+  index: IndexbindWebIndex;
+  documentsById: Map<string, SearchBundleDocument>;
+}> {
+  const webModule = await loadIndexbindWebModule();
+  const [index, documentsById] = await Promise.all([
+    webModule.openWebIndex(indexDir),
+    readSearchBundleDocumentsFromDirectory(indexDir),
+  ]);
+  return { index, documentsById };
+}
+
+async function openSearchContextFromBundle<
+  Entry extends { path: string; mediaType: string },
+>(
+  bundleEntries: Entry[],
+  loadResponse: (entry: Entry) => Promise<Response>,
+): Promise<{
+  index: IndexbindWebIndex;
+  documentsById: Map<string, SearchBundleDocument>;
+}> {
+  const [index, documentsById] = await Promise.all([
+    openWebIndexFromVirtualBundle(bundleEntries, loadResponse),
+    readSearchBundleDocumentsFromResponses(bundleEntries, loadResponse),
+  ]);
+  return { index, documentsById };
+}
+
+async function openWebIndexFromMaterializedBundle<
+  Entry extends { path: string; mediaType: string },
+>(
+  bundleEntries: Entry[],
+  loadResponse: (entry: Entry) => Promise<Response>,
+): Promise<IndexbindWebIndex> {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'mdorigin-search-bundle-'));
+
+  for (const entry of bundleEntries) {
+    const response = await loadResponse(entry);
+    if (!response.ok) {
+      throw new Error(
+        `Failed to materialize search bundle file ${entry.path}: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const outputPath = path.join(tempDir, entry.path);
+    await mkdir(path.dirname(outputPath), { recursive: true });
+
+    if (entry.mediaType.startsWith('text/') || entry.mediaType.includes('json')) {
+      await writeFile(outputPath, await response.text(), 'utf8');
+      continue;
+    }
+
+    await writeFile(outputPath, new Uint8Array(await response.arrayBuffer()));
+  }
+
+  const webModule = await loadIndexbindWebModule();
+  return webModule.openWebIndex(tempDir);
 }
 
 function createInlineSearchBundleResponse(entry: SearchBundleEntry): Response {
@@ -657,6 +926,118 @@ function isCloudflareWasmImportError(error: unknown): boolean {
 function decodeBase64(value: string): Uint8Array {
   const decoded = atob(value);
   return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
+}
+
+function buildIndexbindSearchOptions(options: SearchQueryOptions): SearchQueryOptions | undefined {
+  const normalized: SearchQueryOptions = {};
+
+  if (typeof options.topK === 'number') {
+    normalized.topK = options.topK;
+  }
+
+  if (typeof options.relativePathPrefix === 'string' && options.relativePathPrefix !== '') {
+    normalized.relativePathPrefix = options.relativePathPrefix;
+  }
+
+  if (options.metadata && Object.keys(options.metadata).length > 0) {
+    normalized.metadata = options.metadata;
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+function hydrateSearchHits(
+  hits: SearchHit[],
+  documentsById: Map<string, SearchBundleDocument>,
+): SearchHit[] {
+  return hits.map((hit) => {
+    const document = documentsById.get(hit.docId);
+    if (!document) {
+      return hit;
+    }
+
+    return {
+      ...hit,
+      canonicalUrl: hit.canonicalUrl ?? document.canonicalUrl ?? undefined,
+      title: hit.title ?? document.title ?? undefined,
+      summary: hit.summary ?? document.summary ?? undefined,
+      metadata:
+        Object.keys(hit.metadata).length > 0
+          ? hit.metadata
+          : document.metadata ?? hit.metadata,
+    };
+  });
+}
+
+async function readSearchBundleDocumentsFromDirectory(
+  indexDir: string,
+): Promise<Map<string, SearchBundleDocument>> {
+  const manifest = JSON.parse(
+    await readFile(path.join(indexDir, 'manifest.json'), 'utf8'),
+  ) as SearchBundleManifest;
+  const documentsFile = manifest.files?.documents;
+  if (!documentsFile) {
+    return new Map();
+  }
+
+  const documents = JSON.parse(
+    await readFile(path.join(indexDir, documentsFile), 'utf8'),
+  ) as SearchBundleDocument[];
+  return new Map(documents.map((document) => [document.docId, document]));
+}
+
+async function readSearchBundleDocumentsFromResponses<
+  Entry extends { path: string; mediaType: string },
+>(
+  bundleEntries: Entry[],
+  loadResponse: (entry: Entry) => Promise<Response>,
+): Promise<Map<string, SearchBundleDocument>> {
+  const manifestEntry = bundleEntries.find((entry) => entry.path === 'manifest.json');
+  if (!manifestEntry) {
+    return new Map();
+  }
+
+  const manifest = JSON.parse(
+    await loadBundleResponseText(manifestEntry, loadResponse),
+  ) as SearchBundleManifest;
+  const documentsFile = manifest.files?.documents;
+  if (!documentsFile) {
+    return new Map();
+  }
+
+  const documentsEntry = bundleEntries.find((entry) => entry.path === documentsFile);
+  if (!documentsEntry) {
+    return new Map();
+  }
+
+  const documents = JSON.parse(
+    await loadBundleResponseText(documentsEntry, loadResponse),
+  ) as SearchBundleDocument[];
+  return new Map(documents.map((document) => [document.docId, document]));
+}
+
+async function loadBundleResponseText<
+  Entry extends { path: string; mediaType: string },
+>(
+  entry: Entry,
+  loadResponse: (entry: Entry) => Promise<Response>,
+): Promise<string> {
+  const response = await loadResponse(entry);
+  if (!response.ok) {
+    throw new Error(
+      `Failed to read search bundle file ${entry.path}: ${response.status} ${response.statusText}`,
+    );
+  }
+
+  return response.text();
+}
+
+function isNodeRuntime(): boolean {
+  return (
+    typeof process !== 'undefined' &&
+    typeof process.versions === 'object' &&
+    typeof process.versions.node === 'string'
+  );
 }
 
 function rerankSearchHits(hits: SearchHit[]): SearchHit[] {

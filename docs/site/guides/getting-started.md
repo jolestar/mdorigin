@@ -38,7 +38,7 @@ For local retrieval during development, install `indexbind` and build a search b
 ```bash
 npm install indexbind
 mdorigin build search --root docs/site
-mdorigin search --index dist/search "cloudflare deploy"
+mdorigin search --index dist/search --meta section=guides "cloudflare deploy"
 ```
 
 `indexbind` documentation:
@@ -62,6 +62,19 @@ Available endpoints:
 
 - `/api/search?q=cloudflare+deploy`
 - `/api/openapi.json`
+
+You can also filter search by metadata:
+
+```bash
+mdorigin search --index dist/search --meta type=post "cloudflare"
+curl 'http://localhost:3000/api/search?q=cloudflare&meta.type=post'
+```
+
+For repeated local rebuilds, use incremental search indexing:
+
+```bash
+mdorigin build search --root docs/site --incremental
+```
 
 ## Install
 

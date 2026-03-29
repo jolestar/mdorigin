@@ -77,6 +77,8 @@ Use search when you need the right doc page before opening it:
 
 - Search API: `https://mdorigin.jolestar.workers.dev/api/search?q=<query>`
 - OpenAPI schema: `https://mdorigin.jolestar.workers.dev/api/openapi.json`
+- Metadata filters: `/api/search?q=<query>&meta.type=post` or `mdorigin search --index dist/search --meta type=post <query>`
+- Repeated local rebuilds can use `mdorigin build search --root docs/site --incremental`
 
 Examples:
 

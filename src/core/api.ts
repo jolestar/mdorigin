@@ -35,10 +35,15 @@ export async function handleApiRoute(
     }
 
     const topK = normalizePositiveInteger(searchParams?.get('topK')) ?? 10;
-    const hits = await options.searchApi.search(query, { topK });
+    const metadata = readSearchMetadataFilters(searchParams);
+    const hits = await options.searchApi.search(query, {
+      topK,
+      metadata,
+    });
     return json(200, {
       query,
       topK,
+      metadata,
       count: hits.length,
       hits: hits.map(serializeSearchHit),
     });
@@ -80,6 +85,14 @@ function buildOpenApiDocument(options: ApiRouteOptions) {
               schema: { type: 'integer', minimum: 1, default: 10 },
               description: 'Maximum number of hits to return.',
             },
+            {
+              name: 'meta.<field>',
+              in: 'query',
+              required: false,
+              schema: { type: 'string' },
+              description:
+                'Exact-match metadata filter. Use query parameters such as meta.type=post or meta.section=guides.',
+            },
           ],
           responses: {
             '200': {
@@ -92,6 +105,10 @@ function buildOpenApiDocument(options: ApiRouteOptions) {
                     properties: {
                       query: { type: 'string' },
                       topK: { type: 'integer' },
+                      metadata: {
+                        type: 'object',
+                        additionalProperties: { type: 'string' },
+                      },
                       count: { type: 'integer' },
                       hits: {
                         type: 'array',
@@ -153,6 +170,30 @@ function buildOpenApiDocument(options: ApiRouteOptions) {
       },
     },
   };
+}
+
+function readSearchMetadataFilters(
+  searchParams: URLSearchParams | undefined,
+): Record<string, string> | undefined {
+  if (!searchParams) {
+    return undefined;
+  }
+
+  const metadata: Record<string, string> = {};
+  for (const [key, value] of searchParams.entries()) {
+    if (!key.startsWith('meta.') || value.trim() === '') {
+      continue;
+    }
+
+    const metadataKey = key.slice('meta.'.length).trim();
+    if (metadataKey === '') {
+      continue;
+    }
+
+    metadata[metadataKey] = value;
+  }
+
+  return Object.keys(metadata).length > 0 ? metadata : undefined;
 }
 
 function serializeSearchHit(hit: SearchHit) {
