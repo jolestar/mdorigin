@@ -23,16 +23,26 @@ export default defineConfig({
           return next(page);
         }
 
+        const title = escapeHtml(page.title);
         return [
           "<!doctype html>",
           "<html><body>",
-          `<main class="custom-listing"><h1>${page.title}</h1>${page.bodyHtml}</main>`,
+          `<main class="custom-listing"><h1>${title}</h1>${page.bodyHtml}</main>`,
           "</body></html>",
         ].join("");
       },
     },
   ],
 });
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
 ```
 
 ## Stable Hook Surface
@@ -250,12 +260,22 @@ renderPage(page, _context, next) {
     return next(page);
   }
 
+  const title = escapeHtml(page.title);
   return [
     "<!doctype html>",
     "<html><body>",
-    `<main class="listing-grid"><h1>${page.title}</h1>${page.bodyHtml}</main>`,
+    `<main class="listing-grid"><h1>${title}</h1>${page.bodyHtml}</main>`,
     "</body></html>",
   ].join("");
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 ```
 

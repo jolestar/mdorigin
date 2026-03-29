@@ -267,7 +267,7 @@ function renderListingArticle(
 
   return [
     `<div class="catalog-page__body">${body}</div>`,
-    '<section class="catalog-page" aria-label="Catalog">',
+    '<section class="catalog-page" aria-label="Content listing">',
     directories.length > 0 ? renderListingDirectories(directories) : '',
     articles.length > 0
       ? renderListingArticles(visibleArticles, {
@@ -320,11 +320,11 @@ function renderListingArticles(
   },
 ): string {
   return [
-    '<div class="catalog-list" data-catalog-articles>',
+    '<div class="catalog-list" data-listing-articles>',
     renderListingArticleItems(entries),
     '</div>',
     options.hasMore
-      ? `<div class="catalog-load-more"><button type="button" class="catalog-load-more__button" data-catalog-load-more data-request-path="${escapeHtml(
+      ? `<div class="catalog-load-more"><button type="button" class="catalog-load-more__button" data-listing-load-more data-request-path="${escapeHtml(
           options.requestPath,
         )}" data-next-offset="${escapeHtml(String(options.nextOffset))}" data-load-more-step="${escapeHtml(
           String(options.loadMoreStep),
@@ -336,8 +336,8 @@ function renderListingArticles(
 function renderListingLoadMoreScript(): string {
   return `<script>
 (() => {
-  const button = document.querySelector('[data-catalog-load-more]');
-  const list = document.querySelector('[data-catalog-articles]');
+  const button = document.querySelector('[data-listing-load-more]');
+  const list = document.querySelector('[data-listing-articles]');
   if (!(button instanceof HTMLButtonElement) || !(list instanceof HTMLElement)) {
     return;
   }

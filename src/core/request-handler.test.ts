@@ -1125,7 +1125,7 @@ test('handleSiteRequest loads additional listing articles in batches', async () 
   const body = String(response.body);
   assert.match(body, /First/);
   assert.doesNotMatch(body, /Second detail\./);
-  assert.match(body, /data-catalog-load-more/);
+  assert.match(body, /data-listing-load-more/);
 
   const fragmentResponse = await handleSiteRequest(store, '/', {
     draftMode: 'include',
@@ -1197,7 +1197,7 @@ test('handleSiteRequest paginates post directory bundles in default listing layo
   const body = String(response.body);
   assert.match(body, /Post A/);
   assert.doesNotMatch(body, /Second bundled post\./);
-  assert.match(body, /data-catalog-load-more/);
+  assert.match(body, /data-listing-load-more/);
 
   const fragmentResponse = await handleSiteRequest(store, '/', {
     draftMode: 'include',
