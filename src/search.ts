@@ -877,7 +877,11 @@ function isCloudflareWasmImportError(error: unknown): boolean {
 
     if (current instanceof Error) {
       const currentMessage = current.message;
-      if (targetMessages.some((message) => currentMessage.includes(message))) {
+      if (
+        targetMessages.some((message) => currentMessage.includes(message)) ||
+        (currentMessage.includes('Cannot find module') &&
+          currentMessage.includes('indexbind_wasm_bg.js'))
+      ) {
         return true;
       }
     }
