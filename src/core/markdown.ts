@@ -1,7 +1,9 @@
 import matter from 'gray-matter';
 import { remark } from 'remark';
 import remarkGfm from 'remark-gfm';
-import remarkHtml from 'remark-html';
+import remarkRehype from 'remark-rehype';
+import rehypeRaw from 'rehype-raw';
+import rehypeStringify from 'rehype-stringify';
 
 export interface ParsedDocumentMeta {
   title?: string;
@@ -66,7 +68,9 @@ export async function parseMarkdownDocument(
 export async function renderMarkdown(markdown: string): Promise<string> {
   const output = await remark()
     .use(remarkGfm)
-    .use(remarkHtml)
+    .use(remarkRehype, { allowDangerousHtml: true })
+    .use(rehypeRaw)
+    .use(rehypeStringify, { allowDangerousHtml: true })
     .process(markdown);
 
   return String(output);
