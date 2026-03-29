@@ -11,6 +11,7 @@ import { runDevCommand } from './dev.js';
 import { BUILD_USAGE_LINES, INIT_USAGE_LINES, ROOT_USAGE_LINES, printUsage } from './help.js';
 import { runInitCloudflareCommand } from './init-cloudflare.js';
 import { runSearchCommand } from './search.js';
+import { runSyncCloudflareR2Command } from './sync-cloudflare-r2.js';
 
 async function main() {
   const argv = process.argv.slice(2);
@@ -75,6 +76,11 @@ async function main() {
 
   if (command === 'search') {
     await runSearchCommand([subcommand, ...rest].filter(isDefined));
+    return;
+  }
+
+  if (command === 'sync' && subcommand === 'cloudflare-r2') {
+    await runSyncCloudflareR2Command(rest);
     return;
   }
 

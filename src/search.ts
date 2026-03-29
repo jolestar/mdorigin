@@ -9,6 +9,7 @@ import {
   parseMarkdownDocument,
 } from './core/markdown.js';
 import type { ParsedDocumentMeta } from './core/markdown.js';
+import { isIgnoredContentName } from './core/content-store.js';
 import type { ResolvedSiteConfig } from './core/site-config.js';
 
 type JsonValue =
@@ -278,7 +279,7 @@ async function walkDirectory(
   }
 
   for (const entry of entries) {
-    if (entry.name.startsWith('.')) {
+    if (isIgnoredContentName(entry.name)) {
       continue;
     }
 
@@ -364,7 +365,7 @@ async function inspectDirectoryShape(directoryPath: string): Promise<{
   let hasAssetFiles = false;
 
   for (const entry of entries) {
-    if (entry.name.startsWith('.')) {
+    if (isIgnoredContentName(entry.name)) {
       continue;
     }
 

@@ -108,6 +108,18 @@ mdorigin dev --root docs/site --search dist/search
 mdorigin build cloudflare --root docs/site --search dist/search
 ```
 
+For media-heavy sites that would exceed Worker bundle limits, build in external binary mode instead:
+
+```bash
+mdorigin build cloudflare --root docs/site --binary-mode external
+mdorigin sync cloudflare-r2 --dir dist/cloudflare --bucket <bucket-name>
+mdorigin init cloudflare --dir . --r2-bucket <bucket-name>
+```
+
+In this mode, markdown and other text stay embedded in the Worker bundle, smaller binaries are staged for Workers Static Assets, and oversized binaries are staged for R2.
+
+`mdorigin` ignores dotfiles and dot-directories during content traversal. `.gitignore` is not used to decide publish visibility.
+
 Runtime endpoints:
 
 - `/api/search?q=cloudflare+deploy`

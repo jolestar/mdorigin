@@ -29,10 +29,35 @@ By default this writes:
 dist/cloudflare/worker.mjs
 ```
 
+For media-heavy sites, use external binary mode:
+
+```bash
+mdorigin build cloudflare --root docs/site --binary-mode external
+```
+
+In external mode:
+
+- text content stays embedded in `worker.mjs`
+- smaller binaries are staged under `dist/cloudflare/assets`
+- oversized binaries are staged under `dist/cloudflare/r2`
+- dotfiles and dot-directories are ignored during traversal
+
 ## Initialize Wrangler config
 
 ```bash
 mdorigin init cloudflare --dir .
+```
+
+If the bundle contains R2-backed binaries, pass the bucket name:
+
+```bash
+mdorigin init cloudflare --dir . --r2-bucket <bucket-name>
+```
+
+Upload staged R2 objects before deploying:
+
+```bash
+mdorigin sync cloudflare-r2 --dir dist/cloudflare --bucket <bucket-name>
 ```
 
 If `--name` is omitted, `mdorigin` derives the Worker name from the site title.

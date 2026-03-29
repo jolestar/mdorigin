@@ -7,7 +7,7 @@ export async function runInitCloudflareCommand(argv: string[]) {
   const args = parseArgs(argv);
   if (args.help) {
     console.log(
-      'Usage: mdorigin init cloudflare [--dir .] [--entry ./dist/cloudflare/worker.mjs] [--name <worker-name>] [--compatibility-date 2026-03-20] [--force]',
+      'Usage: mdorigin init cloudflare [--dir .] [--entry ./dist/cloudflare/worker.mjs] [--name <worker-name>] [--compatibility-date 2026-03-20] [--r2-bucket <bucket-name>] [--force]',
     );
     return;
   }
@@ -24,6 +24,7 @@ export async function runInitCloudflareCommand(argv: string[]) {
     workerName: args.name,
     siteTitle,
     compatibilityDate: args.compatibilityDate,
+    r2Bucket: args.r2Bucket,
     force: args.force,
   });
 
@@ -36,6 +37,7 @@ function parseArgs(argv: string[]) {
     entry?: string;
     name?: string;
     compatibilityDate?: string;
+    r2Bucket?: string;
     force?: boolean;
     help?: boolean;
   } = {};
@@ -69,6 +71,12 @@ function parseArgs(argv: string[]) {
 
     if (argument === '--compatibility-date' && nextValue) {
       result.compatibilityDate = nextValue;
+      index += 1;
+      continue;
+    }
+
+    if (argument === '--r2-bucket' && nextValue) {
+      result.r2Bucket = nextValue;
       index += 1;
       continue;
     }

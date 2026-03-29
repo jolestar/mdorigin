@@ -5,6 +5,7 @@ import path from 'node:path';
 import type { ContentEntry, ContentStore } from '../core/content-store.js';
 import {
   getMediaTypeForPath,
+  isIgnoredContentName,
   isLikelyTextPath,
   normalizeContentPath,
   normalizeDirectoryPath,
@@ -90,7 +91,7 @@ export function createFileSystemContentStore(rootDir: string): ContentStore {
         const entries = await readdir(directoryPath, { withFileTypes: true });
         const resolvedEntries = await Promise.all(
           entries
-            .filter((entry) => !entry.name.startsWith('.'))
+            .filter((entry) => !isIgnoredContentName(entry.name))
             .map(async (entry): Promise<ContentDirectoryEntry | null> => {
               const childVisiblePath =
                 normalizedPath === ''
