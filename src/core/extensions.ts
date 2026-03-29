@@ -6,8 +6,6 @@ import type {
   SiteNavItem,
   SiteSocialLink,
 } from './site-config.js';
-import type { TemplateName } from '../html/template-kind.js';
-import type { BuiltInThemeName } from '../html/theme.js';
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -20,7 +18,7 @@ export interface IndexTransformContext {
 }
 
 export interface PageRenderModel {
-  kind: 'document' | 'catalog';
+  kind: 'page' | 'listing';
   requestPath: string;
   sourcePath: string;
   siteTitle: string;
@@ -36,8 +34,6 @@ export interface PageRenderModel {
   date?: string;
   showSummary: boolean;
   showDate: boolean;
-  theme: BuiltInThemeName;
-  template: TemplateName;
   topNav: SiteNavItem[];
   footerNav: SiteNavItem[];
   footerText?: string;
@@ -47,10 +43,10 @@ export interface PageRenderModel {
   stylesheetContent?: string;
   canonicalPath?: string;
   alternateMarkdownPath?: string;
-  catalogEntries: ManagedIndexEntry[];
-  catalogRequestPath: string;
-  catalogInitialPostCount: number;
-  catalogLoadMoreStep: number;
+  listingEntries: ManagedIndexEntry[];
+  listingRequestPath: string;
+  listingInitialPostCount: number;
+  listingLoadMoreStep: number;
   searchEnabled: boolean;
 }
 

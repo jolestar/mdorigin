@@ -29,7 +29,7 @@ import { handleApiRoute } from './api.js';
 import { normalizeRequestPath, resolveRequest } from './router.js';
 import {
   escapeHtml,
-  renderCatalogArticleItems,
+  renderListingArticleItems,
   renderDocument,
 } from '../html/template.js';
 import type { SearchApi } from '../search.js';
@@ -71,7 +71,7 @@ export async function handleSiteRequest(
   }
 
   const resolved = resolveRequest(pathname);
-  const catalogFragmentRequest = getCatalogFragmentRequest(options.searchParams);
+  const listingFragmentRequest = getListingFragmentRequest(options.searchParams);
   const negotiatedMarkdown = shouldServeMarkdownForRequest(
     resolved,
     options.acceptHeader,
@@ -150,7 +150,7 @@ export async function handleSiteRequest(
       status: 200,
       headers: withVaryAcceptIfNeeded(
         {
-        'content-type': entry.mediaType,
+          'content-type': entry.mediaType,
         },
         negotiatedMarkdown,
       ),
@@ -173,29 +173,21 @@ export async function handleSiteRequest(
             new Set(navigation.items.map((item) => item.href)),
           )
       : entry.text;
-  const catalogEntries =
-    options.siteConfig.template === 'catalog'
-      ? await applyIndexTransforms(
-          extractManagedIndexEntries(renderedBody),
-          plugins,
-          {
-            mode: 'render',
-            requestPath: resolved.requestPath,
-            sourcePath: resolved.sourcePath,
-            siteConfig: options.siteConfig,
-          },
-        )
-      : [];
-  if (
-    catalogFragmentRequest !== null &&
-    options.siteConfig.template === 'catalog'
-  ) {
-    return renderCatalogPostsFragment(catalogEntries, catalogFragmentRequest);
+  const listingEntries = await applyIndexTransforms(
+    extractManagedIndexEntries(renderedBody),
+    plugins,
+    {
+      mode: 'render',
+      requestPath: resolved.requestPath,
+      sourcePath: resolved.sourcePath,
+      siteConfig: options.siteConfig,
+    },
+  );
+  if (listingFragmentRequest !== null && listingEntries.length > 0) {
+    return renderListingPostsFragment(listingEntries, listingFragmentRequest);
   }
   const documentBody =
-    options.siteConfig.template === 'catalog'
-      ? stripManagedIndexBlock(renderedBody)
-      : renderedBody;
+    listingEntries.length > 0 ? stripManagedIndexBlock(renderedBody) : renderedBody;
   const renderedParsed = documentBody === entry.text
     ? parsed
     : await parseMarkdownDocument(resolved.sourcePath, documentBody);
@@ -207,27 +199,32 @@ export async function handleSiteRequest(
     renderedParsed,
     siteConfig: options.siteConfig,
     topNav: navigation.items,
-    catalogEntries,
+    listingEntries,
     searchEnabled,
     plugins,
     varyOnAccept: shouldVaryOnAccept(resolved),
   });
 }
 
-interface CatalogFragmentRequest {
+interface ListingFragmentRequest {
   offset: number;
   limit: number;
 }
 
-function getCatalogFragmentRequest(
+function getListingFragmentRequest(
   searchParams: URLSearchParams | undefined,
-): CatalogFragmentRequest | null {
-  if (searchParams?.get('catalog-format') !== 'posts') {
+): ListingFragmentRequest | null {
+  const format = searchParams?.get('listing-format') ?? searchParams?.get('catalog-format');
+  if (format !== 'posts') {
     return null;
   }
 
-  const offset = normalizeNonNegativeInteger(searchParams.get('catalog-offset'));
-  const limit = normalizePositiveInteger(searchParams.get('catalog-limit'));
+  const offset = normalizeNonNegativeInteger(
+    searchParams?.get('listing-offset') ?? searchParams?.get('catalog-offset') ?? null,
+  );
+  const limit = normalizePositiveInteger(
+    searchParams?.get('listing-limit') ?? searchParams?.get('catalog-limit') ?? null,
+  );
 
   if (offset === null || limit === null) {
     return null;
@@ -261,11 +258,11 @@ function buildPageRenderModel(options: {
   parsed: Awaited<ReturnType<typeof parseMarkdownDocument>>;
   siteConfig: ResolvedSiteConfig;
   topNav: SiteNavItem[];
-  catalogEntries: ReturnType<typeof extractManagedIndexEntries>;
+  listingEntries: ReturnType<typeof extractManagedIndexEntries>;
   searchEnabled: boolean;
 }): PageRenderModel {
   return {
-    kind: options.siteConfig.template === 'catalog' ? 'catalog' : 'document',
+    kind: options.listingEntries.length > 0 ? 'listing' : 'page',
     requestPath: options.resolvedRequestPath,
     sourcePath: options.sourcePath,
     siteTitle: options.siteConfig.siteTitle,
@@ -285,8 +282,6 @@ function buildPageRenderModel(options: {
       options.siteConfig.showDate === false ? undefined : options.parsed.meta.date,
     showSummary: options.siteConfig.showSummary,
     showDate: options.siteConfig.showDate,
-    theme: options.siteConfig.theme,
-    template: options.siteConfig.template,
     topNav: options.topNav,
     footerNav: options.siteConfig.footerNav,
     footerText: options.siteConfig.footerText,
@@ -296,10 +291,10 @@ function buildPageRenderModel(options: {
     stylesheetContent: options.siteConfig.stylesheetContent,
     canonicalPath: getCanonicalHtmlPathForContentPath(options.sourcePath),
     alternateMarkdownPath: getMarkdownRequestPathForContentPath(options.sourcePath),
-    catalogEntries: options.catalogEntries,
-    catalogRequestPath: options.resolvedRequestPath,
-    catalogInitialPostCount: options.siteConfig.catalogInitialPostCount,
-    catalogLoadMoreStep: options.siteConfig.catalogLoadMoreStep,
+    listingEntries: options.listingEntries,
+    listingRequestPath: options.resolvedRequestPath,
+    listingInitialPostCount: options.siteConfig.listingInitialPostCount,
+    listingLoadMoreStep: options.siteConfig.listingLoadMoreStep,
     searchEnabled: options.searchEnabled,
   };
 }
@@ -311,7 +306,7 @@ async function renderStructuredPage(options: {
   renderedParsed: Awaited<ReturnType<typeof parseMarkdownDocument>>;
   siteConfig: ResolvedSiteConfig;
   topNav: SiteNavItem[];
-  catalogEntries: ReturnType<typeof extractManagedIndexEntries>;
+  listingEntries: ReturnType<typeof extractManagedIndexEntries>;
   searchEnabled: boolean;
   plugins: MdoPlugin[];
   varyOnAccept?: boolean;
@@ -323,7 +318,7 @@ async function renderStructuredPage(options: {
     parsed: options.parsed,
     siteConfig: options.siteConfig,
     topNav: options.topNav,
-    catalogEntries: options.catalogEntries,
+    listingEntries: options.listingEntries,
     searchEnabled: options.searchEnabled,
   });
   const renderContext: RenderHookContext = {
@@ -341,8 +336,7 @@ async function renderStructuredPage(options: {
       };
       const headerHtml = await renderHeaderOverride(options.plugins, currentContext);
       const footerHtml = await renderFooterOverride(options.plugins, currentContext);
-      return (
-      renderDocument({
+      return renderDocument({
         siteTitle: currentPage.siteTitle,
         siteDescription: currentPage.siteDescription,
         siteUrl: currentPage.siteUrl,
@@ -355,8 +349,6 @@ async function renderStructuredPage(options: {
         date: currentPage.date,
         showSummary: currentPage.showSummary,
         showDate: currentPage.showDate,
-        theme: currentPage.theme,
-        template: currentPage.template,
         topNav: currentPage.topNav,
         footerNav: currentPage.footerNav,
         footerText: currentPage.footerText,
@@ -365,15 +357,14 @@ async function renderStructuredPage(options: {
         stylesheetContent: currentPage.stylesheetContent,
         canonicalPath: currentPage.canonicalPath,
         alternateMarkdownPath: currentPage.alternateMarkdownPath,
-        catalogEntries: currentPage.catalogEntries,
-        catalogRequestPath: currentPage.catalogRequestPath,
-        catalogInitialPostCount: currentPage.catalogInitialPostCount,
-        catalogLoadMoreStep: currentPage.catalogLoadMoreStep,
+        listingEntries: currentPage.listingEntries,
+        listingRequestPath: currentPage.listingRequestPath,
+        listingInitialPostCount: currentPage.listingInitialPostCount,
+        listingLoadMoreStep: currentPage.listingLoadMoreStep,
         searchEnabled: currentPage.searchEnabled,
         headerHtml,
         footerHtml,
-      })
-      );
+      });
     },
   );
   const finalHtml = await transformHtmlWithPlugins(
@@ -397,14 +388,14 @@ async function renderStructuredPage(options: {
   };
 }
 
-function renderCatalogPostsFragment(
+function renderListingPostsFragment(
   entries: readonly {
     kind: 'directory' | 'article';
     title: string;
     href: string;
     detail?: string;
   }[],
-  request: CatalogFragmentRequest,
+  request: ListingFragmentRequest,
 ): SiteResponse {
   const articles = entries.filter((entry) => entry.kind === 'article');
   const visibleArticles = articles.slice(request.offset, request.offset + request.limit);
@@ -416,7 +407,7 @@ function renderCatalogPostsFragment(
       'content-type': 'application/json; charset=utf-8',
     },
     body: JSON.stringify({
-      itemsHtml: renderCatalogArticleItems(visibleArticles),
+      itemsHtml: renderListingArticleItems(visibleArticles),
       hasMore: nextOffset < articles.length,
       nextOffset,
     }),
@@ -641,8 +632,6 @@ async function renderDirectoryListing(
       body,
       showSummary: false,
       showDate: false,
-      theme: siteConfig.theme,
-      template: siteConfig.template,
       topNav: navigation.items,
       footerNav: siteConfig.footerNav,
       footerText: siteConfig.footerText,
@@ -726,30 +715,22 @@ async function tryRenderAlternateDirectoryIndex(
               new Set(navigation.items.map((item) => item.href)),
             )
         : entry.text;
-    const catalogEntries =
-      options.siteConfig.template === 'catalog'
-        ? await applyIndexTransforms(
-            extractManagedIndexEntries(renderedBody),
-            plugins,
-            {
-              mode: 'render',
-              requestPath,
-              sourcePath: candidatePath,
-              siteConfig: options.siteConfig,
-            },
-          )
-        : [];
-    const catalogFragmentRequest = getCatalogFragmentRequest(options.searchParams);
-    if (
-      catalogFragmentRequest !== null &&
-      options.siteConfig.template === 'catalog'
-    ) {
-      return renderCatalogPostsFragment(catalogEntries, catalogFragmentRequest);
+    const listingEntries = await applyIndexTransforms(
+      extractManagedIndexEntries(renderedBody),
+      plugins,
+      {
+        mode: 'render',
+        requestPath,
+        sourcePath: candidatePath,
+        siteConfig: options.siteConfig,
+      },
+    );
+    const listingFragmentRequest = getListingFragmentRequest(options.searchParams);
+    if (listingFragmentRequest !== null && listingEntries.length > 0) {
+      return renderListingPostsFragment(listingEntries, listingFragmentRequest);
     }
     const documentBody =
-      options.siteConfig.template === 'catalog'
-        ? stripManagedIndexBlock(renderedBody)
-        : renderedBody;
+      listingEntries.length > 0 ? stripManagedIndexBlock(renderedBody) : renderedBody;
     const renderedParsed = documentBody === entry.text
       ? parsed
       : await parseMarkdownDocument(candidatePath, documentBody);
@@ -761,7 +742,7 @@ async function tryRenderAlternateDirectoryIndex(
       renderedParsed,
       siteConfig: options.siteConfig,
       topNav: navigation.items,
-      catalogEntries,
+      listingEntries,
       searchEnabled: options.searchApi !== undefined,
       plugins,
     });

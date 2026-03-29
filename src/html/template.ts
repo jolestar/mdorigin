@@ -4,8 +4,7 @@ import type {
   SiteSocialLink,
 } from '../core/site-config.js';
 import type { ManagedIndexEntry } from '../core/markdown.js';
-import type { TemplateName } from './template-kind.js';
-import { getBuiltInThemeStyles, type BuiltInThemeName } from './theme.js';
+import { getDefaultThemeStyles } from './theme.js';
 
 export interface RenderDocumentOptions {
   siteTitle: string;
@@ -20,8 +19,6 @@ export interface RenderDocumentOptions {
   date?: string;
   showSummary?: boolean;
   showDate?: boolean;
-  theme: BuiltInThemeName;
-  template: TemplateName;
   topNav?: SiteNavItem[];
   footerNav?: SiteNavItem[];
   footerText?: string;
@@ -30,10 +27,10 @@ export interface RenderDocumentOptions {
   stylesheetContent?: string;
   canonicalPath?: string;
   alternateMarkdownPath?: string;
-  catalogEntries?: ManagedIndexEntry[];
-  catalogRequestPath?: string;
-  catalogInitialPostCount?: number;
-  catalogLoadMoreStep?: number;
+  listingEntries?: ManagedIndexEntry[];
+  listingRequestPath?: string;
+  listingInitialPostCount?: number;
+  listingLoadMoreStep?: number;
   searchEnabled?: boolean;
   headerHtml?: string;
   footerHtml?: string;
@@ -70,7 +67,7 @@ export function renderDocument(options: RenderDocumentOptions) {
         options.alternateMarkdownPath,
       )}">`
     : '';
-  const stylesheetBlock = `<style>${getBuiltInThemeStyles(options.theme)}${
+  const stylesheetBlock = `<style>${getDefaultThemeStyles()}${
     options.stylesheetContent ? `\n${options.stylesheetContent}` : ''
   }</style>`;
   const navBlock =
@@ -149,14 +146,14 @@ export function renderDocument(options: RenderDocumentOptions) {
       ? `<footer class="site-footer"><div class="site-footer__inner">${footerNavBlock}${footerTextBlock}${footerMetaBlock}</div></footer>`
       : '';
   const articleBody =
-    options.template === 'catalog'
-      ? renderCatalogArticle(
+    options.listingEntries && options.listingEntries.length > 0
+      ? renderListingArticle(
           options.body,
-          options.catalogEntries ?? [],
+          options.listingEntries,
           {
-            requestPath: options.catalogRequestPath ?? '/',
-            initialPostCount: options.catalogInitialPostCount ?? 10,
-            loadMoreStep: options.catalogLoadMoreStep ?? 10,
+            requestPath: options.listingRequestPath ?? '/',
+            initialPostCount: options.listingInitialPostCount ?? 10,
+            loadMoreStep: options.listingLoadMoreStep ?? 10,
           },
         )
       : options.body;
@@ -181,7 +178,7 @@ export function renderDocument(options: RenderDocumentOptions) {
     alternateMarkdownMeta,
     stylesheetBlock,
     '</head>',
-    `<body data-theme="${options.theme}" data-template="${options.template}">`,
+    '<body>',
     headerBlock,
     '<main>',
     `<article>${articleBody}</article>`,
@@ -249,7 +246,7 @@ function iconSvg(pathData: string): string {
   return `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="${pathData}"></path></svg>`;
 }
 
-function renderCatalogArticle(
+function renderListingArticle(
   body: string,
   entries: ManagedIndexEntry[],
   options: {
@@ -271,9 +268,9 @@ function renderCatalogArticle(
   return [
     `<div class="catalog-page__body">${body}</div>`,
     '<section class="catalog-page" aria-label="Catalog">',
-    directories.length > 0 ? renderCatalogDirectories(directories) : '',
+    directories.length > 0 ? renderListingDirectories(directories) : '',
     articles.length > 0
-      ? renderCatalogArticles(visibleArticles, {
+      ? renderListingArticles(visibleArticles, {
           requestPath: options.requestPath,
           nextOffset: visibleArticles.length,
           loadMoreStep: options.loadMoreStep,
@@ -281,11 +278,11 @@ function renderCatalogArticle(
         })
       : '',
     '</section>',
-    shouldLoadMore ? renderCatalogLoadMoreScript() : '',
+    shouldLoadMore ? renderListingLoadMoreScript() : '',
   ].join('');
 }
 
-function renderCatalogDirectories(entries: ManagedIndexEntry[]): string {
+function renderListingDirectories(entries: ManagedIndexEntry[]): string {
   return [
     '<div class="catalog-list catalog-list--directories">',
     ...entries.map(
@@ -300,7 +297,7 @@ function renderCatalogDirectories(entries: ManagedIndexEntry[]): string {
   ].join('');
 }
 
-export function renderCatalogArticleItems(entries: readonly ManagedIndexEntry[]): string {
+export function renderListingArticleItems(entries: readonly ManagedIndexEntry[]): string {
   return entries
     .map(
       (entry) =>
@@ -313,7 +310,7 @@ export function renderCatalogArticleItems(entries: readonly ManagedIndexEntry[])
     .join('');
 }
 
-function renderCatalogArticles(
+function renderListingArticles(
   entries: ManagedIndexEntry[],
   options: {
     requestPath: string;
@@ -324,7 +321,7 @@ function renderCatalogArticles(
 ): string {
   return [
     '<div class="catalog-list" data-catalog-articles>',
-    renderCatalogArticleItems(entries),
+    renderListingArticleItems(entries),
     '</div>',
     options.hasMore
       ? `<div class="catalog-load-more"><button type="button" class="catalog-load-more__button" data-catalog-load-more data-request-path="${escapeHtml(
@@ -336,7 +333,7 @@ function renderCatalogArticles(
   ].join('');
 }
 
-function renderCatalogLoadMoreScript(): string {
+function renderListingLoadMoreScript(): string {
   return `<script>
 (() => {
   const button = document.querySelector('[data-catalog-load-more]');
@@ -359,9 +356,9 @@ function renderCatalogLoadMoreScript(): string {
 
     try {
       const url = new URL(requestPath, window.location.origin);
-      url.searchParams.set('catalog-format', 'posts');
-      url.searchParams.set('catalog-offset', nextOffset);
-      url.searchParams.set('catalog-limit', loadMoreStep);
+      url.searchParams.set('listing-format', 'posts');
+      url.searchParams.set('listing-offset', nextOffset);
+      url.searchParams.set('listing-limit', loadMoreStep);
 
       const response = await fetch(url.toString(), {
         headers: { Accept: 'application/json' },

@@ -1,0 +1,20 @@
+body {
+  background: #f7f2e8;
+  color: #241c15;
+  font-family: "Iowan Old Style", "Book Antiqua", Georgia, serif;
+}
+
+article {
+  border-radius: 18px;
+  box-shadow: 0 14px 28px rgba(38, 28, 19, 0.08);
+}
+
+.site-header,
+.site-footer__inner,
+.catalog-item {
+  border-color: #d8c8b6;
+}
+
+a {
+  color: #8b3d12;
+}

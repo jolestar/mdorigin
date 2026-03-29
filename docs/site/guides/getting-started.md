@@ -111,35 +111,30 @@ If `stylesheet` is set, the CSS file is read and inlined into rendered HTML for 
 2. `<content-root>/mdorigin.config.ts`, `.mjs`, `.js`, or `.json`
 3. current working directory `mdorigin.config.ts`, `.mjs`, `.js`, or `.json`
 
-You can also choose a page structure with `template`:
+The built-in presentation is now fixed to the default atlas baseline. Configure metadata and navigation directly:
 
 ```json
 {
   "siteUrl": "https://example.com",
   "favicon": "/favicon.svg",
-  "theme": "atlas",
-  "template": "document",
   "footerNav": [
     { "label": "GitHub", "href": "https://github.com/example/repo" }
   ]
 }
 ```
 
-Use `document` for ordinary docs and articles. Use `catalog` for homepages and directory-style collection pages.
-
-Today `template` only selects from built-in page structures. The longer-term direction is not to add a large template system, but to allow code-based extensions to replace page rendering while keeping the same routing and normalized content model.
+If a page contains a managed index block, the default renderer automatically presents it as a structured listing. `mdorigin` no longer exposes built-in theme/template variants as product configuration.
 
 If you want to start using code-based extensions now, switch from JSON config to `mdorigin.config.ts` and export a config object with `plugins`.
 
 The stable hooks, page model, and plugin data structures are documented in [Extensions](./extensions.md).
 
-If you use `catalog`, you can also cap the first batch of article entries:
+You can still cap the first batch of article entries shown in that default listing:
 
 ```json
 {
-  "template": "catalog",
-  "catalogInitialPostCount": 10,
-  "catalogLoadMoreStep": 10
+  "listingInitialPostCount": 10,
+  "listingLoadMoreStep": 10
 }
 ```
 

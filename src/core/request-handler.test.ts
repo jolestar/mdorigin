@@ -12,16 +12,14 @@ const TEST_SITE_CONFIG = {
   logo: undefined,
   showDate: true,
   showSummary: true,
-  theme: 'paper' as const,
-  template: 'document' as const,
   topNav: [],
   footerNav: [],
   footerText: undefined,
   socialLinks: [],
   editLink: undefined,
   showHomeIndex: true,
-  catalogInitialPostCount: 10,
-  catalogLoadMoreStep: 10,
+  listingInitialPostCount: 10,
+  listingLoadMoreStep: 10,
   siteTitleConfigured: true,
   siteDescriptionConfigured: false,
 };
@@ -925,16 +923,14 @@ test('handleSiteRequest respects site config rendering options', async () => {
       logo: { src: '/logo.svg', alt: 'Configured Site' },
       showDate: false,
       showSummary: false,
-      theme: 'atlas',
-      template: 'document',
       topNav: [{ label: 'Docs', href: '/docs/' }],
       footerNav: [{ label: 'GitHub', href: 'https://github.com/example/repo' }],
       footerText: 'Footer note',
       socialLinks: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/example/repo' }],
       editLink: { baseUrl: 'https://github.com/example/repo/edit/main/docs/' },
       showHomeIndex: true,
-      catalogInitialPostCount: 10,
-      catalogLoadMoreStep: 10,
+      listingInitialPostCount: 10,
+      listingLoadMoreStep: 10,
       stylesheetContent: 'body { color: red; }',
       siteTitleConfigured: true,
       siteDescriptionConfigured: true,
@@ -944,7 +940,6 @@ test('handleSiteRequest respects site config rendering options', async () => {
   assert.equal(response.status, 200);
   assert.match(String(response.body), /Configured Site/);
   assert.match(String(response.body), /Configured description/);
-  assert.match(String(response.body), /data-theme="atlas"/);
   assert.match(String(response.body), /href="\/docs\/"/);
   assert.doesNotMatch(String(response.body), /href="\/guides\/"/);
   assert.match(String(response.body), /body \{ color: red; \}/);
@@ -1037,7 +1032,7 @@ test('handleSiteRequest renders yaml dates parsed as Date objects', async () => 
   assert.match(String(response.body), /<h1>Dated<\/h1>/);
 });
 
-test('handleSiteRequest renders managed index blocks with catalog layout', async () => {
+test('handleSiteRequest renders managed index blocks with default listing layout', async () => {
   const store = new MemoryContentStore([
     {
       path: 'README.md',
@@ -1072,14 +1067,10 @@ test('handleSiteRequest renders managed index blocks with catalog layout', async
 
   const response = await handleSiteRequest(store, '/', {
     draftMode: 'include',
-    siteConfig: {
-      ...TEST_SITE_CONFIG,
-      template: 'catalog',
-    },
+    siteConfig: TEST_SITE_CONFIG,
   });
 
   assert.equal(response.status, 200);
-  assert.match(String(response.body), /data-template="catalog"/);
   assert.match(String(response.body), /<h1>Catalog Home<\/h1>/);
   assert.equal((String(response.body).match(/<h1/g) ?? []).length, 1);
   assert.match(String(response.body), /Body paragraph\./);
@@ -1092,7 +1083,7 @@ test('handleSiteRequest renders managed index blocks with catalog layout', async
   assert.doesNotMatch(String(response.body), /Directory<\/span>/);
 });
 
-test('handleSiteRequest loads additional catalog articles in batches', async () => {
+test('handleSiteRequest loads additional listing articles in batches', async () => {
   const store = new MemoryContentStore([
     {
       path: 'README.md',
@@ -1125,9 +1116,8 @@ test('handleSiteRequest loads additional catalog articles in batches', async () 
     draftMode: 'include',
     siteConfig: {
       ...TEST_SITE_CONFIG,
-      template: 'catalog',
-      catalogInitialPostCount: 1,
-      catalogLoadMoreStep: 1,
+      listingInitialPostCount: 1,
+      listingLoadMoreStep: 1,
     },
   });
 
@@ -1141,14 +1131,13 @@ test('handleSiteRequest loads additional catalog articles in batches', async () 
     draftMode: 'include',
     siteConfig: {
       ...TEST_SITE_CONFIG,
-      template: 'catalog',
-      catalogInitialPostCount: 1,
-      catalogLoadMoreStep: 1,
+      listingInitialPostCount: 1,
+      listingLoadMoreStep: 1,
     },
     searchParams: new URLSearchParams({
-      'catalog-format': 'posts',
-      'catalog-offset': '1',
-      'catalog-limit': '1',
+      'listing-format': 'posts',
+      'listing-offset': '1',
+      'listing-limit': '1',
     }),
   });
 
@@ -1167,7 +1156,7 @@ test('handleSiteRequest loads additional catalog articles in batches', async () 
   assert.equal(payload.nextOffset, 2);
 });
 
-test('handleSiteRequest paginates post directory bundles in catalog template', async () => {
+test('handleSiteRequest paginates post directory bundles in default listing layout', async () => {
   const store = new MemoryContentStore([
     {
       path: 'README.md',
@@ -1199,9 +1188,8 @@ test('handleSiteRequest paginates post directory bundles in catalog template', a
     draftMode: 'include',
     siteConfig: {
       ...TEST_SITE_CONFIG,
-      template: 'catalog',
-      catalogInitialPostCount: 1,
-      catalogLoadMoreStep: 1,
+      listingInitialPostCount: 1,
+      listingLoadMoreStep: 1,
     },
   });
 
@@ -1215,14 +1203,13 @@ test('handleSiteRequest paginates post directory bundles in catalog template', a
     draftMode: 'include',
     siteConfig: {
       ...TEST_SITE_CONFIG,
-      template: 'catalog',
-      catalogInitialPostCount: 1,
-      catalogLoadMoreStep: 1,
+      listingInitialPostCount: 1,
+      listingLoadMoreStep: 1,
     },
     searchParams: new URLSearchParams({
-      'catalog-format': 'posts',
-      'catalog-offset': '1',
-      'catalog-limit': '1',
+      'listing-format': 'posts',
+      'listing-offset': '1',
+      'listing-limit': '1',
     }),
   });
 
