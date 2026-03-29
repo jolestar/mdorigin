@@ -135,3 +135,5 @@ Runtime endpoints:
 - CLI: [`docs/site/reference/cli.md`](docs/site/reference/cli.md)
 - Search setup: [`docs/site/guides/getting-started.md`](docs/site/guides/getting-started.md#quick-start)
 - Cloudflare deployment: [`docs/site/guides/cloudflare.md`](docs/site/guides/cloudflare.md)
+
+The docs site at <https://mdorigin.jolestar.workers.dev> is deployed automatically from `main` with GitHub Actions.

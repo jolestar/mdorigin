@@ -1,0 +1,55 @@
+name: Deploy Cloudflare
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deploy-cloudflare.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'wrangler.jsonc'
+      - 'src/**'
+      - 'docs/site/**'
+      - 'skills/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.repository == 'jolestar/mdorigin'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build package
+        run: npm run build
+
+      - name: Build search bundle
+        run: npm run build:search -- --root docs/site --out dist/search
+
+      - name: Build Cloudflare Worker bundle
+        run: npm run build:cloudflare -- --root docs/site --out dist/cloudflare --search dist/search
+
+      - name: Deploy to Cloudflare Workers
+        run: npx wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

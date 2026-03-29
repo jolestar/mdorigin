@@ -4,7 +4,7 @@
 - Repo: `jolestar/mdorigin`
 - Main branch is the active integration branch.
 - npm package has been released through GitHub Actions trusted publishing.
-- Cloudflare site is deployed manually; merging to `main` does not deploy the site.
+- Cloudflare site deploys automatically from GitHub Actions on pushes to `main`.
 
 ## Core Product Direction
 - `mdorigin` is a programmable publishing core.
@@ -58,8 +58,8 @@
 
 ## Cloudflare Deployment
 - Site URL: `https://mdorigin.jolestar.workers.dev`
-- Deployment is manual.
-- Use this sequence when site/runtime changes need deployment:
+- Deployment runs automatically on pushes to `main` via `.github/workflows/deploy-cloudflare.yml`.
+- The workflow uses this sequence:
 
 ```bash
 npm run build
@@ -69,6 +69,9 @@ npx wrangler deploy
 ```
 
 - Important: deploying without a fresh `npm run build` may push an outdated runtime from `dist/`.
+- Required GitHub secrets:
+  - `CLOUDFLARE_API_TOKEN`
+  - `CLOUDFLARE_ACCOUNT_ID`
 
 ## Skills and Example Content
 - `docs/site/skills` is a symlinked example skills section.
@@ -92,4 +95,4 @@ npm view mdorigin version
 
 ## When Touching Site Output
 - If a change affects rendered HTML, Cloudflare runtime, search runtime, or page footer/header behavior, rebuild before testing deployment.
-- If a change lands in `main`, do not assume the public site is updated until `wrangler deploy` has been run.
+- If a change lands in `main`, verify the `Deploy Cloudflare` workflow before assuming the public site is updated.
