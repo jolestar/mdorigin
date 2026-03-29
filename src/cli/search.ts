@@ -5,12 +5,14 @@ import { searchBundle } from '../search.js';
 export async function runSearchCommand(rawArgs: string[]) {
   const args = parseArgs(rawArgs);
   if (args.help) {
-    console.log('Usage: mdorigin search --index <search-dir> [--top-k 10] <query>');
+    console.log(
+      'Usage: mdorigin search --index <search-dir> [--top-k 10] [--meta key=value] <query>',
+    );
     return;
   }
   if (!args.indexDir || !args.query) {
     throw new Error(
-      'Usage: mdorigin search --index <search-dir> [--top-k 10] <query>',
+      'Usage: mdorigin search --index <search-dir> [--top-k 10] [--meta key=value] <query>',
     );
   }
 
@@ -18,6 +20,7 @@ export async function runSearchCommand(rawArgs: string[]) {
     indexDir: path.resolve(args.indexDir),
     query: args.query,
     topK: args.topK,
+    metadata: args.metadata,
   });
 
   console.log(JSON.stringify(hits, null, 2));
@@ -25,8 +28,9 @@ export async function runSearchCommand(rawArgs: string[]) {
 
 function parseArgs(rawArgs: string[]) {
   const flags: Record<string, string> = {};
+  const metadata: Record<string, string> = {};
   const positionals: string[] = [];
-  const supportedFlags = new Set(['index', 'top-k']);
+  const supportedFlags = new Set(['index', 'top-k', 'meta']);
 
   for (let index = 0; index < rawArgs.length; index += 1) {
     const arg = rawArgs[index];
@@ -42,7 +46,15 @@ function parseArgs(rawArgs: string[]) {
 
       const value = rawArgs[index + 1];
       if (value && !value.startsWith('--')) {
-        flags[flag] = value;
+        if (flag === 'meta') {
+          const separator = value.indexOf('=');
+          if (separator <= 0 || separator === value.length - 1) {
+            throw new Error(`Invalid value for --meta: ${value}`);
+          }
+          metadata[value.slice(0, separator)] = value.slice(separator + 1);
+        } else {
+          flags[flag] = value;
+        }
         index += 1;
         continue;
       }
@@ -59,6 +71,7 @@ function parseArgs(rawArgs: string[]) {
     indexDir: flags.index,
     topK: Number.isInteger(topK) && topK! > 0 ? topK : undefined,
     query: positionals.join(' ').trim(),
+    metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
     help: flags.help === 'true',
   };
 }

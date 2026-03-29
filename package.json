@@ -78,6 +78,6 @@
     "typescript": "^5.9.2"
   },
   "optionalDependencies": {
-    "indexbind": "^0.2.1"
+    "indexbind": "^0.3.0"
   }
 }

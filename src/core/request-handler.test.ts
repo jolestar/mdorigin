@@ -477,11 +477,17 @@ test('handleSiteRequest serves search API results', async () => {
       searchParams: new URLSearchParams({
         q: 'cloudflare deploy',
         topK: '5',
+        'meta.type': 'post',
+        'meta.section': 'guides',
       }),
       searchApi: {
         async search(query, options) {
           assert.equal(query, 'cloudflare deploy');
           assert.equal(options?.topK, 5);
+          assert.deepEqual(options?.metadata, {
+            type: 'post',
+            section: 'guides',
+          });
           return [
             {
               docId: '/guides/cloudflare',
@@ -509,10 +515,12 @@ test('handleSiteRequest serves search API results', async () => {
   assert.equal(response.status, 200);
   const body = JSON.parse(String(response.body)) as {
     query: string;
+    metadata?: Record<string, string>;
     count: number;
     hits: Array<{ title: string }>;
   };
   assert.equal(body.query, 'cloudflare deploy');
+  assert.deepEqual(body.metadata, { type: 'post', section: 'guides' });
   assert.equal(body.count, 1);
   assert.equal(body.hits[0]?.title, 'Cloudflare Deployment');
 });

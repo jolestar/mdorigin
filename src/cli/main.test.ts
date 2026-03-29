@@ -92,6 +92,20 @@ test('mdorigin dev --help prints command usage', () => {
   assert.match(result.stdout, /Usage: mdorigin dev --root <content-dir>/);
 });
 
+test('mdorigin build search --help prints incremental usage', () => {
+  const result = runCli(['build', 'search', '--help']);
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /--incremental/);
+});
+
+test('mdorigin search --help prints metadata filter usage', () => {
+  const result = runCli(['search', '--help']);
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /--meta key=value/);
+});
+
 test('mdorigin reports unknown commands', () => {
   const result = runCli(['wat']);
 
