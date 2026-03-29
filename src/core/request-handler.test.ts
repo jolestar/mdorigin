@@ -136,6 +136,38 @@ test('handleSiteRequest renders html and preserves markdown', async () => {
   assert.match(String(defaultHtmlResponse.body), /href="\.\.\/"/);
 });
 
+test('handleSiteRequest preserves trusted inline html media tags in rendered pages', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'posts/video.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: [
+        '# Video Post',
+        '',
+        '<video controls preload="metadata" src="./clip.mp4"></video>',
+      ].join('\n'),
+    },
+    {
+      path: 'posts/clip.mp4',
+      kind: 'binary',
+      mediaType: 'video/mp4',
+      bytes: new Uint8Array([1, 2, 3, 4]),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/posts/video', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+
+  assert.equal(response.status, 200);
+  assert.match(
+    String(response.body),
+    /<video controls(?:="")? preload="metadata" src="\.\/clip\.mp4"><\/video>/,
+  );
+});
+
 test('handleSiteRequest supports page render plugins', async () => {
   const store = new MemoryContentStore([
     {
@@ -557,6 +589,26 @@ test('handleSiteRequest renders directory listings when index is missing', async
   assert.match(String(response.body), /href="\/topic\/post"/);
   assert.match(String(response.body), /href="\/topic\/subtopic\/"/);
   assert.doesNotMatch(String(response.body), /image\.png/);
+});
+
+test('handleSiteRequest serves mp4 assets with video content-type', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'videos/demo.mp4',
+      kind: 'binary',
+      mediaType: 'video/mp4',
+      bytes: new Uint8Array([1, 2, 3, 4]),
+    },
+  ]);
+
+  const response = await handleSiteRequest(store, '/videos/demo.mp4', {
+    draftMode: 'include',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers['content-type'], 'video/mp4');
+  assert.deepEqual(Array.from(response.body as Uint8Array), [1, 2, 3, 4]);
 });
 
 test('handleSiteRequest renders README.md as directory homepage fallback', async () => {
