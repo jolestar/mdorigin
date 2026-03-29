@@ -47,6 +47,17 @@ mdorigin sync cloudflare-r2 --dir dist/cloudflare --bucket <bucket-name>
 mdorigin init cloudflare --dir . --r2-bucket <bucket-name>
 ```
 
+Cloudflare search deploy flow:
+
+```bash
+mdorigin build search --root docs/site --out dist/search
+mdorigin build cloudflare --root docs/site --search dist/search --binary-mode external
+mdorigin sync cloudflare-r2 --dir dist/cloudflare --bucket <bucket-name>
+mdorigin init cloudflare --dir . --r2-bucket <bucket-name>
+```
+
+When `build cloudflare` is given `--search`, the search bundle is staged outside `worker.mjs`; larger search files can also require the R2 sync step.
+
 ## Remote docs
 
 When an agent needs details, prefer the published docs instead of duplicating everything in the skill:

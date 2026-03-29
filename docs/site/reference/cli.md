@@ -40,9 +40,10 @@ Useful defaults:
 - `build search` defaults to the `model2vec` embedding backend
 - `build cloudflare` writes to `dist/cloudflare/worker.mjs` unless `--out` is provided
 - `build cloudflare` defaults to `--binary-mode inline`; use `--binary-mode external` to stage binaries outside the Worker bundle
+- when `build cloudflare` is given `--search`, search files are always staged outside the Worker bundle for Cloudflare and still use `--assets-max-bytes` / `--r2-binding`
 - `init cloudflare` points to `dist/cloudflare/worker.mjs` by default
 - `init cloudflare` derives the Worker name from `siteTitle` when `--name` is omitted
-- `sync cloudflare-r2` uploads only R2-staged binaries and skips unchanged uploads unless `--force` is set
+- `sync cloudflare-r2` uploads all R2-staged files, including externalized search files, and skips unchanged uploads unless `--force` is set
 
 Search commands require the optional `indexbind` package:
 

@@ -1,7 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
 import { createCloudflareWorker } from './cloudflare.js';
+import { getMediaTypeForPath } from '../core/content-store.js';
+import { buildSearchBundle } from '../search.js';
 
 test('cloudflare worker serves html and hides drafts', async () => {
   const worker = createCloudflareWorker({
@@ -305,4 +310,120 @@ test('cloudflare worker streams r2-backed binaries without buffering into conten
     Array.from(new Uint8Array(await response.arrayBuffer())),
     [9, 8, 7, 6],
   );
+});
+
+test('cloudflare worker serves /api/search from assets-backed external search bundle', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-search-runtime-root-'));
+  const searchDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-search-runtime-dir-'));
+  await mkdir(path.join(rootDir, 'guides'), { recursive: true });
+  await writeFile(
+    path.join(rootDir, 'index.md'),
+    '# Home\n\nSee [Cloudflare](./guides/cloudflare.md).\n',
+    'utf8',
+  );
+  await writeFile(
+    path.join(rootDir, 'guides', 'cloudflare.md'),
+    '# Cloudflare Deployment\n\nUse mdorigin build cloudflare and wrangler deploy.\n',
+    'utf8',
+  );
+  await buildSearchBundle({
+    rootDir,
+    outDir: searchDir,
+    siteConfig: {
+      siteTitle: 'Worker Test',
+      siteUrl: undefined,
+      favicon: undefined,
+      logo: undefined,
+      showDate: true,
+      showSummary: true,
+      topNav: [],
+      footerNav: [],
+      footerText: undefined,
+      socialLinks: [],
+      editLink: undefined,
+      showHomeIndex: true,
+      listingInitialPostCount: 10,
+      listingLoadMoreStep: 10,
+      siteTitleConfigured: true,
+      siteDescriptionConfigured: false,
+    },
+    embeddingBackend: 'hashing',
+  });
+  const searchFiles = new Map<string, { bytes: Uint8Array; mediaType: string }>();
+  const externalSearchEntries: Array<{
+    path: string;
+    mediaType: string;
+    storageKind: 'assets';
+    storageKey: string;
+    byteSize: number;
+  }> = [];
+  for (const fileName of await readdir(searchDir)) {
+    const filePath = path.join(searchDir, fileName);
+    const fileStats = await stat(filePath);
+    const mediaType = getMediaTypeForPath(fileName);
+    const bytes = await readFile(filePath);
+    searchFiles.set(`/__mdorigin/search/${fileName}`, { bytes, mediaType });
+    externalSearchEntries.push({
+      path: fileName,
+      mediaType,
+      storageKind: 'assets',
+      storageKey: `__mdorigin/search/${fileName}`,
+      byteSize: fileStats.size,
+    });
+  }
+
+  const worker = createCloudflareWorker({
+    siteConfig: {
+      siteTitle: 'Worker Test',
+      siteUrl: undefined,
+      favicon: undefined,
+      logo: undefined,
+      showDate: true,
+      showSummary: true,
+      topNav: [],
+      footerNav: [],
+      footerText: undefined,
+      socialLinks: [],
+      editLink: undefined,
+      showHomeIndex: true,
+      listingInitialPostCount: 10,
+      listingLoadMoreStep: 10,
+      siteTitleConfigured: true,
+      siteDescriptionConfigured: false,
+    },
+    runtime: {
+      binaryMode: 'inline',
+    },
+    entries: [
+      {
+        path: 'index.md',
+        kind: 'text',
+        mediaType: 'text/markdown; charset=utf-8',
+        text: '# Hello',
+      },
+    ],
+    externalSearchEntries,
+  });
+
+  const response = await worker.fetch(
+    new Request('https://example.com/api/search?q=cloudflare'),
+    {
+      ASSETS: {
+        fetch: async (request) => {
+          const file = searchFiles.get(new URL(request.url).pathname);
+          if (!file) {
+            return new Response('Not Found', { status: 404 });
+          }
+
+          return new Response(file.bytes, {
+            headers: { 'content-type': file.mediaType },
+          });
+        },
+      },
+    },
+  );
+
+  assert.equal(response.status, 200);
+  const json = (await response.json()) as { hits: Array<{ title?: string }> };
+  assert.equal(json.hits[0]?.title, 'Cloudflare Deployment');
 });

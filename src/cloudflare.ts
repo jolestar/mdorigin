@@ -27,7 +27,7 @@ import {
   normalizeContentPath,
 } from './core/content-store.js';
 import type { ResolvedSiteConfig } from './core/site-config.js';
-import type { SearchBundleEntry } from './search.js';
+import type { ExternalSearchBundleEntry } from './search.js';
 
 export { createCloudflareWorker };
 export type {
@@ -54,7 +54,7 @@ export interface WriteCloudflareBundleOptions extends BuildCloudflareManifestOpt
 }
 
 export interface CloudflareBundleMetadata {
-  version: 1;
+  version: 2;
   workerEntry: string;
   binaryMode: CloudflareBinaryMode;
   assetsMaxBytes?: number;
@@ -62,9 +62,11 @@ export interface CloudflareBundleMetadata {
   r2Dir?: string;
   r2Binding?: string;
   siteTitle?: string;
-  r2Objects: Array<{
+  stagedObjects: Array<{
+    kind: 'binary' | 'search';
     path: string;
     mediaType: string;
+    storageKind: 'assets' | 'r2';
     storageKey: string;
     file: string;
     byteSize: number;
@@ -99,11 +101,30 @@ interface CloudflareR2SyncState {
   uploaded: Record<string, { syncedAt: string }>;
 }
 
+interface CloudflareBundleMetadataV1 {
+  version?: 1;
+  workerEntry: string;
+  binaryMode: CloudflareBinaryMode;
+  assetsMaxBytes?: number;
+  assetsDir?: string;
+  r2Dir?: string;
+  r2Binding?: string;
+  siteTitle?: string;
+  r2Objects?: Array<{
+    path: string;
+    mediaType: string;
+    storageKey: string;
+    file: string;
+    byteSize: number;
+  }>;
+}
+
 const DEFAULT_ASSETS_MAX_BYTES = 25 * 1024 * 1024;
 const DEFAULT_ASSETS_BINDING = 'ASSETS';
 const DEFAULT_R2_BINDING = 'MDORIGIN_R2';
 const BUNDLE_FILE_NAME = 'bundle.json';
 const R2_STATE_FILE_NAME = 'r2-sync-state.json';
+const SEARCH_ASSETS_PREFIX = '__mdorigin/search';
 
 export async function buildCloudflareManifest(
   options: BuildCloudflareManifestOptions,
@@ -153,17 +174,17 @@ export async function buildCloudflareManifest(
     );
   }
 
-  const searchEntries = options.searchDir
-    ? await readBundleEntries(path.resolve(options.searchDir))
+  const externalSearchEntries = options.searchDir
+    ? await buildSearchBundleEntries(path.resolve(options.searchDir), assetsMaxBytes)
     : undefined;
 
   entries.sort((left, right) => left.path.localeCompare(right.path));
   return {
     entries,
     siteConfig: options.siteConfig,
-    searchEntries,
+    externalSearchEntries,
     runtime:
-      binaryMode === 'external'
+      binaryMode === 'external' || (externalSearchEntries?.length ?? 0) > 0
         ? {
             binaryMode,
             r2Binding,
@@ -227,8 +248,9 @@ export async function writeCloudflareBundle(
   ].join('\n');
 
   await mkdir(outDir, { recursive: true });
-  const metadata = await writeExternalBinaryStaging(
+  const metadata = await writeExternalStaging(
     path.resolve(options.rootDir),
+    options.searchDir ? path.resolve(options.searchDir) : undefined,
     outDir,
     manifest,
     {
@@ -262,12 +284,12 @@ export async function initCloudflareProject(
 
   const bundleMetadata = await readCloudflareBundleMetadata(options.workerEntry);
   if (
-    bundleMetadata?.binaryMode === 'external' &&
-    bundleMetadata.r2Objects.length > 0 &&
+    bundleMetadata &&
+    bundleMetadata.stagedObjects.some((object) => object.storageKind === 'r2') &&
     !options.r2Bucket
   ) {
     throw new Error(
-      'Cloudflare bundle contains R2-backed binaries. Re-run init cloudflare with --r2-bucket <bucket-name>.',
+      'Cloudflare bundle contains R2-backed staged objects. Re-run init cloudflare with --r2-bucket <bucket-name>.',
     );
   }
 
@@ -283,7 +305,7 @@ export async function initCloudflareProject(
     `  "main": ${JSON.stringify(toPosixPath(path.relative(projectDir, options.workerEntry)))},`,
     `  "compatibility_date": ${JSON.stringify(compatibilityDate)},`,
     '  "compatibility_flags": ["nodejs_compat"]',
-    bundleMetadata?.binaryMode === 'external' && bundleMetadata.assetsDir
+    bundleMetadata?.assetsDir
       ? [
           ',',
           '  "assets": {',
@@ -293,8 +315,8 @@ export async function initCloudflareProject(
           '  }',
         ].join('\n')
       : '',
-    bundleMetadata?.binaryMode === 'external' &&
-    bundleMetadata.r2Objects.length > 0 &&
+    bundleMetadata &&
+    bundleMetadata.stagedObjects.some((object) => object.storageKind === 'r2') &&
     bundleMetadata.r2Binding &&
     options.r2Bucket
       ? [
@@ -325,8 +347,11 @@ export async function syncCloudflareR2(
   const outDir = path.resolve(options.dir);
   const bundleFile = path.join(outDir, BUNDLE_FILE_NAME);
   const metadata = await readBundleMetadataFile(bundleFile);
-  if (metadata.binaryMode !== 'external' || metadata.r2Objects.length === 0) {
-    throw new Error(`No R2-backed binaries found in ${bundleFile}.`);
+  const r2Objects = metadata.stagedObjects.filter(
+    (object) => object.storageKind === 'r2',
+  );
+  if (r2Objects.length === 0) {
+    throw new Error(`No R2-backed staged objects found in ${bundleFile}.`);
   }
 
   const stateFile = path.join(outDir, R2_STATE_FILE_NAME);
@@ -335,7 +360,7 @@ export async function syncCloudflareR2(
   let uploadedCount = 0;
   let skippedCount = 0;
 
-  for (const object of metadata.r2Objects) {
+  for (const object of r2Objects) {
     const stateKey = `${options.bucketName}:${object.storageKey}`;
     if (!options.force && state.uploaded[stateKey]) {
       skippedCount += 1;
@@ -400,8 +425,9 @@ async function buildExternalBinaryEntry(
   };
 }
 
-async function writeExternalBinaryStaging(
+async function writeExternalStaging(
   rootDir: string,
+  searchDir: string | undefined,
   outDir: string,
   manifest: CloudflareManifest,
   options: {
@@ -416,10 +442,12 @@ async function writeExternalBinaryStaging(
   await rm(assetsDir, { recursive: true, force: true });
   await rm(r2Dir, { recursive: true, force: true });
 
-  const r2Objects = new Map<
+  const stagedObjects = new Map<
     string,
-    CloudflareBundleMetadata['r2Objects'][number]
+    CloudflareBundleMetadata['stagedObjects'][number]
   >();
+  let hasAssets = false;
+  let hasR2 = false;
   if (options.binaryMode === 'external') {
     for (const entry of manifest.entries) {
       if (entry.kind !== 'binary' || !('storageKind' in entry)) {
@@ -431,17 +459,69 @@ async function writeExternalBinaryStaging(
         const targetFile = path.join(assetsDir, entry.storageKey);
         await mkdir(path.dirname(targetFile), { recursive: true });
         await copyFile(sourceFile, targetFile);
+        hasAssets = true;
+        stagedObjects.set(`assets:${entry.storageKey}`, {
+          kind: 'binary',
+          path: entry.path,
+          mediaType: entry.mediaType,
+          storageKind: 'assets',
+          storageKey: entry.storageKey,
+          file: toPosixPath(path.join('assets', entry.storageKey)),
+          byteSize: entry.byteSize,
+        });
         continue;
       }
 
       const relativeFile = toPosixPath(path.join('r2', entry.storageKey));
       const targetFile = path.join(outDir, relativeFile);
-      if (!r2Objects.has(entry.storageKey)) {
+      if (!stagedObjects.has(`r2:${entry.storageKey}`)) {
         await mkdir(path.dirname(targetFile), { recursive: true });
         await copyFile(sourceFile, targetFile);
-        r2Objects.set(entry.storageKey, {
+        hasR2 = true;
+        stagedObjects.set(`r2:${entry.storageKey}`, {
+          kind: 'binary',
           path: entry.path,
           mediaType: entry.mediaType,
+          storageKind: 'r2',
+          storageKey: entry.storageKey,
+          file: relativeFile,
+          byteSize: entry.byteSize,
+        });
+      }
+    }
+  }
+
+  if (searchDir && manifest.externalSearchEntries) {
+    for (const entry of manifest.externalSearchEntries) {
+      const sourceFile = path.join(searchDir, entry.path);
+      if (entry.storageKind === 'assets') {
+        const targetFile = path.join(assetsDir, entry.storageKey);
+        await mkdir(path.dirname(targetFile), { recursive: true });
+        await copyFile(sourceFile, targetFile);
+        hasAssets = true;
+        stagedObjects.set(`assets:${entry.storageKey}`, {
+          kind: 'search',
+          path: entry.path,
+          mediaType: entry.mediaType,
+          storageKind: 'assets',
+          storageKey: entry.storageKey,
+          file: toPosixPath(path.join('assets', entry.storageKey)),
+          byteSize: entry.byteSize,
+        });
+        continue;
+      }
+
+      const relativeFile = toPosixPath(path.join('r2', entry.storageKey));
+      const targetFile = path.join(outDir, relativeFile);
+      if (!stagedObjects.has(`r2:${entry.storageKey}`)) {
+        await mkdir(path.dirname(targetFile), { recursive: true });
+        await copyFile(sourceFile, targetFile);
+        hasR2 = true;
+        stagedObjects.set(`r2:${entry.storageKey}`, {
+          kind: 'search',
+          path: entry.path,
+          mediaType: entry.mediaType,
+          storageKind: 'r2',
           storageKey: entry.storageKey,
           file: relativeFile,
           byteSize: entry.byteSize,
@@ -451,18 +531,16 @@ async function writeExternalBinaryStaging(
   }
 
   return {
-    version: 1,
+    version: 2,
     workerEntry: 'worker.mjs',
     binaryMode: options.binaryMode,
-    assetsMaxBytes: options.binaryMode === 'external' ? options.assetsMaxBytes : undefined,
-    assetsDir: options.binaryMode === 'external' ? 'assets' : undefined,
-    r2Dir: options.binaryMode === 'external' ? 'r2' : undefined,
-    r2Binding:
-      options.binaryMode === 'external' && r2Objects.size > 0
-        ? options.r2Binding
-        : undefined,
+    assetsMaxBytes:
+      options.binaryMode === 'external' || searchDir ? options.assetsMaxBytes : undefined,
+    assetsDir: hasAssets ? 'assets' : undefined,
+    r2Dir: hasR2 ? 'r2' : undefined,
+    r2Binding: hasR2 ? options.r2Binding : undefined,
     siteTitle: options.siteTitle,
-    r2Objects: Array.from(r2Objects.values()).sort((left, right) =>
+    stagedObjects: Array.from(stagedObjects.values()).sort((left, right) =>
       left.storageKey.localeCompare(right.storageKey),
     ),
   };
@@ -482,7 +560,39 @@ async function readCloudflareBundleMetadata(
 async function readBundleMetadataFile(
   bundleFile: string,
 ): Promise<CloudflareBundleMetadata> {
-  return JSON.parse(await readFile(bundleFile, 'utf8')) as CloudflareBundleMetadata;
+  const parsed = JSON.parse(await readFile(bundleFile, 'utf8')) as
+    | CloudflareBundleMetadata
+    | CloudflareBundleMetadataV1;
+
+  if ('stagedObjects' in parsed && Array.isArray(parsed.stagedObjects)) {
+    return parsed;
+  }
+
+  if ('r2Objects' in parsed && Array.isArray(parsed.r2Objects)) {
+    return {
+      version: 2,
+      workerEntry: parsed.workerEntry,
+      binaryMode: parsed.binaryMode,
+      assetsMaxBytes: parsed.assetsMaxBytes,
+      assetsDir: parsed.assetsDir,
+      r2Dir: parsed.r2Dir,
+      r2Binding: parsed.r2Binding,
+      siteTitle: parsed.siteTitle,
+      stagedObjects: parsed.r2Objects.map((object) => ({
+        kind: 'binary',
+        path: object.path,
+        mediaType: object.mediaType,
+        storageKind: 'r2',
+        storageKey: object.storageKey,
+        file: object.file,
+        byteSize: object.byteSize,
+      })),
+    };
+  }
+
+  throw new Error(
+    `Bundle metadata in ${bundleFile} is not supported. Rebuild the Cloudflare bundle with the current mdorigin CLI.`,
+  );
 }
 
 async function readR2SyncState(stateFile: string): Promise<CloudflareR2SyncState> {
@@ -569,33 +679,48 @@ async function listFiles(
   return files;
 }
 
-async function readBundleEntries(directory: string): Promise<SearchBundleEntry[]> {
+async function buildSearchBundleEntries(
+  directory: string,
+  assetsMaxBytes: number,
+): Promise<ExternalSearchBundleEntry[]> {
   const files = await listFiles(directory);
-  const entries: SearchBundleEntry[] = [];
+  const entries: ExternalSearchBundleEntry[] = [];
 
   for (const filePath of files) {
     const relativePath = path.relative(directory, filePath).replaceAll(path.sep, '/');
     const mediaType = getMediaTypeForPath(relativePath);
-    if (isLikelyTextPath(relativePath) || relativePath.endsWith('.json')) {
+    const fileStats = await stat(filePath);
+    if (fileStats.size <= assetsMaxBytes) {
       entries.push({
         path: relativePath,
-        kind: 'text',
         mediaType,
-        text: await readFile(filePath, 'utf8'),
+        storageKind: 'assets',
+        storageKey: `${SEARCH_ASSETS_PREFIX}/${relativePath}`,
+        byteSize: fileStats.size,
       });
       continue;
     }
 
     entries.push({
       path: relativePath,
-      kind: 'binary',
       mediaType,
-      base64: (await readFile(filePath)).toString('base64'),
+      storageKind: 'r2',
+      storageKey: await buildSearchStorageKey(filePath, relativePath),
+      byteSize: fileStats.size,
     });
   }
 
   entries.sort((left, right) => left.path.localeCompare(right.path));
   return entries;
+}
+
+async function buildSearchStorageKey(
+  filePath: string,
+  relativePath: string,
+): Promise<string> {
+  const extension = path.posix.extname(relativePath).toLowerCase();
+  const hash = await hashFile(filePath);
+  return extension ? `search/${hash}${extension}` : `search/${hash}`;
 }
 
 async function pathExists(filePath: string): Promise<boolean> {
