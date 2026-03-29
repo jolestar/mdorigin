@@ -178,3 +178,143 @@ test('searchBundle prefers concrete documents over overview pages', async (t) =>
   assert.equal(hits[0]?.title, 'Cloudflare Deployment');
   assert.equal(hits[1]?.title, 'Guides');
 });
+
+test('searchBundle excludes frontmatter values from excerpts', async (t) => {
+  try {
+    await import('indexbind/web');
+  } catch {
+    t.skip('indexbind is not installed');
+    return;
+  }
+
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'mdorigin-search-frontmatter-'));
+  const rootDir = path.join(tempDir, 'site');
+  const outDir = path.join(tempDir, 'search');
+  await mkdir(rootDir, { recursive: true });
+  await writeFile(
+    path.join(rootDir, 'README.md'),
+    [
+      '---',
+      'title: Frontmatter Example',
+      'summary: Search excerpt should not come from frontmatter.',
+      'slug: hidden-frontmatter-slug',
+      '---',
+      '',
+      '# Frontmatter Example',
+      '',
+      'Visible body content only.',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+
+  const siteConfig: ResolvedSiteConfig = {
+    siteTitle: 'Example Site',
+    siteDescription: undefined,
+    siteUrl: 'https://example.com',
+    favicon: undefined,
+    logo: undefined,
+    showDate: true,
+    showSummary: true,
+    topNav: [],
+    footerNav: [],
+    footerText: undefined,
+    socialLinks: [],
+    editLink: undefined,
+    showHomeIndex: true,
+    listingInitialPostCount: 10,
+    listingLoadMoreStep: 10,
+    stylesheetContent: undefined,
+    siteTitleConfigured: true,
+    siteDescriptionConfigured: false,
+  };
+
+  await buildSearchBundle({
+    rootDir,
+    outDir,
+    siteConfig,
+    embeddingBackend: 'hashing',
+  });
+
+  const hits = await searchBundle({
+    indexDir: outDir,
+    query: 'hidden-frontmatter-slug',
+    topK: 5,
+  });
+
+  assert.equal(hits.length, 0);
+});
+
+test('searchBundle excludes managed index and machine-only comments from excerpts', async (t) => {
+  try {
+    await import('indexbind/web');
+  } catch {
+    t.skip('indexbind is not installed');
+    return;
+  }
+
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'mdorigin-search-comments-'));
+  const rootDir = path.join(tempDir, 'site');
+  const outDir = path.join(tempDir, 'search');
+  await mkdir(rootDir, { recursive: true });
+  await writeFile(
+    path.join(rootDir, 'README.md'),
+    [
+      '# Home',
+      '',
+      '<!-- mdorigin:internal hidden-comment-token -->',
+      '',
+      '<!-- INDEX:START -->',
+      '',
+      '- [Cloudflare](./guides/cloudflare.md)',
+      '',
+      '<!-- INDEX:END -->',
+      '',
+      'Visible body content only.',
+      '',
+    ].join('\n'),
+    'utf8',
+  );
+
+  const siteConfig: ResolvedSiteConfig = {
+    siteTitle: 'Example Site',
+    siteDescription: undefined,
+    siteUrl: 'https://example.com',
+    favicon: undefined,
+    logo: undefined,
+    showDate: true,
+    showSummary: true,
+    topNav: [],
+    footerNav: [],
+    footerText: undefined,
+    socialLinks: [],
+    editLink: undefined,
+    showHomeIndex: true,
+    listingInitialPostCount: 10,
+    listingLoadMoreStep: 10,
+    stylesheetContent: undefined,
+    siteTitleConfigured: true,
+    siteDescriptionConfigured: false,
+  };
+
+  await buildSearchBundle({
+    rootDir,
+    outDir,
+    siteConfig,
+    embeddingBackend: 'hashing',
+  });
+
+  const markerHits = await searchBundle({
+    indexDir: outDir,
+    query: 'hidden-comment-token',
+    topK: 5,
+  });
+  const indexHits = await searchBundle({
+    indexDir: outDir,
+    query: 'INDEX START',
+    topK: 5,
+  });
+
+  assert.equal(markerHits.length, 0);
+  assert.equal(indexHits.length, 0);
+});

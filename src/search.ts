@@ -7,6 +7,8 @@ import {
   getDocumentSummary,
   getDocumentTitle,
   parseMarkdownDocument,
+  stripMachineOnlyMarkdownComments,
+  stripManagedIndexBlock,
 } from './core/markdown.js';
 import type { ParsedDocumentMeta } from './core/markdown.js';
 import { isIgnoredContentName } from './core/content-store.js';
@@ -274,12 +276,18 @@ async function collectSearchDocuments(
         fallbackTitleFromRelativePath(document.relativePath),
       ),
       summary: getDocumentSummary(parsed.meta, parsed.body),
-      content: markdown,
+      content: buildSearchableMarkdownBody(parsed.body),
       metadata: buildSearchMetadata(document.relativePath, canonicalPath, parsed.meta, siteConfig),
     });
   }
 
   return documents;
+}
+
+function buildSearchableMarkdownBody(markdownBody: string): string {
+  return stripMachineOnlyMarkdownComments(
+    stripManagedIndexBlock(markdownBody),
+  ).trim();
 }
 
 async function listSearchDocuments(rootDir: string): Promise<SearchDocument[]> {
