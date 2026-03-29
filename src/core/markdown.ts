@@ -91,6 +91,10 @@ export function stripManagedIndexBlock(markdown: string): string {
   ).trimEnd();
 }
 
+export function stripMachineOnlyMarkdownComments(markdown: string): string {
+  return markdown.replace(/<!--\s*mdorigin:[\s\S]*?-->/g, '');
+}
+
 export function stripManagedIndexLinks(
   markdown: string,
   hrefs: ReadonlySet<string>,
