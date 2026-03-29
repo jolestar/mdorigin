@@ -104,6 +104,14 @@ export interface SearchBundleEntry {
   base64?: string;
 }
 
+export interface ExternalSearchBundleEntry {
+  path: string;
+  mediaType: string;
+  storageKind: 'assets' | 'r2';
+  storageKey: string;
+  byteSize: number;
+}
+
 interface SearchDocument {
   absolutePath: string;
   relativePath: string;
@@ -196,7 +204,33 @@ export function createSearchApiFromBundle(
   return {
     async search(query, options) {
       if (indexPromise === null) {
-        indexPromise = openWebIndexFromBundle(bundleEntries);
+        indexPromise = openWebIndexFromVirtualBundle(
+          bundleEntries,
+          async (entry) => createInlineSearchBundleResponse(entry),
+        );
+      }
+
+      const index = await indexPromise;
+      return rerankSearchHits(
+        await index.search(query, {
+          topK: options?.topK,
+          relativePathPrefix: options?.relativePathPrefix,
+        }),
+      );
+    },
+  };
+}
+
+export function createSearchApiFromExternalBundle(
+  bundleEntries: ExternalSearchBundleEntry[],
+  loadResponse: (entry: ExternalSearchBundleEntry) => Promise<Response>,
+): SearchApi {
+  let indexPromise: Promise<IndexbindWebIndex> | null = null;
+
+  return {
+    async search(query, options) {
+      if (indexPromise === null) {
+        indexPromise = openWebIndexFromVirtualBundle(bundleEntries, loadResponse);
       }
 
       const index = await indexPromise;
@@ -524,10 +558,12 @@ async function loadIndexbindCloudflareModule(): Promise<IndexbindCloudflareModul
   }
 }
 
-async function openWebIndexFromBundle(
-  bundleEntries: SearchBundleEntry[],
+async function openWebIndexFromVirtualBundle<
+  Entry extends { path: string; mediaType: string },
+>(
+  bundleEntries: Entry[],
+  loadResponse: (entry: Entry) => Promise<Response>,
 ): Promise<IndexbindWebIndex> {
-  const cloudflareModule = await loadIndexbindCloudflareModule();
   const baseUrl = 'https://mdorigin-search.invalid/';
   const originalFetch = globalThis.fetch;
   const bundleMap = new Map(
@@ -543,28 +579,49 @@ async function openWebIndexFromBundle(
           : input.url;
     const entry = bundleMap.get(requestUrl);
     if (entry) {
-      const headers = new Headers({ 'content-type': entry.mediaType });
-      const binaryBody = decodeBase64(entry.base64 ?? '');
-      const body =
-        entry.kind === 'text'
-          ? entry.text ?? ''
-          : new Blob([new Uint8Array(binaryBody)], {
-              type: entry.mediaType,
-            });
-      return new Response(body, {
-        status: 200,
-        headers,
-      });
+      return loadResponse(entry);
     }
 
     return originalFetch(input as RequestInfo, init);
   };
 
   try {
-    return await cloudflareModule.openWebIndex(new URL(baseUrl));
+    try {
+      const cloudflareModule = await loadIndexbindCloudflareModule();
+      return await cloudflareModule.openWebIndex(new URL(baseUrl));
+    } catch (error) {
+      if (!isCloudflareWasmImportError(error)) {
+        throw error;
+      }
+
+      const webModule = await loadIndexbindWebModule();
+      return await webModule.openWebIndex(new URL(baseUrl));
+    }
   } finally {
     globalThis.fetch = originalFetch;
   }
+}
+
+function createInlineSearchBundleResponse(entry: SearchBundleEntry): Response {
+  const headers = new Headers({ 'content-type': entry.mediaType });
+  const binaryBody = decodeBase64(entry.base64 ?? '');
+  const body =
+    entry.kind === 'text'
+      ? entry.text ?? ''
+      : new Blob([new Uint8Array(binaryBody)], {
+          type: entry.mediaType,
+        });
+  return new Response(body, {
+    status: 200,
+    headers,
+  });
+}
+
+function isCloudflareWasmImportError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message.includes('Unknown file extension ".wasm"')
+  );
 }
 
 function decodeBase64(value: string): Uint8Array {

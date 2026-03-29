@@ -43,6 +43,13 @@ In external mode:
 - generated Wrangler config wires the staged asset directory to the `ASSETS` binding
 - dotfiles and dot-directories are ignored during traversal
 
+When `--search <search-dir>` is provided to `build cloudflare`, the search bundle is also externalized for Cloudflare deployments:
+
+- search files are not embedded into `worker.mjs`
+- smaller search files are staged under `dist/cloudflare/assets/__mdorigin/search`
+- oversized search files are staged under `dist/cloudflare/r2`
+- `/api/search` loads the staged index lazily at runtime
+
 ## Initialize Wrangler config
 
 ```bash
@@ -60,6 +67,8 @@ Upload staged R2 objects before deploying:
 ```bash
 mdorigin sync cloudflare-r2 --dir dist/cloudflare --bucket <bucket-name>
 ```
+
+This upload step can be required by large media files, large search bundle files, or both.
 
 If `--name` is omitted, `mdorigin` derives the Worker name from the site title.
 

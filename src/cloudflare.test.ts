@@ -215,7 +215,13 @@ test('buildCloudflareManifest includes optional search bundle entries', async ()
     siteConfig: TEST_SITE_CONFIG,
   });
 
-  assert.equal(manifest.searchEntries?.[0]?.path, 'manifest.json');
+  assert.equal(manifest.searchEntries, undefined);
+  assert.equal(manifest.externalSearchEntries?.[0]?.path, 'manifest.json');
+  assert.equal(manifest.externalSearchEntries?.[0]?.storageKind, 'assets');
+  assert.equal(
+    manifest.externalSearchEntries?.[0]?.storageKey,
+    '__mdorigin/search/manifest.json',
+  );
 });
 
 test('buildCloudflareManifest externalizes binaries and ignores hidden files', async () => {
@@ -277,16 +283,60 @@ test('writeCloudflareBundle writes staging metadata for external binaries', asyn
     await readFile(result.bundleFile, 'utf8'),
   ) as {
     binaryMode: string;
-    r2Objects: Array<{ file: string; storageKey: string }>;
+    stagedObjects: Array<{ file: string; storageKey: string; storageKind: string }>;
   };
 
   assert.match(workerSource, /"storageKind": "assets"/);
   assert.match(workerSource, /"storageKind": "r2"/);
   assert.ok(!workerSource.includes('"base64"'));
   assert.equal(bundleMetadata.binaryMode, 'external');
-  assert.equal(bundleMetadata.r2Objects.length, 1);
+  assert.equal(
+    bundleMetadata.stagedObjects.filter((object) => object.storageKind === 'r2').length,
+    1,
+  );
   await stat(path.join(outDir, 'assets', 'small.png'));
-  await stat(path.join(outDir, bundleMetadata.r2Objects[0]!.file));
+  await stat(path.join(outDir, bundleMetadata.stagedObjects[0]!.file));
+});
+
+test('writeCloudflareBundle externalizes search bundle files instead of embedding them', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-search-bundle-root-'));
+  const searchDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-search-bundle-search-'));
+  const outDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-search-bundle-out-'));
+  await writeFile(path.join(rootDir, 'index.md'), '# Home\n', 'utf8');
+  await writeFile(
+    path.join(searchDir, 'manifest.json'),
+    '{"artifactFormat":"file-bundle-v1","files":{"documents":"documents.json"}}\n',
+    'utf8',
+  );
+  await writeFile(path.join(searchDir, 'documents.json'), '[{"docId":"/","title":"Home"}]\n', 'utf8');
+
+  const result = await writeCloudflareBundle({
+    rootDir,
+    outDir,
+    searchDir,
+    siteConfig: TEST_SITE_CONFIG,
+  });
+
+  const workerSource = await readFile(result.workerFile, 'utf8');
+  const bundleMetadata = JSON.parse(
+    await readFile(result.bundleFile, 'utf8'),
+  ) as {
+    assetsDir?: string;
+    stagedObjects: Array<{ kind: string; path: string; storageKind: string }>;
+  };
+
+  assert.ok(!workerSource.includes('file-bundle-v1'));
+  assert.ok(!workerSource.includes('"documents":"documents.json"'));
+  assert.match(workerSource, /"externalSearchEntries": \[/);
+  assert.equal(bundleMetadata.assetsDir, 'assets');
+  assert.deepEqual(
+    bundleMetadata.stagedObjects
+      .filter((object) => object.kind === 'search')
+      .map((object) => `${object.storageKind}:${object.path}`),
+    ['assets:documents.json', 'assets:manifest.json'],
+  );
+  await stat(path.join(outDir, 'assets', '__mdorigin', 'search', 'manifest.json'));
+  await stat(path.join(outDir, 'assets', '__mdorigin', 'search', 'documents.json'));
 });
 
 test('initCloudflareProject writes assets and r2 config for external bundle', async () => {
@@ -294,6 +344,7 @@ test('initCloudflareProject writes assets and r2 config for external bundle', as
   const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-init-root-'));
   const outDir = path.join(projectDir, 'dist', 'cloudflare');
   await writeFile(path.join(rootDir, 'index.md'), '# Home\n', 'utf8');
+  await writeFile(path.join(rootDir, 'small.png'), Uint8Array.from([1, 2, 3]));
   await writeFile(path.join(rootDir, 'large.mp4'), Uint8Array.from([1, 2, 3, 4, 5, 6]));
 
   const bundle = await writeCloudflareBundle({
@@ -318,6 +369,37 @@ test('initCloudflareProject writes assets and r2 config for external bundle', as
   assert.match(configSource, /"run_worker_first": true/);
   assert.match(configSource, /"binding": "MDORIGIN_R2"/);
   assert.match(configSource, /"bucket_name": "media-bucket"/);
+});
+
+test('initCloudflareProject writes assets config for search-only cloudflare bundle', async () => {
+  const projectDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-init-search-'));
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-init-search-root-'));
+  const searchDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-init-search-dir-'));
+  const outDir = path.join(projectDir, 'dist', 'cloudflare');
+  await writeFile(path.join(rootDir, 'index.md'), '# Home\n', 'utf8');
+  await writeFile(
+    path.join(searchDir, 'manifest.json'),
+    '{"artifactFormat":"file-bundle-v1"}\n',
+    'utf8',
+  );
+
+  const bundle = await writeCloudflareBundle({
+    rootDir,
+    outDir,
+    searchDir,
+    siteConfig: TEST_SITE_CONFIG,
+  });
+
+  const result = await initCloudflareProject({
+    projectDir,
+    workerEntry: bundle.workerFile,
+    compatibilityDate: '2026-03-20',
+  });
+
+  const configSource = await readFile(result.configFile, 'utf8');
+  assert.match(configSource, /"assets": \{/);
+  assert.match(configSource, /"directory": "dist\/cloudflare\/assets"/);
+  assert.match(configSource, /"binding": "ASSETS"/);
 });
 
 test('syncCloudflareR2 uploads only missing objects and writes sync state', async () => {
@@ -364,4 +446,40 @@ test('syncCloudflareR2 uploads only missing objects and writes sync state', asyn
   assert.equal(third.uploadedCount, 1);
   assert.equal(calls.length, 2);
   await stat(first.stateFile);
+});
+
+test('syncCloudflareR2 uploads search objects staged to r2', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-search-sync-root-'));
+  const searchDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-search-sync-dir-'));
+  const outDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-cf-search-sync-out-'));
+  await writeFile(path.join(rootDir, 'index.md'), '# Home\n', 'utf8');
+  await writeFile(
+    path.join(searchDir, 'manifest.json'),
+    Uint8Array.from([1, 2, 3, 4, 5, 6]),
+  );
+
+  await writeCloudflareBundle({
+    rootDir,
+    outDir,
+    searchDir,
+    siteConfig: TEST_SITE_CONFIG,
+    assetsMaxBytes: 4,
+  });
+
+  const calls: string[] = [];
+  const runCommand = (command: string, args: string[]) => {
+    calls.push([command, ...args].join(' '));
+    return { status: 0, stderr: '' };
+  };
+
+  const result = await syncCloudflareR2({
+    dir: outDir,
+    bucketName: 'search-bucket',
+    runCommand,
+  });
+
+  assert.equal(result.uploadedCount, 1);
+  assert.equal(result.skippedCount, 0);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0] ?? '', /wrangler r2 object put search-bucket\/search\//);
 });

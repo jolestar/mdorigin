@@ -9,7 +9,12 @@ import type { MdoPlugin } from '../core/extensions.js';
 import { handleSiteRequest } from '../core/request-handler.js';
 import { resolveRequest } from '../core/router.js';
 import type { ResolvedSiteConfig } from '../core/site-config.js';
-import { createSearchApiFromBundle, type SearchBundleEntry } from '../search.js';
+import {
+  createSearchApiFromBundle,
+  createSearchApiFromExternalBundle,
+  type ExternalSearchBundleEntry,
+  type SearchBundleEntry,
+} from '../search.js';
 
 export interface TextCloudflareManifestEntry {
   path: string;
@@ -48,6 +53,7 @@ export interface CloudflareManifest {
   entries: CloudflareManifestEntry[];
   siteConfig?: ResolvedSiteConfig;
   searchEntries?: SearchBundleEntry[];
+  externalSearchEntries?: ExternalSearchBundleEntry[];
   runtime?: CloudflareBundleRuntimeConfig;
 }
 
@@ -117,14 +123,34 @@ export function createCloudflareWorker(
       };
     }),
   );
-  const searchApi =
+  const inlineSearchApi =
     manifest.searchEntries && manifest.searchEntries.length > 0
       ? createSearchApiFromBundle(manifest.searchEntries)
       : undefined;
+  let currentEnv: CloudflareWorkerEnv | undefined;
+  let externalSearchApi:
+    | ReturnType<typeof createSearchApiFromExternalBundle>
+    | undefined;
 
   return {
     async fetch(request: Request, env?: CloudflareWorkerEnv): Promise<Response> {
       const url = new URL(request.url);
+      currentEnv = env;
+      if (
+        externalSearchApi === undefined &&
+        manifest.externalSearchEntries &&
+        manifest.externalSearchEntries.length > 0
+      ) {
+        externalSearchApi = createSearchApiFromExternalBundle(
+          manifest.externalSearchEntries,
+          async (entry) =>
+            loadExternalSearchEntryResponse(
+              entry,
+              currentEnv,
+              manifest.runtime?.r2Binding,
+            ),
+        );
+      }
       const directBinaryResponse = await tryServeExternalBinary(
         manifest,
         request,
@@ -157,7 +183,7 @@ export function createCloudflareWorker(
         acceptHeader: request.headers.get('accept') ?? undefined,
         searchParams: url.searchParams,
         requestUrl: request.url,
-        searchApi,
+        searchApi: inlineSearchApi ?? externalSearchApi,
         plugins: options.plugins,
       });
 
@@ -175,6 +201,88 @@ export function createCloudflareWorker(
       });
     },
   };
+}
+
+async function loadExternalSearchEntryResponse(
+  entry: ExternalSearchBundleEntry,
+  env: CloudflareWorkerEnv | undefined,
+  r2Binding: string | undefined,
+): Promise<Response> {
+  if (entry.storageKind === 'assets') {
+    const assetsBinding = env?.ASSETS;
+    if (!assetsBinding) {
+      throw new Error(
+        `Cloudflare ASSETS binding is required to serve search bundle file ${entry.path}.`,
+      );
+    }
+
+    const assetResponse = await assetsBinding.fetch(
+      new Request(new URL(`/${entry.storageKey}`, 'https://mdorigin-search.invalid/'), {
+        method: 'GET',
+      }),
+    );
+    if (assetResponse.ok) {
+      return assetResponse;
+    }
+
+    return new Response('Not Found', {
+      status: 404,
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+      },
+    });
+  }
+
+  const bindingName = r2Binding ?? 'MDORIGIN_R2';
+  const bucket = env?.[bindingName] as CloudflareR2BucketLike | undefined;
+  if (!bucket) {
+    throw new Error(
+      `Cloudflare R2 binding ${bindingName} is required to serve search bundle file ${entry.path}.`,
+    );
+  }
+
+  const object = await bucket.get(entry.storageKey);
+  if (!object) {
+    return new Response('Not Found', {
+      status: 404,
+      headers: {
+        'content-type': 'text/plain; charset=utf-8',
+      },
+    });
+  }
+
+  const headers = new Headers({
+    'content-type': entry.mediaType,
+  });
+  if (object.httpEtag) {
+    headers.set('etag', object.httpEtag);
+  }
+
+  if (object.body instanceof ReadableStream) {
+    return new Response(object.body, {
+      status: 200,
+      headers,
+    });
+  }
+
+  if (object.body && 'arrayBuffer' in object.body) {
+    return new Response(await object.body.arrayBuffer(), {
+      status: 200,
+      headers,
+    });
+  }
+
+  if (typeof object.arrayBuffer === 'function') {
+    return new Response(await object.arrayBuffer(), {
+      status: 200,
+      headers,
+    });
+  }
+
+  return new Response(null, {
+    status: 200,
+    headers,
+  });
 }
 
 async function tryServeExternalBinary(
