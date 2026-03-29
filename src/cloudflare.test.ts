@@ -316,6 +316,7 @@ test('initCloudflareProject writes assets and r2 config for external bundle', as
   const configSource = await readFile(result.configFile, 'utf8');
   assert.match(configSource, /"assets": \{/);
   assert.match(configSource, /"directory": "dist\/cloudflare\/assets"/);
+  assert.match(configSource, /"binding": "ASSETS"/);
   assert.match(configSource, /"run_worker_first": true/);
   assert.match(configSource, /"binding": "MDORIGIN_R2"/);
   assert.match(configSource, /"bucket_name": "media-bucket"/);

@@ -100,6 +100,7 @@ interface CloudflareR2SyncState {
 }
 
 const DEFAULT_ASSETS_MAX_BYTES = 25 * 1024 * 1024;
+const DEFAULT_ASSETS_BINDING = 'ASSETS';
 const DEFAULT_R2_BINDING = 'MDORIGIN_R2';
 const BUNDLE_FILE_NAME = 'bundle.json';
 const R2_STATE_FILE_NAME = 'r2-sync-state.json';
@@ -287,6 +288,7 @@ export async function initCloudflareProject(
           ',',
           '  "assets": {',
           `    "directory": ${JSON.stringify(toPosixPath(path.relative(projectDir, path.join(path.dirname(options.workerEntry), bundleMetadata.assetsDir))))},`,
+          `    "binding": ${JSON.stringify(DEFAULT_ASSETS_BINDING)},`,
           '    "run_worker_first": true',
           '  }',
         ].join('\n')

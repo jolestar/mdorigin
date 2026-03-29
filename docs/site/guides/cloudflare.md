@@ -40,6 +40,7 @@ In external mode:
 - text content stays embedded in `worker.mjs`
 - smaller binaries are staged under `dist/cloudflare/assets`
 - oversized binaries are staged under `dist/cloudflare/r2`
+- generated Wrangler config wires the staged asset directory to the `ASSETS` binding
 - dotfiles and dot-directories are ignored during traversal
 
 ## Initialize Wrangler config
