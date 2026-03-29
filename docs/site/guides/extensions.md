@@ -19,20 +19,30 @@ export default defineConfig({
     {
       name: "custom-layout",
       renderPage(page, _context, next) {
-        if (page.kind !== "catalog") {
+        if (page.kind !== "listing") {
           return next(page);
         }
 
+        const title = escapeHtml(page.title);
         return [
           "<!doctype html>",
           "<html><body>",
-          `<main class="custom-catalog"><h1>${page.title}</h1>${page.bodyHtml}</main>`,
+          `<main class="custom-listing"><h1>${title}</h1>${page.bodyHtml}</main>`,
           "</body></html>",
         ].join("");
       },
     },
   ],
 });
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
 ```
 
 ## Stable Hook Surface
@@ -51,7 +61,7 @@ These hooks are intended to be stable extension points. Internal request handlin
 
 ### `ManagedIndexEntry`
 
-This is the normalized item shape used for generated directory indexes and catalog rendering.
+This is the normalized item shape used for generated directory indexes and default listing rendering.
 
 ```ts
 type ManagedIndexEntry = {
@@ -108,7 +118,7 @@ This is the stable page model passed into `renderPage` and included in `RenderHo
 
 ```ts
 type PageRenderModel = {
-  kind: "document" | "catalog";
+  kind: "page" | "listing";
   requestPath: string;
   sourcePath: string;
   siteTitle: string;
@@ -124,8 +134,6 @@ type PageRenderModel = {
   date?: string;
   showSummary: boolean;
   showDate: boolean;
-  theme: BuiltInThemeName;
-  template: TemplateName;
   topNav: SiteNavItem[];
   footerNav: SiteNavItem[];
   footerText?: string;
@@ -135,10 +143,10 @@ type PageRenderModel = {
   stylesheetContent?: string;
   canonicalPath?: string;
   alternateMarkdownPath?: string;
-  catalogEntries: ManagedIndexEntry[];
-  catalogRequestPath: string;
-  catalogInitialPostCount: number;
-  catalogLoadMoreStep: number;
+  listingEntries: ManagedIndexEntry[];
+  listingRequestPath: string;
+  listingInitialPostCount: number;
+  listingLoadMoreStep: number;
   searchEnabled: boolean;
 };
 ```
@@ -146,7 +154,7 @@ type PageRenderModel = {
 The most important fields in practice are:
 
 - `kind`
-  - `document` or `catalog`
+  - `page` or `listing`
 - `requestPath`
   - current published path, such as `/guides/getting-started`
 - `sourcePath`
@@ -161,8 +169,8 @@ The most important fields in practice are:
   - normalized metadata when enabled
 - `topNav`, `footerNav`, `socialLinks`
   - normalized site navigation data
-- `catalogEntries`
-  - managed index entries for catalog-like pages
+- `listingEntries`
+  - managed index entries for listing-like pages
 - `canonicalPath`
   - canonical HTML route
 - `alternateMarkdownPath`
@@ -239,7 +247,7 @@ Rules:
 
 Typical uses:
 
-- custom catalog layout
+- custom listing layout
 - custom document shell
 - alternate article presentation
 - layout changes that go beyond header/footer replacement
@@ -248,16 +256,26 @@ Example:
 
 ```ts
 renderPage(page, _context, next) {
-  if (page.kind !== "catalog") {
+  if (page.kind !== "listing") {
     return next(page);
   }
 
+  const title = escapeHtml(page.title);
   return [
     "<!doctype html>",
     "<html><body>",
-    `<main class="catalog-grid"><h1>${page.title}</h1>${page.bodyHtml}</main>`,
+    `<main class="listing-grid"><h1>${title}</h1>${page.bodyHtml}</main>`,
     "</body></html>",
   ].join("");
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 ```
 
@@ -300,7 +318,7 @@ The intended boundary is:
 Start with:
 
 1. `renderFooter` if you only need footer customization
-2. `transformIndex` if you want custom catalog ordering or grouping
-3. `renderPage` if you want a fully custom catalog or document layout
+2. `transformIndex` if you want custom listing ordering or grouping
+3. `renderPage` if you want a fully custom page or listing layout
 
 For the rest of the configuration surface, see [Configuration](../reference/configuration.md).

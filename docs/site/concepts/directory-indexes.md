@@ -49,4 +49,4 @@ If a directory has no generated entries, the managed block is left empty instead
 
 For the root homepage, HTML rendering may hide repeated `page` entries when those same destinations are already shown in the top navigation. The raw markdown remains unchanged.
 
-When `template: catalog` is active, the managed index block is rendered as a structured directory-and-article flow in HTML. The raw markdown source still keeps the normal `INDEX:START/END` block.
+When a page contains a managed index block, the default HTML renderer turns it into a structured directory-and-article listing. The raw markdown source still keeps the normal `INDEX:START/END` block.

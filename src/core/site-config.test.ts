@@ -15,50 +15,61 @@ test('loadSiteConfig prefers content root config over cwd config', async () => {
   const cwd = await mkdtemp(path.join(tmpdir(), 'mdorigin-config-cwd-'));
   const rootDir = path.join(cwd, 'docs', 'site');
   await mkdir(rootDir, { recursive: true });
+  const warnings: string[] = [];
+  const originalWarn = console.warn;
+  console.warn = (message?: unknown) => {
+    warnings.push(String(message));
+  };
 
-  await writeFile(
-    path.join(cwd, 'mdorigin.config.json'),
-    JSON.stringify({ siteTitle: 'cwd-title', theme: 'paper' }, null, 2),
-    'utf8',
-  );
-  await writeFile(
-    path.join(rootDir, 'mdorigin.config.json'),
-    JSON.stringify(
-      {
-        siteTitle: 'root-title',
-        theme: 'gazette',
-        siteUrl: 'https://example.com',
-        favicon: 'favicon.svg',
-        logo: { src: 'logo.svg', alt: 'Example Logo' },
-        footerNav: [{ label: 'GitHub', href: 'https://github.com/example/repo' }],
-        footerText: 'Footer note',
-        socialLinks: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/example/repo' }],
-        editLink: { baseUrl: 'https://github.com/example/repo/edit/main/docs/' },
-        catalogInitialPostCount: 6,
-        catalogLoadMoreStep: 4,
-      },
-      null,
-      2,
-    ),
-    'utf8',
-  );
+  try {
+    await writeFile(
+      path.join(cwd, 'mdorigin.config.json'),
+      JSON.stringify({ siteTitle: 'cwd-title', theme: 'paper' }, null, 2),
+      'utf8',
+    );
+    await writeFile(
+      path.join(rootDir, 'mdorigin.config.json'),
+      JSON.stringify(
+        {
+          siteTitle: 'root-title',
+          theme: 'gazette',
+          siteUrl: 'https://example.com',
+          favicon: 'favicon.svg',
+          logo: { src: 'logo.svg', alt: 'Example Logo' },
+          footerNav: [{ label: 'GitHub', href: 'https://github.com/example/repo' }],
+          footerText: 'Footer note',
+          socialLinks: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/example/repo' }],
+          editLink: { baseUrl: 'https://github.com/example/repo/edit/main/docs/' },
+          catalogInitialPostCount: 6,
+          catalogLoadMoreStep: 4,
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
 
-  const config = await loadSiteConfig({ cwd, rootDir });
+    const config = await loadSiteConfig({ cwd, rootDir });
 
-  assert.equal(config.siteTitle, 'root-title');
-  assert.equal(config.theme, 'gazette');
-  assert.equal(config.template, 'document');
-  assert.equal(config.siteUrl, 'https://example.com');
-  assert.equal(config.favicon, '/favicon.svg');
-  assert.deepEqual(config.logo, { src: '/logo.svg', alt: 'Example Logo', href: undefined });
-  assert.equal(config.footerNav[0]?.label, 'GitHub');
-  assert.equal(config.footerText, 'Footer note');
-  assert.equal(config.socialLinks[0]?.icon, 'github');
-  assert.deepEqual(config.editLink, {
-    baseUrl: 'https://github.com/example/repo/edit/main/docs/',
-  });
-  assert.equal(config.catalogInitialPostCount, 6);
-  assert.equal(config.catalogLoadMoreStep, 4);
+    assert.equal(config.siteTitle, 'root-title');
+    assert.equal(config.siteUrl, 'https://example.com');
+    assert.equal(config.favicon, '/favicon.svg');
+    assert.deepEqual(config.logo, { src: '/logo.svg', alt: 'Example Logo', href: undefined });
+    assert.equal(config.footerNav[0]?.label, 'GitHub');
+    assert.equal(config.footerText, 'Footer note');
+    assert.equal(config.socialLinks[0]?.icon, 'github');
+    assert.deepEqual(config.editLink, {
+      baseUrl: 'https://github.com/example/repo/edit/main/docs/',
+    });
+    assert.equal(config.listingInitialPostCount, 6);
+    assert.equal(config.listingLoadMoreStep, 4);
+    assert.equal(warnings.length, 3);
+    assert.match(warnings[0] ?? '', /"theme" is deprecated/);
+    assert.match(warnings[1] ?? '', /"catalogInitialPostCount" is deprecated/);
+    assert.match(warnings[2] ?? '', /"catalogLoadMoreStep" is deprecated/);
+  } finally {
+    console.warn = originalWarn;
+  }
 });
 
 test('applySiteConfigFrontmatterDefaults uses root homepage frontmatter when config is absent', async () => {
@@ -112,16 +123,14 @@ test('applySiteConfigFrontmatterDefaults does not override explicit config value
     logo: undefined,
     showDate: true,
     showSummary: true,
-    theme: 'paper',
-    template: 'document',
     topNav: [],
     footerNav: [],
     footerText: undefined,
     socialLinks: [],
     editLink: undefined,
     showHomeIndex: true,
-    catalogInitialPostCount: 10,
-    catalogLoadMoreStep: 10,
+    listingInitialPostCount: 10,
+    listingLoadMoreStep: 10,
     siteTitleConfigured: true,
     siteDescriptionConfigured: true,
   });
@@ -132,12 +141,17 @@ test('applySiteConfigFrontmatterDefaults does not override explicit config value
 
 test('loadUserSiteConfig prefers mdorigin.config.ts and exposes plugins', async () => {
   const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-config-ts-'));
+  const warnings: string[] = [];
+  const originalWarn = console.warn;
+  console.warn = (message?: unknown) => {
+    warnings.push(String(message));
+  };
   await writeFile(
     path.join(rootDir, 'mdorigin.config.ts'),
     [
       'export default {',
       '  siteTitle: "TS Config",',
-      '  theme: "atlas",',
+      '  listingInitialPostCount: 8,',
       '  plugins: [',
       '    {',
       '      name: "example",',
@@ -156,10 +170,15 @@ test('loadUserSiteConfig prefers mdorigin.config.ts and exposes plugins', async 
     'utf8',
   );
 
-  const loaded = await loadUserSiteConfig({ rootDir });
+  try {
+    const loaded = await loadUserSiteConfig({ rootDir });
 
-  assert.equal(loaded.siteConfig.siteTitle, 'TS Config');
-  assert.equal(loaded.siteConfig.theme, 'atlas');
-  assert.equal(loaded.plugins.length, 1);
-  assert.match(loaded.configModulePath ?? '', /mdorigin\.config\.ts$/);
+    assert.equal(loaded.siteConfig.siteTitle, 'TS Config');
+    assert.equal(loaded.siteConfig.listingInitialPostCount, 8);
+    assert.equal(loaded.plugins.length, 1);
+    assert.match(loaded.configModulePath ?? '', /mdorigin\.config\.ts$/);
+    assert.equal(warnings.length, 0);
+  } finally {
+    console.warn = originalWarn;
+  }
 });

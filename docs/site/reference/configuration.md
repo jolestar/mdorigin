@@ -26,16 +26,14 @@ Useful fields:
 - `favicon`
 - `socialImage`
 - `logo`
-- `theme`
-- `template`
 - `topNav`
 - `footerNav`
 - `footerText`
 - `socialLinks`
 - `editLink`
 - `showHomeIndex`
-- `catalogInitialPostCount`
-- `catalogLoadMoreStep`
+- `listingInitialPostCount`
+- `listingLoadMoreStep`
 - `showDate`
 - `showSummary`
 - `stylesheet`
@@ -56,20 +54,30 @@ export default defineConfig({
     {
       name: "custom-layout",
       renderPage(page, _context, next) {
-        if (page.kind !== "catalog") {
+        if (page.kind !== "listing") {
           return next(page);
         }
 
+        const title = escapeHtml(page.title);
         return [
           "<!doctype html>",
           "<html><body>",
-          `<main class="custom-catalog"><h1>${page.title}</h1>${page.bodyHtml}</main>`,
+          `<main class="custom-listing"><h1>${title}</h1>${page.bodyHtml}</main>`,
           "</body></html>",
         ].join("");
       },
     },
   ],
 });
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
 ```
 
 `defineConfig` is optional. A plain default export object also works.
@@ -163,30 +171,28 @@ Built-in social icons currently include:
 
 `footerText` has no implicit default. If you omit it, `mdorigin` does not render footer copy on its own.
 
-## Template
+## Default Presentation
 
-`mdorigin` currently supports two built-in template variants:
+`mdorigin` ships one built-in presentation.
 
-- `document`: the default docs-and-notes layout
-- `catalog`: for homepages and directory-style collection pages
+- it uses the default atlas-style baseline
+- it renders ordinary pages and managed index listings with the same outer document shell
+- if you want a different layout or styling, use `stylesheet` or code-based hooks instead of selecting a built-in theme/template variant
 
-The `theme` still controls colors, typography, and spacing. `template` controls the page structure.
-
-When `template` is `catalog`, you can limit the initial article list and progressively reveal more posts:
+When a page contains a managed index block, the default renderer turns article entries into a structured listing and supports incremental `Load more` batches. You can tune that listing behavior with:
 
 ```json
 {
-  "template": "catalog",
-  "catalogInitialPostCount": 10,
-  "catalogLoadMoreStep": 10
+  "listingInitialPostCount": 10,
+  "listingLoadMoreStep": 10
 }
 ```
 
 Rules:
 
-- `catalogInitialPostCount` controls how many article entries are rendered in the first HTML response
-- `catalogLoadMoreStep` controls how many additional article entries each `Load more` request appends
-- directory entries are still rendered in full; the limit only applies to catalog article entries
+- `listingInitialPostCount` controls how many article entries are rendered in the first HTML response
+- `listingLoadMoreStep` controls how many additional article entries each `Load more` request appends
+- directory entries are still rendered in full; the limit only applies to article entries in the managed listing
 - both fields default to `10`
 
 ## Directory Type
@@ -232,8 +238,8 @@ Rules:
 
 ## Rendering Flags
 
-- `showDate` controls whether parsed markdown dates are surfaced in rendered HTML where the active template uses them
-- `showSummary` controls whether configured summaries are surfaced in rendered HTML where the active template uses them
+- `showDate` controls whether parsed markdown dates are surfaced in rendered HTML where the default presentation uses them
+- `showSummary` controls whether configured summaries are surfaced in rendered HTML where the default presentation uses them
 - both flags default to `true`
 
 ## Aliases

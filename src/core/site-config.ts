@@ -7,8 +7,6 @@ import type { ContentStore } from './content-store.js';
 import { getDirectoryIndexCandidates } from './directory-index.js';
 import { parseMarkdownDocument } from './markdown.js';
 import type { MdoPlugin } from './extensions.js';
-import type { TemplateName } from '../html/template-kind.js';
-import type { BuiltInThemeName } from '../html/theme.js';
 
 export interface SiteNavItem {
   label: string;
@@ -41,16 +39,14 @@ export interface SiteConfig {
   showDate?: boolean;
   showSummary?: boolean;
   stylesheet?: string;
-  theme?: BuiltInThemeName;
-  template?: TemplateName;
   topNav?: SiteNavItem[];
   footerNav?: SiteNavItem[];
   footerText?: string;
   socialLinks?: SiteSocialLink[];
   editLink?: EditLinkConfig;
   showHomeIndex?: boolean;
-  catalogInitialPostCount?: number;
-  catalogLoadMoreStep?: number;
+  listingInitialPostCount?: number;
+  listingLoadMoreStep?: number;
 }
 
 export interface UserSiteConfig extends SiteConfig {
@@ -66,16 +62,14 @@ export interface ResolvedSiteConfig {
   logo?: SiteLogo;
   showDate: boolean;
   showSummary: boolean;
-  theme: BuiltInThemeName;
-  template: TemplateName;
   topNav: SiteNavItem[];
   footerNav: SiteNavItem[];
   footerText?: string;
   socialLinks: SiteSocialLink[];
   editLink?: EditLinkConfig;
   showHomeIndex: boolean;
-  catalogInitialPostCount: number;
-  catalogLoadMoreStep: number;
+  listingInitialPostCount: number;
+  listingLoadMoreStep: number;
   stylesheetContent?: string;
   siteTitleConfigured: boolean;
   siteDescriptionConfigured: boolean;
@@ -110,6 +104,7 @@ export async function loadUserSiteConfig(
     : await resolveDefaultConfigPath(cwd, rootDir);
 
   const parsedConfig = await loadConfigSource(configFilePath);
+  const legacyConfig = parsedConfig as Record<string, unknown>;
 
   const stylesheetPath = parsedConfig.stylesheet
     ? path.resolve(path.dirname(configFilePath), parsedConfig.stylesheet)
@@ -134,8 +129,6 @@ export async function loadUserSiteConfig(
     logo: normalizeLogo(parsedConfig.logo),
     showDate: parsedConfig.showDate ?? true,
     showSummary: parsedConfig.showSummary ?? true,
-    theme: isBuiltInThemeName(parsedConfig.theme) ? parsedConfig.theme : 'paper',
-    template: isTemplateName(parsedConfig.template) ? parsedConfig.template : 'document',
     topNav: normalizeTopNav(parsedConfig.topNav),
     footerNav: normalizeTopNav(parsedConfig.footerNav),
     footerText:
@@ -148,12 +141,12 @@ export async function loadUserSiteConfig(
       typeof parsedConfig.showHomeIndex === 'boolean'
         ? parsedConfig.showHomeIndex
         : normalizeTopNav(parsedConfig.topNav).length === 0,
-    catalogInitialPostCount: normalizePositiveInteger(
-      parsedConfig.catalogInitialPostCount,
+    listingInitialPostCount: normalizePositiveInteger(
+      parsedConfig.listingInitialPostCount ?? legacyConfig.catalogInitialPostCount,
       10,
     ),
-    catalogLoadMoreStep: normalizePositiveInteger(
-      parsedConfig.catalogLoadMoreStep,
+    listingLoadMoreStep: normalizePositiveInteger(
+      parsedConfig.listingLoadMoreStep ?? legacyConfig.catalogLoadMoreStep,
       10,
     ),
     stylesheetContent,
@@ -163,6 +156,8 @@ export async function loadUserSiteConfig(
       typeof parsedConfig.siteDescription === 'string' &&
       parsedConfig.siteDescription !== '',
   };
+
+  warnOnLegacyConfig(legacyConfig, configFilePath);
 
   return {
     siteConfig,
@@ -218,14 +213,6 @@ async function resolveDefaultConfigPath(
   }
 
   return (await findConfigPath(cwd)) ?? path.join(cwd, 'mdorigin.config.json');
-}
-
-function isBuiltInThemeName(value: unknown): value is BuiltInThemeName {
-  return value === 'paper' || value === 'atlas' || value === 'gazette';
-}
-
-function isTemplateName(value: unknown): value is TemplateName {
-  return value === 'document' || value === 'catalog';
 }
 
 function isNodeNotFound(error: unknown): error is NodeJS.ErrnoException {
@@ -453,4 +440,30 @@ function normalizeSiteHref(value: unknown): string | undefined {
   }
 
   return `/${value.replace(/^\.?\//, '')}`;
+}
+
+function warnOnLegacyConfig(config: Record<string, unknown>, configFilePath: string): void {
+  if ('theme' in config) {
+    console.warn(
+      `[mdorigin] ${configFilePath}: "theme" is deprecated and ignored. mdorigin now uses a single built-in atlas presentation.`,
+    );
+  }
+
+  if ('template' in config) {
+    console.warn(
+      `[mdorigin] ${configFilePath}: "template" is deprecated and ignored. Listing behavior is now part of the default presentation.`,
+    );
+  }
+
+  if ('catalogInitialPostCount' in config) {
+    console.warn(
+      `[mdorigin] ${configFilePath}: "catalogInitialPostCount" is deprecated. Use "listingInitialPostCount" instead.`,
+    );
+  }
+
+  if ('catalogLoadMoreStep' in config) {
+    console.warn(
+      `[mdorigin] ${configFilePath}: "catalogLoadMoreStep" is deprecated. Use "listingLoadMoreStep" instead.`,
+    );
+  }
 }
