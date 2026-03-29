@@ -1,6 +1,4 @@
-import { rmSync } from 'node:fs';
 import {
-  mkdtemp,
   mkdir,
   readdir,
   readFile,
@@ -8,7 +6,6 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 
 import { inferDirectoryContentType } from './core/content-type.js';
@@ -117,12 +114,22 @@ interface IndexbindWebIndex {
   ): Promise<SearchHit[]>;
 }
 
+interface IndexbindOpenWebIndexOptions {
+  fetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+}
+
 interface IndexbindWebModule {
-  openWebIndex(base: string | URL): Promise<IndexbindWebIndex>;
+  openWebIndex(
+    base: string | URL,
+    options?: IndexbindOpenWebIndexOptions,
+  ): Promise<IndexbindWebIndex>;
 }
 
 interface IndexbindCloudflareModule {
-  openWebIndex(base: string | URL): Promise<IndexbindWebIndex>;
+  openWebIndex(
+    base: string | URL,
+    options?: IndexbindOpenWebIndexOptions,
+  ): Promise<IndexbindWebIndex>;
 }
 
 export interface SearchQueryOptions {
@@ -174,8 +181,6 @@ interface SearchBundleDocument {
 }
 
 const OVERVIEW_CONTENT_FILENAMES = new Set(['readme.md', 'index.md', 'skill.md']);
-const materializedSearchBundleDirectories = new Set<string>();
-let searchBundleDirectoryCleanupRegistered = false;
 
 export interface BuildSearchBundleOptions {
   rootDir: string;
@@ -780,17 +785,11 @@ async function openWebIndexFromVirtualBundle<
   bundleEntries: Entry[],
   loadResponse: (entry: Entry) => Promise<Response>,
 ): Promise<IndexbindWebIndex> {
-  if (isNodeRuntime()) {
-    return openWebIndexFromMaterializedBundle(bundleEntries, loadResponse);
-  }
-
   const baseUrl = 'https://mdorigin-search.invalid/';
-  const originalFetch = globalThis.fetch;
   const bundleMap = new Map(
     bundleEntries.map((entry) => [new URL(entry.path, baseUrl).toString(), entry]),
   );
-
-  globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+  const bundleFetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const requestUrl =
       typeof input === 'string'
         ? input
@@ -802,23 +801,23 @@ async function openWebIndexFromVirtualBundle<
       return loadResponse(entry);
     }
 
-    return originalFetch(input as RequestInfo, init);
+    return fetch(input as RequestInfo, init);
   };
 
   try {
-    try {
-      const cloudflareModule = await loadIndexbindCloudflareModule();
-      return await cloudflareModule.openWebIndex(new URL(baseUrl));
-    } catch (error) {
-      if (!isCloudflareWasmImportError(error)) {
-        throw error;
-      }
-
-      const webModule = await loadIndexbindWebModule();
-      return await webModule.openWebIndex(new URL(baseUrl));
+    const cloudflareModule = await loadIndexbindCloudflareModule();
+    return await cloudflareModule.openWebIndex(new URL(baseUrl), {
+      fetch: bundleFetch,
+    });
+  } catch (error) {
+    if (!isCloudflareWasmImportError(error)) {
+      throw error;
     }
-  } finally {
-    globalThis.fetch = originalFetch;
+
+    const webModule = await loadIndexbindWebModule();
+    return await webModule.openWebIndex(new URL(baseUrl), {
+      fetch: bundleFetch,
+    });
   }
 }
 
@@ -848,38 +847,6 @@ async function openSearchContextFromBundle<
     readSearchBundleDocumentsFromResponses(bundleEntries, loadResponse),
   ]);
   return { index, documentsById };
-}
-
-async function openWebIndexFromMaterializedBundle<
-  Entry extends { path: string; mediaType: string },
->(
-  bundleEntries: Entry[],
-  loadResponse: (entry: Entry) => Promise<Response>,
-): Promise<IndexbindWebIndex> {
-  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'mdorigin-search-bundle-'));
-  registerMaterializedSearchBundleDirectory(tempDir);
-
-  for (const entry of bundleEntries) {
-    const response = await loadResponse(entry);
-    if (!response.ok) {
-      throw new Error(
-        `Failed to materialize search bundle file ${entry.path}: ${response.status} ${response.statusText}`,
-      );
-    }
-
-    const outputPath = resolveMaterializedSearchBundlePath(tempDir, entry.path);
-    await mkdir(path.dirname(outputPath), { recursive: true });
-
-    if (entry.mediaType.startsWith('text/') || entry.mediaType.includes('json')) {
-      await writeFile(outputPath, await response.text(), 'utf8');
-      continue;
-    }
-
-    await writeFile(outputPath, new Uint8Array(await response.arrayBuffer()));
-  }
-
-  const webModule = await loadIndexbindWebModule();
-  return webModule.openWebIndex(tempDir);
 }
 
 function createInlineSearchBundleResponse(entry: SearchBundleEntry): Response {
@@ -1038,59 +1005,6 @@ async function loadBundleResponseText<
   }
 
   return response.text();
-}
-
-function isNodeRuntime(): boolean {
-  return (
-    typeof process !== 'undefined' &&
-    typeof process.versions === 'object' &&
-    typeof process.versions.node === 'string'
-  );
-}
-
-function resolveMaterializedSearchBundlePath(baseDir: string, entryPath: string): string {
-  if (path.isAbsolute(entryPath)) {
-    throw new Error(`Search bundle path must be relative: ${entryPath}`);
-  }
-
-  const normalizedEntryPath = entryPath.replaceAll('/', path.sep);
-  const outputPath = path.resolve(baseDir, normalizedEntryPath);
-  const relativeOutputPath = path.relative(baseDir, outputPath);
-  if (
-    relativeOutputPath === '' ||
-    relativeOutputPath.startsWith(`..${path.sep}`) ||
-    relativeOutputPath === '..' ||
-    path.isAbsolute(relativeOutputPath)
-  ) {
-    throw new Error(`Search bundle path escapes materialized bundle directory: ${entryPath}`);
-  }
-
-  return outputPath;
-}
-
-function registerMaterializedSearchBundleDirectory(directoryPath: string): void {
-  materializedSearchBundleDirectories.add(directoryPath);
-  if (searchBundleDirectoryCleanupRegistered || !isNodeRuntime()) {
-    return;
-  }
-
-  const cleanup = () => {
-    for (const stagedDirectory of materializedSearchBundleDirectories) {
-      rmSync(stagedDirectory, { recursive: true, force: true });
-    }
-    materializedSearchBundleDirectories.clear();
-  };
-
-  process.once('exit', cleanup);
-  process.once('SIGINT', () => {
-    cleanup();
-    process.exit(130);
-  });
-  process.once('SIGTERM', () => {
-    cleanup();
-    process.exit(143);
-  });
-  searchBundleDirectoryCleanupRegistered = true;
 }
 
 function rerankSearchHits(hits: SearchHit[]): SearchHit[] {
