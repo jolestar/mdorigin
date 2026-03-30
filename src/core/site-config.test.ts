@@ -182,3 +182,66 @@ test('loadUserSiteConfig prefers mdorigin.config.ts and exposes plugins', async 
     console.warn = originalWarn;
   }
 });
+
+test('loadSiteConfig normalizes search profile settings', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-config-search-'));
+  await writeFile(
+    path.join(rootDir, 'mdorigin.config.json'),
+    JSON.stringify(
+      {
+        search: {
+          topK: '12',
+          mode: 'hybrid',
+          minScore: '0.05',
+          reranker: {
+            kind: 'embedding-v1',
+            candidatePoolSize: '24',
+          },
+          scoreAdjustment: {
+            metadataNumericMultiplier: 'directory_weight',
+          },
+        },
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+
+  const config = await loadSiteConfig({ rootDir });
+
+  assert.deepEqual(config.search, {
+    topK: 12,
+    mode: 'hybrid',
+    minScore: 0.05,
+    reranker: {
+      kind: 'embedding-v1',
+      candidatePoolSize: 24,
+    },
+    scoreAdjustment: {
+      metadataNumericMultiplier: 'directory_weight',
+    },
+  });
+});
+
+test('loadSiteConfig rejects removed search.hybrid setting', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-config-search-legacy-'));
+  await writeFile(
+    path.join(rootDir, 'mdorigin.config.json'),
+    JSON.stringify(
+      {
+        search: {
+          hybrid: true,
+        },
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+
+  await assert.rejects(
+    () => loadSiteConfig({ rootDir }),
+    /"search\.hybrid" has been removed/,
+  );
+});

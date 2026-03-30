@@ -125,7 +125,7 @@ export function createCloudflareWorker(
   );
   const inlineSearchApi =
     manifest.searchEntries && manifest.searchEntries.length > 0
-      ? createSearchApiFromBundle(manifest.searchEntries)
+      ? createSearchApiFromBundle(manifest.searchEntries, manifest.siteConfig?.search)
       : undefined;
   const externalSearchApis = new WeakMap<
     CloudflareWorkerEnv,
@@ -216,6 +216,7 @@ function getExternalSearchApi(
         manifest.externalSearchEntries,
         async (entry) =>
           loadExternalSearchEntryResponse(entry, undefined, manifest.runtime?.r2Binding),
+        manifest.siteConfig?.search,
       )
     );
   }
@@ -229,6 +230,7 @@ function getExternalSearchApi(
     manifest.externalSearchEntries,
     async (entry) =>
       loadExternalSearchEntryResponse(entry, env, manifest.runtime?.r2Binding),
+    manifest.siteConfig?.search,
   );
   cache.set(env, searchApi);
   return searchApi;

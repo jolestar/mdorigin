@@ -29,6 +29,23 @@ export interface EditLinkConfig {
   baseUrl: string;
 }
 
+export interface SiteSearchRerankerConfig {
+  kind?: 'embedding-v1' | 'heuristic-v1';
+  candidatePoolSize?: number;
+}
+
+export interface SiteSearchScoreAdjustmentConfig {
+  metadataNumericMultiplier?: string;
+}
+
+export interface SiteSearchConfig {
+  topK?: number;
+  mode?: 'hybrid' | 'vector';
+  minScore?: number;
+  reranker?: SiteSearchRerankerConfig;
+  scoreAdjustment?: SiteSearchScoreAdjustmentConfig;
+}
+
 export interface SiteConfig {
   siteTitle?: string;
   siteDescription?: string;
@@ -47,6 +64,7 @@ export interface SiteConfig {
   showHomeIndex?: boolean;
   listingInitialPostCount?: number;
   listingLoadMoreStep?: number;
+  search?: SiteSearchConfig;
 }
 
 export interface UserSiteConfig extends SiteConfig {
@@ -70,6 +88,7 @@ export interface ResolvedSiteConfig {
   showHomeIndex: boolean;
   listingInitialPostCount: number;
   listingLoadMoreStep: number;
+  search?: SiteSearchConfig;
   stylesheetContent?: string;
   siteTitleConfigured: boolean;
   siteDescriptionConfigured: boolean;
@@ -149,6 +168,7 @@ export async function loadUserSiteConfig(
       parsedConfig.listingLoadMoreStep ?? legacyConfig.catalogLoadMoreStep,
       10,
     ),
+    search: normalizeSearchConfig(parsedConfig.search, configFilePath),
     stylesheetContent,
     siteTitleConfigured:
       typeof parsedConfig.siteTitle === 'string' && parsedConfig.siteTitle !== '',
@@ -345,6 +365,117 @@ function normalizePositiveInteger(value: unknown, fallback: number): number {
   }
 
   return fallback;
+}
+
+function normalizeOptionalPositiveInteger(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isInteger(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+}
+
+function normalizeOptionalNumber(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+}
+
+function normalizeSearchConfig(
+  value: unknown,
+  configFilePath: string,
+): SiteSearchConfig | undefined {
+  if (typeof value !== 'object' || value === null) {
+    return undefined;
+  }
+
+  if ('hybrid' in value) {
+    throw new Error(
+      `[mdorigin] ${configFilePath}: "search.hybrid" has been removed. Use "search.mode" with "hybrid" or "vector" instead.`,
+    );
+  }
+
+  const searchConfig = value as Record<string, unknown>;
+  const reranker =
+    typeof searchConfig.reranker === 'object' && searchConfig.reranker !== null
+      ? normalizeSearchReranker(searchConfig.reranker)
+      : undefined;
+  const scoreAdjustment =
+    typeof searchConfig.scoreAdjustment === 'object' &&
+    searchConfig.scoreAdjustment !== null
+      ? normalizeSearchScoreAdjustment(searchConfig.scoreAdjustment)
+      : undefined;
+
+  const normalized: SiteSearchConfig = {
+    topK: normalizeOptionalPositiveInteger(searchConfig.topK),
+    mode:
+      searchConfig.mode === 'hybrid' || searchConfig.mode === 'vector'
+        ? searchConfig.mode
+        : undefined,
+    minScore: normalizeOptionalNumber(searchConfig.minScore),
+    reranker,
+    scoreAdjustment,
+  };
+
+  return Object.values(normalized).some((entry) => entry !== undefined)
+    ? normalized
+    : undefined;
+}
+
+function normalizeSearchReranker(value: unknown): SiteSearchRerankerConfig | undefined {
+  if (typeof value !== 'object' || value === null) {
+    return undefined;
+  }
+
+  const reranker = value as Record<string, unknown>;
+  const normalized: SiteSearchRerankerConfig = {
+    kind:
+      reranker.kind === 'embedding-v1' || reranker.kind === 'heuristic-v1'
+        ? reranker.kind
+        : undefined,
+    candidatePoolSize: normalizeOptionalPositiveInteger(reranker.candidatePoolSize),
+  };
+
+  return Object.values(normalized).some((entry) => entry !== undefined)
+    ? normalized
+    : undefined;
+}
+
+function normalizeSearchScoreAdjustment(
+  value: unknown,
+): SiteSearchScoreAdjustmentConfig | undefined {
+  if (typeof value !== 'object' || value === null) {
+    return undefined;
+  }
+
+  const scoreAdjustment = value as Record<string, unknown>;
+  const normalized: SiteSearchScoreAdjustmentConfig = {
+    metadataNumericMultiplier:
+      typeof scoreAdjustment.metadataNumericMultiplier === 'string' &&
+      scoreAdjustment.metadataNumericMultiplier !== ''
+        ? scoreAdjustment.metadataNumericMultiplier
+        : undefined,
+  };
+
+  return Object.values(normalized).some((entry) => entry !== undefined)
+    ? normalized
+    : undefined;
 }
 
 function normalizeLogo(value: unknown): SiteLogo | undefined {

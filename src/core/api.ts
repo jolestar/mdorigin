@@ -34,7 +34,10 @@ export async function handleApiRoute(
       });
     }
 
-    const topK = normalizePositiveInteger(searchParams?.get('topK')) ?? 10;
+    const topK =
+      normalizePositiveInteger(searchParams?.get('topK')) ??
+      options.siteConfig.search?.topK ??
+      10;
     const metadata = readSearchMetadataFilters(searchParams);
     const hits = await options.searchApi.search(query, {
       topK,
@@ -91,7 +94,7 @@ function buildOpenApiDocument(options: ApiRouteOptions) {
               required: false,
               schema: { type: 'string' },
               description:
-                'Exact-match metadata filter. Use query parameters such as meta.type=post or meta.section=guides.',
+                'Exact-match metadata filter. Use query parameters such as meta.type=post or meta.section=guides. Retrieval mode and reranking stay under site configuration.',
             },
           ],
           responses: {

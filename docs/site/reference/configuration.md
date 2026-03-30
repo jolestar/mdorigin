@@ -34,6 +34,7 @@ Useful fields:
 - `showHomeIndex`
 - `listingInitialPostCount`
 - `listingLoadMoreStep`
+- `search`
 - `showDate`
 - `showSummary`
 - `stylesheet`
@@ -194,6 +195,48 @@ Rules:
 - `listingLoadMoreStep` controls how many additional article entries each `Load more` request appends
 - directory entries are still rendered in full; the limit only applies to article entries in the managed listing
 - both fields default to `10`
+
+## Search Profile
+
+When a site exposes a search bundle through `mdorigin dev --search ...` or a deployed search API, `mdorigin` can apply a site-level search profile.
+
+Example:
+
+```json
+{
+  "search": {
+    "topK": 10,
+    "mode": "hybrid",
+    "minScore": 0.05,
+    "reranker": {
+      "kind": "embedding-v1",
+      "candidatePoolSize": 25
+    },
+    "scoreAdjustment": {
+      "metadataNumericMultiplier": "directory_weight"
+    }
+  }
+}
+```
+
+Supported fields:
+
+- `search.topK`
+- `search.mode`
+- `search.minScore`
+- `search.reranker.kind`
+- `search.reranker.candidatePoolSize`
+- `search.scoreAdjustment.metadataNumericMultiplier`
+
+Rules:
+
+- `search.topK` sets the default result count for `/api/search` when the request does not provide its own `topK`
+- `search.mode` accepts `hybrid` or `vector`
+- `search.minScore` drops weak tail matches after final scoring
+- `search.reranker` configures the optional final reranking stage
+- `search.scoreAdjustment.metadataNumericMultiplier` points to a numeric metadata field that should multiply the final score
+- `/api/search` still keeps a small public surface: `q`, `topK`, and `meta.<field>`
+- retrieval mode, reranker choice, score adjustment, and score cutoff stay in site configuration rather than public query parameters
 
 ## Directory Type
 

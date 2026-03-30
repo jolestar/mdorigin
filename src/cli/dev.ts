@@ -40,7 +40,7 @@ export async function runDevCommand(argv: string[]) {
     draftMode: 'include',
     siteConfig,
     searchApi: args.search
-      ? await createSearchApiFromDirectory(path.resolve(args.search))
+      ? await createSearchApiFromDirectory(path.resolve(args.search), siteConfig.search)
       : undefined,
     plugins: loadedConfig.plugins,
   });
