@@ -38,12 +38,33 @@ export interface SiteSearchScoreAdjustmentConfig {
   metadataNumericMultiplier?: string;
 }
 
+export interface SiteSearchPolicyOverrideConfig {
+  mode?: 'hybrid' | 'vector' | null;
+  minScore?: number | null;
+  reranker?: SiteSearchRerankerConfig | null;
+  scoreAdjustment?: SiteSearchScoreAdjustmentConfig | null;
+}
+
+export interface SiteSearchShortQueryPolicyConfig extends SiteSearchPolicyOverrideConfig {
+  maxChars: number;
+}
+
+export interface SiteSearchLongQueryPolicyConfig extends SiteSearchPolicyOverrideConfig {
+  minChars: number;
+}
+
+export interface SiteSearchPolicyConfig {
+  shortQuery?: SiteSearchShortQueryPolicyConfig;
+  longQuery?: SiteSearchLongQueryPolicyConfig;
+}
+
 export interface SiteSearchConfig {
   topK?: number;
   mode?: 'hybrid' | 'vector';
   minScore?: number;
   reranker?: SiteSearchRerankerConfig;
   scoreAdjustment?: SiteSearchScoreAdjustmentConfig;
+  policy?: SiteSearchPolicyConfig;
 }
 
 export interface SiteConfig {
@@ -421,6 +442,10 @@ function normalizeSearchConfig(
     searchConfig.scoreAdjustment !== null
       ? normalizeSearchScoreAdjustment(searchConfig.scoreAdjustment)
       : undefined;
+  const policy =
+    typeof searchConfig.policy === 'object' && searchConfig.policy !== null
+      ? normalizeSearchPolicy(searchConfig.policy)
+      : undefined;
 
   const normalized: SiteSearchConfig = {
     topK: normalizeOptionalPositiveInteger(searchConfig.topK),
@@ -431,6 +456,7 @@ function normalizeSearchConfig(
     minScore: normalizeOptionalNumber(searchConfig.minScore),
     reranker,
     scoreAdjustment,
+    policy,
   };
 
   return Object.values(normalized).some((entry) => entry !== undefined)
@@ -476,6 +502,104 @@ function normalizeSearchScoreAdjustment(
   return Object.values(normalized).some((entry) => entry !== undefined)
     ? normalized
     : undefined;
+}
+
+function normalizeSearchPolicy(value: unknown): SiteSearchPolicyConfig | undefined {
+  if (typeof value !== 'object' || value === null) {
+    return undefined;
+  }
+
+  const policy = value as Record<string, unknown>;
+  const normalized: SiteSearchPolicyConfig = {
+    shortQuery: normalizeSearchShortQueryPolicy(policy.shortQuery),
+    longQuery: normalizeSearchLongQueryPolicy(policy.longQuery),
+  };
+
+  return Object.values(normalized).some((entry) => entry !== undefined)
+    ? normalized
+    : undefined;
+}
+
+function normalizeSearchShortQueryPolicy(
+  value: unknown,
+): SiteSearchShortQueryPolicyConfig | undefined {
+  if (typeof value !== 'object' || value === null) {
+    return undefined;
+  }
+
+  const policy = value as Record<string, unknown>;
+  const maxChars = normalizeOptionalPositiveInteger(policy.maxChars);
+  if (maxChars === undefined) {
+    return undefined;
+  }
+
+  return {
+    maxChars,
+    ...normalizeSearchPolicyOverride(policy),
+  };
+}
+
+function normalizeSearchLongQueryPolicy(
+  value: unknown,
+): SiteSearchLongQueryPolicyConfig | undefined {
+  if (typeof value !== 'object' || value === null) {
+    return undefined;
+  }
+
+  const policy = value as Record<string, unknown>;
+  const minChars = normalizeOptionalPositiveInteger(policy.minChars);
+  if (minChars === undefined) {
+    return undefined;
+  }
+
+  return {
+    minChars,
+    ...normalizeSearchPolicyOverride(policy),
+  };
+}
+
+function normalizeSearchPolicyOverride(
+  value: Record<string, unknown>,
+): SiteSearchPolicyOverrideConfig {
+  const normalized: SiteSearchPolicyOverrideConfig = {};
+
+  if (value.mode === null) {
+    normalized.mode = null;
+  } else if (value.mode === 'hybrid' || value.mode === 'vector') {
+    normalized.mode = value.mode;
+  }
+
+  if (value.minScore === null) {
+    normalized.minScore = null;
+  } else {
+    const minScore = normalizeOptionalNumber(value.minScore);
+    if (minScore !== undefined) {
+      normalized.minScore = minScore;
+    }
+  }
+
+  if (value.reranker === null) {
+    normalized.reranker = null;
+  } else if (typeof value.reranker === 'object' && value.reranker !== null) {
+    const reranker = normalizeSearchReranker(value.reranker);
+    if (reranker !== undefined) {
+      normalized.reranker = reranker;
+    }
+  }
+
+  if (value.scoreAdjustment === null) {
+    normalized.scoreAdjustment = null;
+  } else if (
+    typeof value.scoreAdjustment === 'object' &&
+    value.scoreAdjustment !== null
+  ) {
+    const scoreAdjustment = normalizeSearchScoreAdjustment(value.scoreAdjustment);
+    if (scoreAdjustment !== undefined) {
+      normalized.scoreAdjustment = scoreAdjustment;
+    }
+  }
+
+  return normalized;
 }
 
 function normalizeLogo(value: unknown): SiteLogo | undefined {

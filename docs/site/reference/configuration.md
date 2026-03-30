@@ -227,6 +227,8 @@ Supported fields:
 - `search.reranker.kind`
 - `search.reranker.candidatePoolSize`
 - `search.scoreAdjustment.metadataNumericMultiplier`
+- `search.policy.shortQuery`
+- `search.policy.longQuery`
 
 Rules:
 
@@ -235,8 +237,39 @@ Rules:
 - `search.minScore` drops weak tail matches after final scoring
 - `search.reranker` configures the optional final reranking stage
 - `search.scoreAdjustment.metadataNumericMultiplier` points to a numeric metadata field that should multiply the final score
+- `search.policy` is optional; if omitted, mdorigin uses only the static site-level search profile
+- `search.policy.shortQuery.maxChars` and `search.policy.longQuery.minChars` are matched against the trimmed query length in Unicode code points
+- if both thresholds overlap for a query, `shortQuery` wins
+- policy entries may set `mode`, `minScore`, `reranker`, or `scoreAdjustment`
+- within a policy entry, `null` explicitly clears an inherited value such as the default reranker or score adjustment
 - `/api/search` still keeps a small public surface: `q`, `topK`, and `meta.<field>`
 - retrieval mode, reranker choice, score adjustment, and score cutoff stay in site configuration rather than public query parameters
+
+Example query-aware policy:
+
+```json
+{
+  "search": {
+    "mode": "hybrid",
+    "topK": 10,
+    "minScore": 0.02,
+    "policy": {
+      "shortQuery": {
+        "maxChars": 6,
+        "minScore": 0.02,
+        "reranker": null
+      },
+      "longQuery": {
+        "minChars": 12,
+        "reranker": {
+          "kind": "heuristic-v1",
+          "candidatePoolSize": 20
+        }
+      }
+    }
+  }
+}
+```
 
 ## Directory Type
 

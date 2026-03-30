@@ -22,6 +22,7 @@ import { isIgnoredContentName } from './core/content-store.js';
 import type {
   ResolvedSiteConfig,
   SiteSearchConfig,
+  SiteSearchPolicyOverrideConfig,
   SiteSearchRerankerConfig,
   SiteSearchScoreAdjustmentConfig,
 } from './core/site-config.js';
@@ -325,12 +326,12 @@ export async function createSearchApiFromDirectory(
   const searchContext = await openSearchContextFromDirectory(path.resolve(indexDir));
   return {
     async search(query, options) {
-      const searchOptions = mergeSearchQueryOptions(defaults, options);
+      const searchOptions = resolveSearchQueryOptions(query, defaults, options);
       return rerankSearchHits(
         hydrateSearchHits(
           await searchContext.index.search(
-          query,
-          buildIndexbindSearchOptions(searchOptions),
+            query,
+            buildIndexbindSearchOptions(searchOptions),
           ),
           searchContext.documentsById,
         ),
@@ -358,12 +359,12 @@ export function createSearchApiFromBundle(
       }
 
       const searchContext = await searchContextPromise;
-      const searchOptions = mergeSearchQueryOptions(defaults, options);
+      const searchOptions = resolveSearchQueryOptions(query, defaults, options);
       return rerankSearchHits(
         hydrateSearchHits(
           await searchContext.index.search(
-          query,
-          buildIndexbindSearchOptions(searchOptions),
+            query,
+            buildIndexbindSearchOptions(searchOptions),
           ),
           searchContext.documentsById,
         ),
@@ -389,12 +390,12 @@ export function createSearchApiFromExternalBundle(
       }
 
       const searchContext = await searchContextPromise;
-      const searchOptions = mergeSearchQueryOptions(defaults, options);
+      const searchOptions = resolveSearchQueryOptions(query, defaults, options);
       return rerankSearchHits(
         hydrateSearchHits(
           await searchContext.index.search(
-          query,
-          buildIndexbindSearchOptions(searchOptions),
+            query,
+            buildIndexbindSearchOptions(searchOptions),
           ),
           searchContext.documentsById,
         ),
@@ -918,8 +919,98 @@ function decodeBase64(value: string): Uint8Array {
   return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
 }
 
-function mergeSearchQueryOptions(
+function resolveSearchQueryOptions(
+  query: string,
   defaults: SiteSearchConfig | undefined,
+  overrides: SearchQueryOptions | undefined,
+): SearchQueryOptions {
+  const policyOverride = resolveSearchPolicyOverride(query, defaults?.policy);
+  return mergeSearchQueryOptions(mergePolicySearchOptions(defaults, policyOverride), overrides);
+}
+
+function resolveSearchPolicyOverride(
+  query: string,
+  policy: SiteSearchConfig['policy'] | undefined,
+): SiteSearchPolicyOverrideConfig | undefined {
+  if (!policy) {
+    return undefined;
+  }
+
+  const queryCharCount = Array.from(query.trim()).length;
+  if (queryCharCount === 0) {
+    return undefined;
+  }
+
+  if (
+    policy.shortQuery &&
+    queryCharCount <= policy.shortQuery.maxChars
+  ) {
+    return policy.shortQuery;
+  }
+
+  if (
+    policy.longQuery &&
+    queryCharCount >= policy.longQuery.minChars
+  ) {
+    return policy.longQuery;
+  }
+
+  return undefined;
+}
+
+function mergePolicySearchOptions(
+  defaults: SiteSearchConfig | undefined,
+  policyOverride: SiteSearchPolicyOverrideConfig | undefined,
+): SearchQueryOptions {
+  const normalized: SearchQueryOptions = {
+    topK: defaults?.topK,
+    mode: defaults?.mode,
+    minScore: defaults?.minScore,
+    reranker: defaults?.reranker ? { ...defaults.reranker } : undefined,
+    scoreAdjustment: defaults?.scoreAdjustment
+      ? { ...defaults.scoreAdjustment }
+      : undefined,
+  };
+
+  if (!policyOverride) {
+    return normalized;
+  }
+
+  if (policyOverride.mode === null) {
+    normalized.mode = undefined;
+  } else if (policyOverride.mode !== undefined) {
+    normalized.mode = policyOverride.mode;
+  }
+
+  if (policyOverride.minScore === null) {
+    normalized.minScore = undefined;
+  } else if (policyOverride.minScore !== undefined) {
+    normalized.minScore = policyOverride.minScore;
+  }
+
+  if (policyOverride.reranker === null) {
+    normalized.reranker = undefined;
+  } else if (policyOverride.reranker) {
+    normalized.reranker = {
+      ...(normalized.reranker ?? {}),
+      ...policyOverride.reranker,
+    };
+  }
+
+  if (policyOverride.scoreAdjustment === null) {
+    normalized.scoreAdjustment = undefined;
+  } else if (policyOverride.scoreAdjustment) {
+    normalized.scoreAdjustment = {
+      ...(normalized.scoreAdjustment ?? {}),
+      ...policyOverride.scoreAdjustment,
+    };
+  }
+
+  return normalized;
+}
+
+function mergeSearchQueryOptions(
+  defaults: SearchQueryOptions | undefined,
   overrides: SearchQueryOptions | undefined,
 ): SearchQueryOptions {
   return {
@@ -933,8 +1024,8 @@ function mergeSearchQueryOptions(
             ...(overrides?.reranker ?? {}),
           }
         : undefined,
-    relativePathPrefix: overrides?.relativePathPrefix,
-    metadata: overrides?.metadata,
+    relativePathPrefix: overrides?.relativePathPrefix ?? defaults?.relativePathPrefix,
+    metadata: overrides?.metadata ?? defaults?.metadata,
     scoreAdjustment:
       overrides?.scoreAdjustment || defaults?.scoreAdjustment
         ? {
