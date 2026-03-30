@@ -22,10 +22,8 @@ import { isIgnoredContentName } from './core/content-store.js';
 import type {
   ResolvedSiteConfig,
   SiteSearchConfig,
-  SiteSearchLongQueryPolicyConfig,
   SiteSearchPolicyOverrideConfig,
   SiteSearchRerankerConfig,
-  SiteSearchShortQueryPolicyConfig,
   SiteSearchScoreAdjustmentConfig,
 } from './core/site-config.js';
 
