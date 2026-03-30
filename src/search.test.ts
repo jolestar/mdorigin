@@ -4,7 +4,11 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
-import { buildSearchBundle, searchBundle } from './search.js';
+import {
+  buildSearchBundle,
+  createSearchApiFromDirectory,
+  searchBundle,
+} from './search.js';
 import type { ResolvedSiteConfig } from './core/site-config.js';
 
 test('buildSearchBundle and searchBundle integrate through indexbind', async (t) => {
@@ -473,6 +477,137 @@ test('searchBundle accepts search profile options from indexbind 0.5.x', async (
   });
 
   assert.equal(minScoreHits.length, 0);
+});
+
+test('createSearchApiFromDirectory applies long-query policy and clears inherited minScore', async (t) => {
+  try {
+    await import('indexbind/web');
+  } catch {
+    t.skip('indexbind is not installed');
+    return;
+  }
+
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'mdorigin-search-policy-long-'));
+  const rootDir = path.join(tempDir, 'site');
+  const outDir = path.join(tempDir, 'search');
+  await mkdir(rootDir, { recursive: true });
+  await writeFile(
+    path.join(rootDir, 'README.md'),
+    '# Cloudflare Deployment\n\nDeploy mdorigin to Cloudflare Workers with wrangler.\n',
+    'utf8',
+  );
+
+  const siteConfig: ResolvedSiteConfig = {
+    siteTitle: 'Example Site',
+    siteDescription: undefined,
+    siteUrl: 'https://example.com',
+    favicon: undefined,
+    logo: undefined,
+    showDate: true,
+    showSummary: true,
+    topNav: [],
+    footerNav: [],
+    footerText: undefined,
+    socialLinks: [],
+    editLink: undefined,
+    showHomeIndex: true,
+    listingInitialPostCount: 10,
+    listingLoadMoreStep: 10,
+    stylesheetContent: undefined,
+    siteTitleConfigured: true,
+    siteDescriptionConfigured: false,
+  };
+
+  await buildSearchBundle({
+    rootDir,
+    outDir,
+    siteConfig,
+    embeddingBackend: 'hashing',
+  });
+
+  const searchApi = await createSearchApiFromDirectory(outDir, {
+    topK: 10,
+    minScore: 2,
+    policy: {
+      longQuery: {
+        minChars: 12,
+        minScore: null,
+      },
+    },
+  });
+
+  const shortHits = await searchApi.search('cloudflare');
+  const longHits = await searchApi.search(
+    'How do I deploy mdorigin to Cloudflare Workers with wrangler',
+  );
+
+  assert.equal(shortHits.length, 0);
+  assert.ok(longHits.length > 0);
+  assert.equal(longHits[0]?.title, 'Cloudflare Deployment');
+});
+
+test('createSearchApiFromDirectory prefers short-query policy when thresholds overlap', async (t) => {
+  try {
+    await import('indexbind/web');
+  } catch {
+    t.skip('indexbind is not installed');
+    return;
+  }
+
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'mdorigin-search-policy-short-'));
+  const rootDir = path.join(tempDir, 'site');
+  const outDir = path.join(tempDir, 'search');
+  await mkdir(rootDir, { recursive: true });
+  await writeFile(
+    path.join(rootDir, 'README.md'),
+    '# Deploy Guide\n\nDeploy mdorigin to Cloudflare Workers.\n',
+    'utf8',
+  );
+
+  const siteConfig: ResolvedSiteConfig = {
+    siteTitle: 'Example Site',
+    siteDescription: undefined,
+    siteUrl: 'https://example.com',
+    favicon: undefined,
+    logo: undefined,
+    showDate: true,
+    showSummary: true,
+    topNav: [],
+    footerNav: [],
+    footerText: undefined,
+    socialLinks: [],
+    editLink: undefined,
+    showHomeIndex: true,
+    listingInitialPostCount: 10,
+    listingLoadMoreStep: 10,
+    stylesheetContent: undefined,
+    siteTitleConfigured: true,
+    siteDescriptionConfigured: false,
+  };
+
+  await buildSearchBundle({
+    rootDir,
+    outDir,
+    siteConfig,
+    embeddingBackend: 'hashing',
+  });
+
+  const searchApi = await createSearchApiFromDirectory(outDir, {
+    minScore: 2,
+    policy: {
+      shortQuery: {
+        maxChars: 12,
+        minScore: 0,
+      },
+      longQuery: {
+        minChars: 10,
+        minScore: 2,
+      },
+    },
+  });
+
+  const hits = await searchApi.search('deploy guide');
+  assert.ok(hits.length > 0);
 });
 
 test('buildSearchBundle supports incremental rebuilds with removed documents', async (t) => {

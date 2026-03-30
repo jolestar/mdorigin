@@ -200,6 +200,21 @@ test('loadSiteConfig normalizes search profile settings', async () => {
           scoreAdjustment: {
             metadataNumericMultiplier: 'directory_weight',
           },
+          policy: {
+            shortQuery: {
+              maxChars: '6',
+              minScore: '0.02',
+              reranker: null,
+            },
+            longQuery: {
+              minChars: '12',
+              reranker: {
+                kind: 'heuristic-v1',
+                candidatePoolSize: '20',
+              },
+              scoreAdjustment: null,
+            },
+          },
         },
       },
       null,
@@ -220,6 +235,21 @@ test('loadSiteConfig normalizes search profile settings', async () => {
     },
     scoreAdjustment: {
       metadataNumericMultiplier: 'directory_weight',
+    },
+    policy: {
+      shortQuery: {
+        maxChars: 6,
+        minScore: 0.02,
+        reranker: null,
+      },
+      longQuery: {
+        minChars: 12,
+        reranker: {
+          kind: 'heuristic-v1',
+          candidatePoolSize: 20,
+        },
+        scoreAdjustment: null,
+      },
     },
   });
 });

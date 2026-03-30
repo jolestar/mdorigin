@@ -90,6 +90,35 @@ export default defineConfig({
 
 That profile applies to `mdorigin dev --search ...` and deployed `/api/search` requests. The HTTP API still only accepts `q`, optional `topK`, and `meta.<field>` filters.
 
+If your site needs different retrieval behavior for short queries and longer explanation-style queries, you can add an optional query-aware policy layer:
+
+```ts
+import { defineConfig } from "mdorigin";
+
+export default defineConfig({
+  search: {
+    topK: 10,
+    mode: "hybrid",
+    policy: {
+      shortQuery: {
+        maxChars: 6,
+        minScore: 0.02,
+        reranker: null,
+      },
+      longQuery: {
+        minChars: 12,
+        reranker: {
+          kind: "heuristic-v1",
+          candidatePoolSize: 20,
+        },
+      },
+    },
+  },
+});
+```
+
+`mdorigin` does not enable any dynamic search policy by default. If `search.policy` is absent, the site uses only the static profile.
+
 For repeated local rebuilds, use incremental search indexing:
 
 ```bash
