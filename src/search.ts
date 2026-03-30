@@ -926,10 +926,22 @@ function mergeSearchQueryOptions(
     topK: overrides?.topK ?? defaults?.topK,
     mode: overrides?.mode ?? defaults?.mode,
     minScore: overrides?.minScore ?? defaults?.minScore,
-    reranker: overrides?.reranker ?? defaults?.reranker,
+    reranker:
+      overrides?.reranker || defaults?.reranker
+        ? {
+            ...(defaults?.reranker ?? {}),
+            ...(overrides?.reranker ?? {}),
+          }
+        : undefined,
     relativePathPrefix: overrides?.relativePathPrefix,
     metadata: overrides?.metadata,
-    scoreAdjustment: overrides?.scoreAdjustment ?? defaults?.scoreAdjustment,
+    scoreAdjustment:
+      overrides?.scoreAdjustment || defaults?.scoreAdjustment
+        ? {
+            ...(defaults?.scoreAdjustment ?? {}),
+            ...(overrides?.scoreAdjustment ?? {}),
+          }
+        : undefined,
   };
 }
 
