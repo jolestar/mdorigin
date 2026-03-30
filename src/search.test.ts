@@ -387,6 +387,94 @@ test('searchBundle supports metadata filtering with section and type metadata', 
   assert.equal(filteredHits[0]?.metadata.type, 'post');
 });
 
+test('searchBundle accepts search profile options from indexbind 0.5.x', async (t) => {
+  try {
+    await import('indexbind/web');
+  } catch {
+    t.skip('indexbind is not installed');
+    return;
+  }
+
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), 'mdorigin-search-profile-'));
+  const rootDir = path.join(tempDir, 'site');
+  const outDir = path.join(tempDir, 'search');
+  await mkdir(path.join(rootDir, 'guides'), { recursive: true });
+  await writeFile(path.join(rootDir, 'README.md'), '# Home\n', 'utf8');
+  await writeFile(
+    path.join(rootDir, 'guides', 'cloudflare.md'),
+    [
+      '---',
+      'title: Cloudflare Guide',
+      'type: post',
+      'order: 2',
+      '---',
+      '',
+      '# Cloudflare Guide',
+      '',
+      'Deploy mdorigin to Cloudflare Workers with wrangler.',
+    ].join('\n'),
+    'utf8',
+  );
+
+  const siteConfig: ResolvedSiteConfig = {
+    siteTitle: 'Example Site',
+    siteDescription: undefined,
+    siteUrl: 'https://example.com',
+    favicon: undefined,
+    logo: undefined,
+    showDate: true,
+    showSummary: true,
+    topNav: [],
+    footerNav: [],
+    footerText: undefined,
+    socialLinks: [],
+    editLink: undefined,
+    showHomeIndex: true,
+    listingInitialPostCount: 10,
+    listingLoadMoreStep: 10,
+    stylesheetContent: undefined,
+    siteTitleConfigured: true,
+    siteDescriptionConfigured: false,
+  };
+
+  await buildSearchBundle({
+    rootDir,
+    outDir,
+    siteConfig,
+    embeddingBackend: 'hashing',
+  });
+
+  const hits = await searchBundle({
+    indexDir: outDir,
+    query: 'Cloudflare Guide',
+    topK: 5,
+    mode: 'hybrid',
+    minScore: 0,
+    reranker: {
+      kind: 'heuristic-v1',
+      candidatePoolSize: 10,
+    },
+    scoreAdjustment: {
+      metadataNumericMultiplier: 'order',
+    },
+    metadata: {
+      type: 'post',
+    },
+  });
+
+  assert.equal(hits.length, 1);
+  assert.equal(hits[0]?.title, 'Cloudflare Guide');
+
+  const minScoreHits = await searchBundle({
+    indexDir: outDir,
+    query: 'Cloudflare Guide',
+    topK: 5,
+    minScore: 2,
+  });
+
+  assert.equal(minScoreHits.length, 0);
+});
+
 test('buildSearchBundle supports incremental rebuilds with removed documents', async (t) => {
   try {
     await import('indexbind/web');

@@ -79,6 +79,7 @@ Use search when you need the right doc page before opening it:
 - OpenAPI schema: `https://mdorigin.jolestar.workers.dev/api/openapi.json`
 - Metadata filters: `/api/search?q=<query>&meta.type=post` or `mdorigin search --index dist/search --meta type=post <query>`
 - Repeated local rebuilds can use `mdorigin build search --root docs/site --incremental`
+- Site-level search defaults such as `topK`, `mode`, `minScore`, reranker, and score adjustment live in `mdorigin.config.*`; see the configuration docs for details
 
 Examples:
 

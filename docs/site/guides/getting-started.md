@@ -70,6 +70,26 @@ mdorigin search --index dist/search --meta type=post "cloudflare"
 curl 'http://localhost:3000/api/search?q=cloudflare&meta.type=post'
 ```
 
+If you want the site itself to own the default retrieval profile, configure it in `mdorigin.config.*`:
+
+```ts
+import { defineConfig } from "mdorigin";
+
+export default defineConfig({
+  search: {
+    topK: 10,
+    mode: "hybrid",
+    minScore: 0.05,
+    reranker: {
+      kind: "embedding-v1",
+      candidatePoolSize: 25,
+    },
+  },
+});
+```
+
+That profile applies to `mdorigin dev --search ...` and deployed `/api/search` requests. The HTTP API still only accepts `q`, optional `topK`, and `meta.<field>` filters.
+
 For repeated local rebuilds, use incremental search indexing:
 
 ```bash

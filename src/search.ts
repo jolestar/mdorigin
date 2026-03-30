@@ -19,7 +19,12 @@ import {
 } from './core/markdown.js';
 import type { ParsedDocumentMeta } from './core/markdown.js';
 import { isIgnoredContentName } from './core/content-store.js';
-import type { ResolvedSiteConfig } from './core/site-config.js';
+import type {
+  ResolvedSiteConfig,
+  SiteSearchConfig,
+  SiteSearchRerankerConfig,
+  SiteSearchScoreAdjustmentConfig,
+} from './core/site-config.js';
 
 type JsonValue =
   | null
@@ -107,9 +112,12 @@ interface IndexbindWebIndex {
     query: string,
     options?: {
       topK?: number;
-      hybrid?: boolean;
+      mode?: 'hybrid' | 'vector';
+      minScore?: number;
+      reranker?: SiteSearchRerankerConfig;
       relativePathPrefix?: string;
       metadata?: Record<string, JsonValue>;
+      scoreAdjustment?: SiteSearchScoreAdjustmentConfig;
     },
   ): Promise<SearchHit[]>;
 }
@@ -134,8 +142,12 @@ interface IndexbindCloudflareModule {
 
 export interface SearchQueryOptions {
   topK?: number;
+  mode?: 'hybrid' | 'vector';
+  minScore?: number;
+  reranker?: SiteSearchRerankerConfig;
   relativePathPrefix?: string;
   metadata?: Record<string, string>;
+  scoreAdjustment?: SiteSearchScoreAdjustmentConfig;
 }
 
 export interface SearchApi {
@@ -214,8 +226,12 @@ export interface SearchBundleOptions {
   indexDir: string;
   query: string;
   topK?: number;
+  mode?: 'hybrid' | 'vector';
+  minScore?: number;
+  reranker?: SiteSearchRerankerConfig;
   relativePathPrefix?: string;
   metadata?: Record<string, string>;
+  scoreAdjustment?: SiteSearchScoreAdjustmentConfig;
 }
 
 export async function buildSearchBundle(
@@ -289,8 +305,12 @@ export async function searchBundle(
       options.query,
       buildIndexbindSearchOptions({
         topK: options.topK ?? 10,
+        mode: options.mode,
+        minScore: options.minScore,
+        reranker: options.reranker,
         relativePathPrefix: options.relativePathPrefix,
         metadata: options.metadata,
+        scoreAdjustment: options.scoreAdjustment,
       }),
       ),
       searchContext.documentsById,
@@ -298,19 +318,19 @@ export async function searchBundle(
   );
 }
 
-export async function createSearchApiFromDirectory(indexDir: string): Promise<SearchApi> {
+export async function createSearchApiFromDirectory(
+  indexDir: string,
+  defaults?: SiteSearchConfig,
+): Promise<SearchApi> {
   const searchContext = await openSearchContextFromDirectory(path.resolve(indexDir));
   return {
     async search(query, options) {
+      const searchOptions = mergeSearchQueryOptions(defaults, options);
       return rerankSearchHits(
         hydrateSearchHits(
           await searchContext.index.search(
           query,
-          buildIndexbindSearchOptions({
-            topK: options?.topK,
-            relativePathPrefix: options?.relativePathPrefix,
-            metadata: options?.metadata,
-          }),
+          buildIndexbindSearchOptions(searchOptions),
           ),
           searchContext.documentsById,
         ),
@@ -321,6 +341,7 @@ export async function createSearchApiFromDirectory(indexDir: string): Promise<Se
 
 export function createSearchApiFromBundle(
   bundleEntries: SearchBundleEntry[],
+  defaults?: SiteSearchConfig,
 ): SearchApi {
   let searchContextPromise: Promise<{
     index: IndexbindWebIndex;
@@ -337,15 +358,12 @@ export function createSearchApiFromBundle(
       }
 
       const searchContext = await searchContextPromise;
+      const searchOptions = mergeSearchQueryOptions(defaults, options);
       return rerankSearchHits(
         hydrateSearchHits(
           await searchContext.index.search(
           query,
-          buildIndexbindSearchOptions({
-            topK: options?.topK,
-            relativePathPrefix: options?.relativePathPrefix,
-            metadata: options?.metadata,
-          }),
+          buildIndexbindSearchOptions(searchOptions),
           ),
           searchContext.documentsById,
         ),
@@ -357,6 +375,7 @@ export function createSearchApiFromBundle(
 export function createSearchApiFromExternalBundle(
   bundleEntries: ExternalSearchBundleEntry[],
   loadResponse: (entry: ExternalSearchBundleEntry) => Promise<Response>,
+  defaults?: SiteSearchConfig,
 ): SearchApi {
   let searchContextPromise: Promise<{
     index: IndexbindWebIndex;
@@ -370,15 +389,12 @@ export function createSearchApiFromExternalBundle(
       }
 
       const searchContext = await searchContextPromise;
+      const searchOptions = mergeSearchQueryOptions(defaults, options);
       return rerankSearchHits(
         hydrateSearchHits(
           await searchContext.index.search(
           query,
-          buildIndexbindSearchOptions({
-            topK: options?.topK,
-            relativePathPrefix: options?.relativePathPrefix,
-            metadata: options?.metadata,
-          }),
+          buildIndexbindSearchOptions(searchOptions),
           ),
           searchContext.documentsById,
         ),
@@ -902,6 +918,21 @@ function decodeBase64(value: string): Uint8Array {
   return Uint8Array.from(decoded, (character) => character.charCodeAt(0));
 }
 
+function mergeSearchQueryOptions(
+  defaults: SiteSearchConfig | undefined,
+  overrides: SearchQueryOptions | undefined,
+): SearchQueryOptions {
+  return {
+    topK: overrides?.topK ?? defaults?.topK,
+    mode: overrides?.mode ?? defaults?.mode,
+    minScore: overrides?.minScore ?? defaults?.minScore,
+    reranker: overrides?.reranker ?? defaults?.reranker,
+    relativePathPrefix: overrides?.relativePathPrefix,
+    metadata: overrides?.metadata,
+    scoreAdjustment: overrides?.scoreAdjustment ?? defaults?.scoreAdjustment,
+  };
+}
+
 function buildIndexbindSearchOptions(options: SearchQueryOptions): SearchQueryOptions | undefined {
   const normalized: SearchQueryOptions = {};
 
@@ -914,12 +945,55 @@ function buildIndexbindSearchOptions(options: SearchQueryOptions): SearchQueryOp
     normalized.topK = options.topK;
   }
 
+  if (options.mode === 'hybrid' || options.mode === 'vector') {
+    normalized.mode = options.mode;
+  }
+
+  if (typeof options.minScore === 'number' && Number.isFinite(options.minScore)) {
+    normalized.minScore = options.minScore;
+  }
+
+  if (options.reranker) {
+    const reranker: SiteSearchRerankerConfig = {};
+    if (
+      options.reranker.kind === 'embedding-v1' ||
+      options.reranker.kind === 'heuristic-v1'
+    ) {
+      reranker.kind = options.reranker.kind;
+    }
+    if (
+      typeof options.reranker.candidatePoolSize === 'number' &&
+      Number.isFinite(options.reranker.candidatePoolSize) &&
+      Number.isInteger(options.reranker.candidatePoolSize) &&
+      options.reranker.candidatePoolSize > 0
+    ) {
+      reranker.candidatePoolSize = options.reranker.candidatePoolSize;
+    }
+    if (Object.keys(reranker).length > 0) {
+      normalized.reranker = reranker;
+    }
+  }
+
   if (typeof options.relativePathPrefix === 'string' && options.relativePathPrefix !== '') {
     normalized.relativePathPrefix = options.relativePathPrefix;
   }
 
   if (options.metadata && Object.keys(options.metadata).length > 0) {
     normalized.metadata = options.metadata;
+  }
+
+  if (options.scoreAdjustment) {
+    const scoreAdjustment: SiteSearchScoreAdjustmentConfig = {};
+    if (
+      typeof options.scoreAdjustment.metadataNumericMultiplier === 'string' &&
+      options.scoreAdjustment.metadataNumericMultiplier !== ''
+    ) {
+      scoreAdjustment.metadataNumericMultiplier =
+        options.scoreAdjustment.metadataNumericMultiplier;
+    }
+    if (Object.keys(scoreAdjustment).length > 0) {
+      normalized.scoreAdjustment = scoreAdjustment;
+    }
   }
 
   return Object.keys(normalized).length > 0 ? normalized : undefined;

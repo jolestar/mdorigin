@@ -525,6 +525,83 @@ test('handleSiteRequest serves search API results', async () => {
   assert.equal(body.hits[0]?.title, 'Cloudflare Deployment');
 });
 
+test('handleSiteRequest uses site search topK when query topK is omitted', async () => {
+  const response = await handleSiteRequest(
+    new MemoryContentStore([]),
+    '/api/search',
+    {
+      draftMode: 'include',
+      siteConfig: {
+        ...TEST_SITE_CONFIG,
+        search: {
+          topK: 7,
+          mode: 'hybrid',
+          minScore: 0.05,
+        },
+      },
+      searchParams: new URLSearchParams({
+        q: 'cloudflare deploy',
+        'meta.type': 'post',
+      }),
+      searchApi: {
+        async search(query, options) {
+          assert.equal(query, 'cloudflare deploy');
+          assert.equal(options?.topK, 7);
+          assert.deepEqual(options?.metadata, {
+            type: 'post',
+          });
+          assert.equal('mode' in (options ?? {}), false);
+          return [];
+        },
+      },
+    },
+  );
+
+  assert.equal(response.status, 200);
+  const body = JSON.parse(String(response.body)) as {
+    topK: number;
+    metadata?: Record<string, string>;
+    count: number;
+  };
+  assert.equal(body.topK, 7);
+  assert.deepEqual(body.metadata, { type: 'post' });
+  assert.equal(body.count, 0);
+});
+
+test('handleSiteRequest query topK overrides site search topK', async () => {
+  const response = await handleSiteRequest(
+    new MemoryContentStore([]),
+    '/api/search',
+    {
+      draftMode: 'include',
+      siteConfig: {
+        ...TEST_SITE_CONFIG,
+        search: {
+          topK: 7,
+          mode: 'vector',
+        },
+      },
+      searchParams: new URLSearchParams({
+        q: 'cloudflare deploy',
+        topK: '3',
+      }),
+      searchApi: {
+        async search(_query, options) {
+          assert.equal(options?.topK, 3);
+          assert.equal('mode' in (options ?? {}), false);
+          return [];
+        },
+      },
+    },
+  );
+
+  assert.equal(response.status, 200);
+  const body = JSON.parse(String(response.body)) as {
+    topK: number;
+  };
+  assert.equal(body.topK, 3);
+});
+
 test('handleSiteRequest renders search UI when search is enabled', async () => {
   const store = new MemoryContentStore([
     {
