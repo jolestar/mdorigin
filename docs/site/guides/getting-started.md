@@ -185,6 +185,31 @@ The built-in presentation is now fixed to the default atlas baseline. Configure 
 }
 ```
 
+Once `siteUrl` is set, `mdorigin` also enables:
+
+- `/sitemap.xml`
+- `/feed.xml`
+
+If you want to turn RSS off or override feed metadata, add:
+
+```json
+{
+  "rss": {
+    "title": "Example Feed",
+    "description": "Latest updates from Example",
+    "maxItems": 20
+  }
+}
+```
+
+Or disable it entirely:
+
+```json
+{
+  "rss": false
+}
+```
+
 If a page contains a managed index block, the default renderer automatically presents it as a structured listing. `mdorigin` no longer exposes built-in theme/template variants as product configuration.
 
 If you want to start using code-based extensions now, switch from JSON config to `mdorigin.config.ts` and export a config object with `plugins`.

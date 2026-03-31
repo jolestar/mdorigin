@@ -29,6 +29,21 @@ export interface EditLinkConfig {
   baseUrl: string;
 }
 
+export interface SiteRssConfigInput {
+  title?: string;
+  description?: string;
+  author?: string;
+  maxItems?: number;
+}
+
+export interface SiteRssConfig {
+  enabled: boolean;
+  title?: string;
+  description?: string;
+  author?: string;
+  maxItems: number;
+}
+
 export interface SiteSearchRerankerConfig {
   kind?: 'embedding-v1' | 'heuristic-v1';
   candidatePoolSize?: number;
@@ -82,6 +97,7 @@ export interface SiteConfig {
   footerText?: string;
   socialLinks?: SiteSocialLink[];
   editLink?: EditLinkConfig;
+  rss?: false | SiteRssConfigInput;
   showHomeIndex?: boolean;
   listingInitialPostCount?: number;
   listingLoadMoreStep?: number;
@@ -106,6 +122,7 @@ export interface ResolvedSiteConfig {
   footerText?: string;
   socialLinks: SiteSocialLink[];
   editLink?: EditLinkConfig;
+  rss?: SiteRssConfig;
   showHomeIndex: boolean;
   listingInitialPostCount: number;
   listingLoadMoreStep: number;
@@ -177,6 +194,7 @@ export async function loadUserSiteConfig(
         : undefined,
     socialLinks: normalizeSocialLinks(parsedConfig.socialLinks),
     editLink: normalizeEditLink(parsedConfig.editLink),
+    rss: normalizeRssConfig(parsedConfig.rss),
     showHomeIndex:
       typeof parsedConfig.showHomeIndex === 'boolean'
         ? parsedConfig.showHomeIndex
@@ -416,6 +434,40 @@ function normalizeOptionalNumber(value: unknown): number | undefined {
   }
 
   return undefined;
+}
+
+function normalizeRssConfig(value: unknown): SiteRssConfig {
+  if (value === false) {
+    return {
+      enabled: false,
+      title: undefined,
+      description: undefined,
+      author: undefined,
+      maxItems: 20,
+    };
+  }
+
+  if (typeof value !== 'object' || value === null) {
+    return {
+      enabled: true,
+      title: undefined,
+      description: undefined,
+      author: undefined,
+      maxItems: 20,
+    };
+  }
+
+  const rss = value as Record<string, unknown>;
+  return {
+    enabled: true,
+    title: typeof rss.title === 'string' && rss.title !== '' ? rss.title : undefined,
+    description:
+      typeof rss.description === 'string' && rss.description !== ''
+        ? rss.description
+        : undefined,
+    author: typeof rss.author === 'string' && rss.author !== '' ? rss.author : undefined,
+    maxItems: normalizePositiveInteger(rss.maxItems, 20),
+  };
 }
 
 function normalizeSearchConfig(

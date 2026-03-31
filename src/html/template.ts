@@ -27,6 +27,7 @@ export interface RenderDocumentOptions {
   stylesheetContent?: string;
   canonicalPath?: string;
   alternateMarkdownPath?: string;
+  rssFeedUrl?: string;
   listingEntries?: ManagedIndexEntry[];
   listingRequestPath?: string;
   listingInitialPostCount?: number;
@@ -65,6 +66,11 @@ export function renderDocument(options: RenderDocumentOptions) {
   const alternateMarkdownMeta = options.alternateMarkdownPath
     ? `<link rel="alternate" type="text/markdown" href="${escapeHtml(
         options.alternateMarkdownPath,
+      )}">`
+    : '';
+  const rssMeta = options.rssFeedUrl
+    ? `<link rel="alternate" type="application/rss+xml" title="${siteTitle}" href="${escapeHtml(
+        options.rssFeedUrl,
       )}">`
     : '';
   const stylesheetBlock = `<style>${getDefaultThemeStyles()}${
@@ -176,6 +182,7 @@ export function renderDocument(options: RenderDocumentOptions) {
     faviconMeta,
     socialImageMeta,
     alternateMarkdownMeta,
+    rssMeta,
     stylesheetBlock,
     '</head>',
     '<body>',

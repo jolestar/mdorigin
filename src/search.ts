@@ -19,6 +19,7 @@ import {
 } from './core/markdown.js';
 import type { ParsedDocumentMeta } from './core/markdown.js';
 import { isIgnoredContentName } from './core/content-store.js';
+import { ensureTrailingSlash, trimLeadingSlash } from './core/site-url.js';
 import type {
   ResolvedSiteConfig,
   SiteSearchConfig,
@@ -672,14 +673,6 @@ function getCanonicalHtmlPathForContentPath(contentPath: string): string {
   }
 
   return `/${contentPath.slice(0, -'.md'.length)}`;
-}
-
-function trimLeadingSlash(value: string): string {
-  return value.startsWith('/') ? value.slice(1) : value;
-}
-
-function ensureTrailingSlash(value: string): string {
-  return value.endsWith('/') ? value : `${value}/`;
 }
 
 async function pathExists(filePath: string): Promise<boolean> {

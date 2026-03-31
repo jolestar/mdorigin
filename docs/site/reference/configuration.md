@@ -118,6 +118,7 @@ The design boundary is:
 
 - `siteUrl` sets the canonical site origin and is used for canonical links in rendered HTML.
 - `siteUrl` also enables `/sitemap.xml`, which emits absolute canonical URLs.
+- `siteUrl` also enables `/feed.xml` by default unless RSS is explicitly disabled.
 - `favicon` adds a standard favicon link tag.
 - `socialImage` emits absolute `og:image` and `twitter:image` metadata when `siteUrl` is set.
 - `logo` renders a small site logo in the header.
@@ -135,6 +136,37 @@ Example:
   }
 }
 ```
+
+## RSS
+
+`mdorigin` can emit a built-in RSS feed at `/feed.xml`.
+
+Rules:
+
+- if `siteUrl` is set, RSS is enabled by default
+- set `"rss": false` to disable the feed
+- the feed emits dated post content, not every page in the tree
+- rendered HTML adds an RSS autodiscovery `<link rel="alternate" ...>` when the feed is enabled
+
+Optional overrides:
+
+```json
+{
+  "rss": {
+    "title": "Example Feed",
+    "description": "Latest updates from Example",
+    "author": "editor@example.com",
+    "maxItems": 20
+  }
+}
+```
+
+Supported fields:
+
+- `rss.title`
+- `rss.description`
+- `rss.author`
+- `rss.maxItems`
 
 ## Footer
 
