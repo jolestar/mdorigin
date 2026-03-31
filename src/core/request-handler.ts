@@ -91,7 +91,7 @@ export async function handleSiteRequest(
       return aliasRedirect;
     }
 
-    return notFound();
+    return renderNotFoundForRequest(store, pathname, options);
   }
 
   const entry = await store.get(resolved.sourcePath);
@@ -120,6 +120,14 @@ export async function handleSiteRequest(
       return alternateMarkdownRedirect;
     }
 
+    const canonicalDirectoryRedirect = await tryRedirectCanonicalDirectoryPath(
+      store,
+      resolved,
+    );
+    if (canonicalDirectoryRedirect !== null) {
+      return canonicalDirectoryRedirect;
+    }
+
     if (resolved.kind === 'html' && resolved.requestPath.endsWith('/')) {
       const directoryIndexResponse = await tryRenderAlternateDirectoryIndex(
         store,
@@ -138,7 +146,7 @@ export async function handleSiteRequest(
       );
     }
 
-    return notFound();
+    return renderNotFoundForResolvedRequest(store, resolved, options, negotiatedMarkdown);
   }
 
   if (resolved.kind === 'asset') {
@@ -146,13 +154,13 @@ export async function handleSiteRequest(
   }
 
   if (entry.kind !== 'text' || entry.text === undefined) {
-    return notFound();
+    return renderNotFoundForResolvedRequest(store, resolved, options, negotiatedMarkdown);
   }
 
   if (resolved.kind === 'markdown' || negotiatedMarkdown) {
     const parsed = await parseMarkdownDocument(resolved.sourcePath, entry.text);
     if (parsed.meta.draft === true && options.draftMode === 'exclude') {
-      return notFound();
+      return renderNotFoundForResolvedRequest(store, resolved, options, negotiatedMarkdown);
     }
 
     return {
@@ -169,7 +177,7 @@ export async function handleSiteRequest(
 
   const parsed = await parseMarkdownDocument(resolved.sourcePath, entry.text);
   if (parsed.meta.draft === true && options.draftMode === 'exclude') {
-    return notFound();
+    return renderNotFoundForResolvedRequest(store, resolved, options, negotiatedMarkdown);
   }
   const navigation = await resolveTopNav(store, options.siteConfig);
 
@@ -455,6 +463,87 @@ function notFound(): SiteResponse {
       'content-type': 'text/plain; charset=utf-8',
     },
     body: 'Not Found',
+  };
+}
+
+async function renderNotFoundForRequest(
+  store: ContentStore,
+  pathname: string,
+  options: HandleSiteRequestOptions,
+): Promise<SiteResponse> {
+  const resolved = resolveRequest(pathname);
+  return renderNotFoundForResolvedRequest(store, resolved, options, false);
+}
+
+async function renderNotFoundForResolvedRequest(
+  store: ContentStore,
+  resolved: ReturnType<typeof resolveRequest>,
+  options: HandleSiteRequestOptions,
+  negotiatedMarkdown: boolean,
+): Promise<SiteResponse> {
+  const varyOnAccept = shouldVaryOnAccept(resolved);
+  if (resolved.kind !== 'html' || negotiatedMarkdown) {
+    return withNotFoundVary(varyOnAccept);
+  }
+
+  return renderHtmlNotFound(store, resolved.requestPath, options, varyOnAccept);
+}
+
+async function renderHtmlNotFound(
+  store: ContentStore,
+  requestPath: string,
+  options: HandleSiteRequestOptions,
+  varyOnAccept: boolean,
+): Promise<SiteResponse> {
+  const navigation = await resolveTopNav(store, options.siteConfig);
+  const body = [
+    '<h1>Not Found</h1>',
+    `<p>No page was published at <code>${escapeHtml(requestPath)}</code>.</p>`,
+  ].join('');
+
+  return {
+    status: 404,
+    headers: withVaryAcceptIfNeeded(
+      {
+        'content-type': 'text/html; charset=utf-8',
+      },
+      varyOnAccept,
+    ),
+    body: renderDocument({
+      siteTitle: options.siteConfig.siteTitle,
+      siteDescription: options.siteConfig.siteDescription,
+      siteUrl: options.siteConfig.siteUrl,
+      favicon: options.siteConfig.favicon,
+      socialImage: options.siteConfig.socialImage,
+      logo: options.siteConfig.logo,
+      title: 'Not Found',
+      body,
+      showSummary: false,
+      showDate: false,
+      topNav: navigation.items,
+      footerNav: options.siteConfig.footerNav,
+      footerText: options.siteConfig.footerText,
+      socialLinks: options.siteConfig.socialLinks,
+      stylesheetContent: options.siteConfig.stylesheetContent,
+      rssFeedUrl: getRssFeedUrl(options.siteConfig.siteUrl, options.siteConfig),
+      searchEnabled: options.searchApi !== undefined,
+    }),
+  };
+}
+
+function withNotFoundVary(varyOnAccept: boolean): SiteResponse {
+  if (!varyOnAccept) {
+    return notFound();
+  }
+
+  return {
+    ...notFound(),
+    headers: withVaryAcceptIfNeeded(
+      {
+        'content-type': 'text/plain; charset=utf-8',
+      },
+      true,
+    ),
   };
 }
 
@@ -1015,6 +1104,31 @@ async function tryRedirectAlternateDirectoryMarkdown(
   }
 
   return null;
+}
+
+async function tryRedirectCanonicalDirectoryPath(
+  store: ContentStore,
+  resolved: ReturnType<typeof resolveRequest>,
+): Promise<SiteResponse | null> {
+  if (resolved.kind !== 'html' || resolved.requestPath.endsWith('/')) {
+    return null;
+  }
+
+  if (path.posix.extname(resolved.requestPath) !== '') {
+    return null;
+  }
+
+  const directoryPath = resolved.requestPath.slice(1);
+  if (directoryPath === '') {
+    return null;
+  }
+
+  const directoryEntries = await store.listDirectory(directoryPath);
+  if (directoryEntries === null) {
+    return null;
+  }
+
+  return redirect(`${resolved.requestPath}/`);
 }
 
 function getMarkdownRequestPathForContentPath(contentPath: string): string {

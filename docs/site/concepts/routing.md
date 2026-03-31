@@ -28,6 +28,8 @@ docs/site/
 
 If a directory has no `index.md`, the current runtime can still render a minimal fallback listing for browsing.
 
+Directory homepages are canonical with a trailing slash. When `/guides/` is a valid directory route, requesting `/guides` redirects to `/guides/`.
+
 The content tree may also include directory symlinks. `mdorigin` follows them in local preview and build-time processing, while keeping the published URL based on the visible path inside the content root.
 
 `/sitemap.xml` emits canonical HTML URLs, not `.md` source URLs. It requires `siteUrl` so the sitemap can use absolute locations.
@@ -41,6 +43,8 @@ Rendered HTML also exposes the source markdown path with:
 ```
 
 This is a lightweight interoperability hint for agents and tools that want to discover the raw markdown source from the human HTML page.
+
+For missing routes, `mdorigin` renders an HTML 404 page for human HTML requests, while markdown, asset, and API misses stay machine-friendly.
 
 When RSS is enabled, rendered HTML also exposes feed autodiscovery:
 
