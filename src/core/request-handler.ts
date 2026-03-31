@@ -20,6 +20,7 @@ import {
   stripManagedIndexLinks,
   stripMachineOnlyMarkdownComments,
 } from './markdown.js';
+import { ensureTrailingSlash, trimLeadingSlash } from './site-url.js';
 import type { MdoPlugin, PageRenderModel, RenderHookContext } from './extensions.js';
 import {
   applyIndexTransforms,
@@ -683,7 +684,7 @@ async function collectRssFeedItems(
   }
 
   const feedItems: FeedItem[] = [];
-  const directoryShape = await inspectDirectoryShape(store, directoryPath);
+  const directoryShape = inspectDirectoryShapeEntries(entries);
 
   for (const entry of entries) {
     if (entry.kind === 'directory') {
@@ -1020,14 +1021,6 @@ function getMarkdownRequestPathForContentPath(contentPath: string): string {
   return `/${contentPath}`;
 }
 
-function trimLeadingSlash(value: string): string {
-  return value.startsWith('/') ? value.slice(1) : value;
-}
-
-function ensureTrailingSlash(value: string): string {
-  return value.endsWith('/') ? value : `${value}/`;
-}
-
 function isRootHomeRequest(requestPath: string): boolean {
   return requestPath === '/';
 }
@@ -1300,6 +1293,17 @@ async function inspectDirectoryShape(
     };
   }
 
+  return inspectDirectoryShapeEntries(entries);
+}
+
+function inspectDirectoryShapeEntries(
+  entries: readonly ContentDirectoryEntry[],
+): {
+  hasSkillIndex: boolean;
+  hasChildDirectories: boolean;
+  hasExtraMarkdownFiles: boolean;
+  hasAssetFiles: boolean;
+} {
   let hasSkillIndex = false;
   let hasChildDirectories = false;
   let hasExtraMarkdownFiles = false;
