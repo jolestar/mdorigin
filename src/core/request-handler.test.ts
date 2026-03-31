@@ -389,24 +389,39 @@ test('handleSiteRequest filters drafts in exclude mode', async () => {
 });
 
 test('handleSiteRequest renders html 404 pages but keeps markdown 404 plain text', async () => {
-  const htmlResponse = await handleSiteRequest(new MemoryContentStore([]), '/missing', {
+  const store = new MemoryContentStore([]);
+
+  const htmlResponse = await handleSiteRequest(store, '/missing', {
     draftMode: 'exclude',
     siteConfig: TEST_SITE_CONFIG,
   });
 
   assert.equal(htmlResponse.status, 404);
   assert.equal(htmlResponse.headers['content-type'], 'text/html; charset=utf-8');
+  assert.equal(htmlResponse.headers.vary, 'Accept');
   assert.match(String(htmlResponse.body), /<h1>Not Found<\/h1>/);
   assert.match(String(htmlResponse.body), /No page was published at <code>\/missing<\/code>/);
   assert.match(String(htmlResponse.body), /<title>Not Found \| Test Site<\/title>/);
 
-  const markdownResponse = await handleSiteRequest(new MemoryContentStore([]), '/missing.md', {
+  const negotiatedMarkdownResponse = await handleSiteRequest(store, '/missing', {
+    draftMode: 'exclude',
+    siteConfig: TEST_SITE_CONFIG,
+    acceptHeader: 'text/markdown',
+  });
+
+  assert.equal(negotiatedMarkdownResponse.status, 404);
+  assert.equal(negotiatedMarkdownResponse.headers['content-type'], 'text/plain; charset=utf-8');
+  assert.equal(negotiatedMarkdownResponse.headers.vary, 'Accept');
+  assert.equal(String(negotiatedMarkdownResponse.body), 'Not Found');
+
+  const markdownResponse = await handleSiteRequest(store, '/missing.md', {
     draftMode: 'exclude',
     siteConfig: TEST_SITE_CONFIG,
   });
 
   assert.equal(markdownResponse.status, 404);
   assert.equal(markdownResponse.headers['content-type'], 'text/plain; charset=utf-8');
+  assert.equal(markdownResponse.headers.vary, undefined);
   assert.equal(String(markdownResponse.body), 'Not Found');
 });
 

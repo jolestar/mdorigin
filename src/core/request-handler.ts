@@ -123,7 +123,6 @@ export async function handleSiteRequest(
     const canonicalDirectoryRedirect = await tryRedirectCanonicalDirectoryPath(
       store,
       resolved,
-      options,
     );
     if (canonicalDirectoryRedirect !== null) {
       return canonicalDirectoryRedirect;
@@ -482,17 +481,19 @@ async function renderNotFoundForResolvedRequest(
   options: HandleSiteRequestOptions,
   negotiatedMarkdown: boolean,
 ): Promise<SiteResponse> {
+  const varyOnAccept = shouldVaryOnAccept(resolved);
   if (resolved.kind !== 'html' || negotiatedMarkdown) {
-    return notFound();
+    return withNotFoundVary(varyOnAccept);
   }
 
-  return renderHtmlNotFound(store, resolved.requestPath, options);
+  return renderHtmlNotFound(store, resolved.requestPath, options, varyOnAccept);
 }
 
 async function renderHtmlNotFound(
   store: ContentStore,
   requestPath: string,
   options: HandleSiteRequestOptions,
+  varyOnAccept: boolean,
 ): Promise<SiteResponse> {
   const navigation = await resolveTopNav(store, options.siteConfig);
   const body = [
@@ -502,9 +503,12 @@ async function renderHtmlNotFound(
 
   return {
     status: 404,
-    headers: {
-      'content-type': 'text/html; charset=utf-8',
-    },
+    headers: withVaryAcceptIfNeeded(
+      {
+        'content-type': 'text/html; charset=utf-8',
+      },
+      varyOnAccept,
+    ),
     body: renderDocument({
       siteTitle: options.siteConfig.siteTitle,
       siteDescription: options.siteConfig.siteDescription,
@@ -524,6 +528,22 @@ async function renderHtmlNotFound(
       rssFeedUrl: getRssFeedUrl(options.siteConfig.siteUrl, options.siteConfig),
       searchEnabled: options.searchApi !== undefined,
     }),
+  };
+}
+
+function withNotFoundVary(varyOnAccept: boolean): SiteResponse {
+  if (!varyOnAccept) {
+    return notFound();
+  }
+
+  return {
+    ...notFound(),
+    headers: withVaryAcceptIfNeeded(
+      {
+        'content-type': 'text/plain; charset=utf-8',
+      },
+      true,
+    ),
   };
 }
 
@@ -1089,7 +1109,6 @@ async function tryRedirectAlternateDirectoryMarkdown(
 async function tryRedirectCanonicalDirectoryPath(
   store: ContentStore,
   resolved: ReturnType<typeof resolveRequest>,
-  options: HandleSiteRequestOptions,
 ): Promise<SiteResponse | null> {
   if (resolved.kind !== 'html' || resolved.requestPath.endsWith('/')) {
     return null;
@@ -1107,20 +1126,6 @@ async function tryRedirectCanonicalDirectoryPath(
   const directoryEntries = await store.listDirectory(directoryPath);
   if (directoryEntries === null) {
     return null;
-  }
-
-  for (const candidatePath of getDirectoryIndexCandidates(directoryPath)) {
-    const entry = await store.get(candidatePath);
-    if (entry === null || entry.kind !== 'text' || entry.text === undefined) {
-      continue;
-    }
-
-    const parsed = await parseMarkdownDocument(candidatePath, entry.text);
-    if (parsed.meta.draft === true && options.draftMode === 'exclude') {
-      continue;
-    }
-
-    return redirect(`${resolved.requestPath}/`);
   }
 
   return redirect(`${resolved.requestPath}/`);
