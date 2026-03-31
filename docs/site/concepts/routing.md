@@ -24,12 +24,15 @@ docs/site/
 - skill homepage -> `/skill-name/` using `SKILL.md` when neither `index.md` nor `README.md` exists
 - `guides/getting-started.md` -> `/guides/getting-started.md`, `/guides/getting-started.html`, `/guides/getting-started`
 - sitemap -> `/sitemap.xml`
+- RSS feed -> `/feed.xml` when `siteUrl` is configured and RSS is not disabled
 
 If a directory has no `index.md`, the current runtime can still render a minimal fallback listing for browsing.
 
 The content tree may also include directory symlinks. `mdorigin` follows them in local preview and build-time processing, while keeping the published URL based on the visible path inside the content root.
 
 `/sitemap.xml` emits canonical HTML URLs, not `.md` source URLs. It requires `siteUrl` so the sitemap can use absolute locations.
+
+`/feed.xml` also requires `siteUrl`, because feed items use absolute canonical URLs.
 
 Rendered HTML also exposes the source markdown path with:
 
@@ -38,6 +41,12 @@ Rendered HTML also exposes the source markdown path with:
 ```
 
 This is a lightweight interoperability hint for agents and tools that want to discover the raw markdown source from the human HTML page.
+
+When RSS is enabled, rendered HTML also exposes feed autodiscovery:
+
+```html
+<link rel="alternate" type="application/rss+xml" href="https://example.com/feed.xml">
+```
 
 ## Canonical markdown paths
 

@@ -446,6 +446,113 @@ test('handleSiteRequest returns an error for sitemap.xml when siteUrl is missing
   assert.match(String(response.body), /siteUrl/);
 });
 
+test('handleSiteRequest renders feed.xml for dated posts and adds autodiscovery link', async () => {
+  const store = new MemoryContentStore([
+    {
+      path: 'README.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Home', 'summary: Site summary', '---', '', '# Home'].join('\n'),
+    },
+    {
+      path: 'posts/new.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: [
+        '---',
+        'title: New Post',
+        'date: 2026-03-22',
+        'summary: Fresh summary',
+        '---',
+        '',
+        '# New Post',
+      ].join('\n'),
+    },
+    {
+      path: 'posts/old.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: [
+        '---',
+        'title: Old Post',
+        'date: 2026-03-20',
+        '---',
+        '',
+        'First paragraph excerpt.',
+      ].join('\n'),
+    },
+    {
+      path: 'guides/page.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Guide', 'date: 2026-03-21', 'type: page', '---', '', '# Guide'].join('\n'),
+    },
+    {
+      path: 'draft.md',
+      kind: 'text',
+      mediaType: 'text/markdown; charset=utf-8',
+      text: ['---', 'title: Draft', 'date: 2026-03-23', 'draft: true', '---', '', '# Draft'].join('\n'),
+    },
+  ]);
+
+  const siteConfig = {
+    ...TEST_SITE_CONFIG,
+    siteUrl: 'https://example.com',
+    siteDescription: 'Configured site description',
+  };
+
+  const feedResponse = await handleSiteRequest(store, '/feed.xml', {
+    draftMode: 'exclude',
+    siteConfig,
+  });
+
+  assert.equal(feedResponse.status, 200);
+  assert.equal(feedResponse.headers['content-type'], 'application/rss+xml; charset=utf-8');
+  const feedBody = String(feedResponse.body);
+  assert.match(feedBody, /<title>Test Site<\/title>/);
+  assert.match(feedBody, /<link>https:\/\/example\.com<\/link>/);
+  assert.match(feedBody, /<atom:link href="https:\/\/example\.com\/feed\.xml"/);
+  assert.match(feedBody, /<title>New Post<\/title>[\s\S]*<title>Old Post<\/title>/);
+  assert.match(feedBody, /<guid isPermaLink="true">https:\/\/example\.com\/posts\/new<\/guid>/);
+  assert.match(feedBody, /<description>Fresh summary<\/description>/);
+  assert.match(feedBody, /<description>First paragraph excerpt\.<\/description>/);
+  assert.doesNotMatch(feedBody, /Guide/);
+  assert.doesNotMatch(feedBody, /Draft/);
+
+  const htmlResponse = await handleSiteRequest(store, '/posts/new.html', {
+    draftMode: 'exclude',
+    siteConfig,
+  });
+  assert.equal(htmlResponse.status, 200);
+  assert.match(
+    String(htmlResponse.body),
+    /<link rel="alternate" type="application\/rss\+xml" title="Test Site" href="https:\/\/example\.com\/feed\.xml">/,
+  );
+});
+
+test('handleSiteRequest returns 404 for feed.xml when siteUrl is missing or rss is disabled', async () => {
+  const store = new MemoryContentStore([]);
+
+  const missingSiteUrl = await handleSiteRequest(store, '/feed.xml', {
+    draftMode: 'exclude',
+    siteConfig: TEST_SITE_CONFIG,
+  });
+  assert.equal(missingSiteUrl.status, 404);
+
+  const disabledRss = await handleSiteRequest(store, '/feed.xml', {
+    draftMode: 'exclude',
+    siteConfig: {
+      ...TEST_SITE_CONFIG,
+      siteUrl: 'https://example.com',
+      rss: {
+        enabled: false,
+        maxItems: 20,
+      },
+    },
+  });
+  assert.equal(disabledRss.status, 404);
+});
+
 test('handleSiteRequest serves OpenAPI schema for search', async () => {
   const response = await handleSiteRequest(
     new MemoryContentStore([]),

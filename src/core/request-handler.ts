@@ -6,7 +6,10 @@ import type {
   ContentStore,
 } from './content-store.js';
 import { isIgnoredContentName } from './content-store.js';
-import { inferDirectoryContentType } from './content-type.js';
+import {
+  inferDirectoryContentType,
+  resolveContentType,
+} from './content-type.js';
 import { getDirectoryIndexCandidates } from './directory-index.js';
 import {
   extractManagedIndexEntries,
@@ -15,6 +18,7 @@ import {
   parseMarkdownDocument,
   stripManagedIndexBlock,
   stripManagedIndexLinks,
+  stripMachineOnlyMarkdownComments,
 } from './markdown.js';
 import type { MdoPlugin, PageRenderModel, RenderHookContext } from './extensions.js';
 import {
@@ -68,6 +72,10 @@ export async function handleSiteRequest(
 
   if (pathname === '/sitemap.xml') {
     return renderSitemap(store, options);
+  }
+
+  if (pathname === '/feed.xml') {
+    return renderRssFeed(store, options);
   }
 
   const resolved = resolveRequest(pathname);
@@ -357,6 +365,7 @@ async function renderStructuredPage(options: {
         stylesheetContent: currentPage.stylesheetContent,
         canonicalPath: currentPage.canonicalPath,
         alternateMarkdownPath: currentPage.alternateMarkdownPath,
+        rssFeedUrl: getRssFeedUrl(currentPage.siteUrl, options.siteConfig),
         listingEntries: currentPage.listingEntries,
         listingRequestPath: currentPage.listingRequestPath,
         listingInitialPostCount: currentPage.listingInitialPostCount,
@@ -491,6 +500,76 @@ async function renderSitemap(
   };
 }
 
+interface FeedItem {
+  title: string;
+  canonicalPath: string;
+  absoluteUrl: string;
+  summary?: string;
+  pubDate: Date;
+}
+
+async function renderRssFeed(
+  store: ContentStore,
+  options: HandleSiteRequestOptions,
+): Promise<SiteResponse> {
+  if (!isRssEnabled(options.siteConfig) || !options.siteConfig.siteUrl) {
+    return notFound();
+  }
+
+  const items = await collectRssFeedItems(store, '', options);
+  const limitedItems = items.slice(0, options.siteConfig.rss?.maxItems ?? 20);
+  const rssFeedUrl = getRssFeedUrl(options.siteConfig.siteUrl, options.siteConfig);
+  const title = options.siteConfig.rss?.title ?? options.siteConfig.siteTitle;
+  const description =
+    options.siteConfig.rss?.description ?? options.siteConfig.siteDescription;
+  const lastBuildDate = limitedItems[0]?.pubDate.toUTCString();
+  const body = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
+    '<channel>',
+    `  <title>${escapeHtml(title)}</title>`,
+    `  <link>${escapeHtml(options.siteConfig.siteUrl)}</link>`,
+    description
+      ? `  <description>${escapeHtml(description)}</description>`
+      : '  <description></description>',
+    '  <generator>mdorigin</generator>',
+    rssFeedUrl
+      ? `  <atom:link href="${escapeHtml(rssFeedUrl)}" rel="self" type="application/rss+xml" />`
+      : '',
+    options.siteConfig.rss?.author
+      ? `  <managingEditor>${escapeHtml(options.siteConfig.rss.author)}</managingEditor>`
+      : '',
+    lastBuildDate ? `  <lastBuildDate>${escapeHtml(lastBuildDate)}</lastBuildDate>` : '',
+    ...limitedItems.map((item) =>
+      [
+        '  <item>',
+        `    <title>${escapeHtml(item.title)}</title>`,
+        `    <link>${escapeHtml(item.absoluteUrl)}</link>`,
+        `    <guid isPermaLink="true">${escapeHtml(item.absoluteUrl)}</guid>`,
+        `    <pubDate>${escapeHtml(item.pubDate.toUTCString())}</pubDate>`,
+        item.summary
+          ? `    <description>${escapeHtml(item.summary)}</description>`
+          : '',
+        '  </item>',
+      ]
+        .filter((line) => line !== '')
+        .join('\n'),
+    ),
+    '</channel>',
+    '</rss>',
+  ]
+    .filter((line) => line !== '')
+    .join('\n');
+
+  return {
+    status: 200,
+    headers: {
+      'content-type': 'application/rss+xml; charset=utf-8',
+    },
+    body,
+  };
+}
+
 function withVaryAcceptIfNeeded(
   headers: Record<string, string>,
   enabled: boolean,
@@ -593,6 +672,106 @@ function dedupeSitemapEntries(entries: SitemapEntry[]): SitemapEntry[] {
   return Array.from(deduped.values());
 }
 
+async function collectRssFeedItems(
+  store: ContentStore,
+  directoryPath: string,
+  options: HandleSiteRequestOptions,
+): Promise<FeedItem[]> {
+  const entries = await store.listDirectory(directoryPath);
+  if (entries === null) {
+    return [];
+  }
+
+  const feedItems: FeedItem[] = [];
+  const directoryShape = await inspectDirectoryShape(store, directoryPath);
+
+  for (const entry of entries) {
+    if (entry.kind === 'directory') {
+      feedItems.push(...(await collectRssFeedItems(store, entry.path, options)));
+      continue;
+    }
+
+    if (!isMarkdownEntry(entry)) {
+      continue;
+    }
+
+    const document = await store.get(entry.path);
+    if (document === null || document.kind !== 'text' || document.text === undefined) {
+      continue;
+    }
+
+    const parsed = await parseMarkdownDocument(entry.path, document.text);
+    if (parsed.meta.draft === true && options.draftMode === 'exclude') {
+      continue;
+    }
+
+    const pubDate = parseFeedDate(parsed.meta.date);
+    if (pubDate === null) {
+      continue;
+    }
+
+    const contentType = inferFeedContentType(entry.path, parsed.meta, directoryShape);
+    if (contentType !== 'post') {
+      continue;
+    }
+
+    const canonicalPath = getCanonicalHtmlPathForContentPath(entry.path);
+    feedItems.push({
+      title: getDocumentTitle(parsed),
+      canonicalPath,
+      absoluteUrl: new URL(
+        trimLeadingSlash(canonicalPath),
+        ensureTrailingSlash(options.siteConfig.siteUrl ?? ''),
+      ).toString(),
+      summary: getFeedSummary(parsed),
+      pubDate,
+    });
+  }
+
+  feedItems.sort((left, right) => {
+    const timeDelta = right.pubDate.getTime() - left.pubDate.getTime();
+    return timeDelta !== 0
+      ? timeDelta
+      : left.canonicalPath.localeCompare(right.canonicalPath);
+  });
+  return feedItems;
+}
+
+function inferFeedContentType(
+  contentPath: string,
+  meta: Awaited<ReturnType<typeof parseMarkdownDocument>>['meta'],
+  directoryShape: Awaited<ReturnType<typeof inspectDirectoryShape>>,
+): 'page' | 'post' {
+  const explicitType = resolveContentType(meta);
+  if (explicitType) {
+    return explicitType;
+  }
+
+  if (isDirectoryIndexContentPath(contentPath)) {
+    return inferDirectoryContentType(meta, directoryShape);
+  }
+
+  return typeof meta.date === 'string' && meta.date !== '' ? 'post' : 'page';
+}
+
+function getFeedSummary(
+  parsed: Awaited<ReturnType<typeof parseMarkdownDocument>>,
+): string | undefined {
+  return getDocumentSummary(
+    parsed.meta,
+    stripMachineOnlyMarkdownComments(stripManagedIndexBlock(parsed.body)),
+  );
+}
+
+function parseFeedDate(value: unknown): Date | null {
+  if (typeof value !== 'string' || value.trim() === '') {
+    return null;
+  }
+
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
 async function renderDirectoryListing(
   store: ContentStore,
   requestPath: string,
@@ -641,6 +820,7 @@ async function renderDirectoryListing(
       alternateMarkdownPath: getMarkdownRequestPathForContentPath(
         getDirectoryIndexContentPathForRequestPath(requestPath),
       ),
+      rssFeedUrl: getRssFeedUrl(siteConfig.siteUrl, siteConfig),
       searchEnabled,
     }),
   };
@@ -840,6 +1020,14 @@ function getMarkdownRequestPathForContentPath(contentPath: string): string {
   return `/${contentPath}`;
 }
 
+function trimLeadingSlash(value: string): string {
+  return value.startsWith('/') ? value.slice(1) : value;
+}
+
+function ensureTrailingSlash(value: string): string {
+  return value.endsWith('/') ? value : `${value}/`;
+}
+
 function isRootHomeRequest(requestPath: string): boolean {
   return requestPath === '/';
 }
@@ -949,6 +1137,11 @@ function isMarkdownEntry(entry: ContentDirectoryEntry): boolean {
   return path.posix.extname(entry.name).toLowerCase() === '.md';
 }
 
+function isDirectoryIndexContentPath(contentPath: string): boolean {
+  const basename = path.posix.basename(contentPath).toLowerCase();
+  return basename === 'index.md' || basename === 'readme.md' || basename === 'skill.md';
+}
+
 function normalizeAliases(aliases: unknown): string[] {
   if (!Array.isArray(aliases)) {
     return [];
@@ -966,12 +1159,31 @@ function normalizeAliases(aliases: unknown): string[] {
 
 function getCanonicalHtmlPathForContentPath(contentPath: string): string {
   const basename = path.posix.basename(contentPath).toLowerCase();
-  if (basename === 'index.md' || basename === 'readme.md') {
+  if (
+    basename === 'index.md' ||
+    basename === 'readme.md' ||
+    basename === 'skill.md'
+  ) {
     const directory = path.posix.dirname(contentPath);
     return directory === '.' ? '/' : `/${directory}/`;
   }
 
   return `/${contentPath.slice(0, -'.md'.length)}`;
+}
+
+function isRssEnabled(siteConfig: ResolvedSiteConfig): boolean {
+  return Boolean(siteConfig.siteUrl) && (siteConfig.rss?.enabled ?? true);
+}
+
+function getRssFeedUrl(
+  siteUrl: string | undefined,
+  siteConfig: ResolvedSiteConfig,
+): string | undefined {
+  if (!siteUrl || !isRssEnabled(siteConfig)) {
+    return undefined;
+  }
+
+  return new URL('feed.xml', ensureTrailingSlash(siteUrl)).toString();
 }
 
 function getEditLinkHref(

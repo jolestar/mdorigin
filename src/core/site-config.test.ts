@@ -139,6 +139,64 @@ test('applySiteConfigFrontmatterDefaults does not override explicit config value
   assert.equal(resolved.siteDescription, 'Configured Description');
 });
 
+test('loadSiteConfig auto-enables rss when siteUrl is present and normalizes overrides', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-config-rss-'));
+  await writeFile(
+    path.join(rootDir, 'mdorigin.config.json'),
+    JSON.stringify(
+      {
+        siteUrl: 'https://example.com',
+        rss: {
+          title: 'Example Feed',
+          description: 'Latest posts',
+          author: 'editor@example.com',
+          maxItems: '12',
+        },
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+
+  const config = await loadSiteConfig({ rootDir });
+
+  assert.equal(config.siteUrl, 'https://example.com');
+  assert.deepEqual(config.rss, {
+    enabled: true,
+    title: 'Example Feed',
+    description: 'Latest posts',
+    author: 'editor@example.com',
+    maxItems: 12,
+  });
+});
+
+test('loadSiteConfig allows rss to be disabled explicitly', async () => {
+  const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-config-rss-disabled-'));
+  await writeFile(
+    path.join(rootDir, 'mdorigin.config.json'),
+    JSON.stringify(
+      {
+        siteUrl: 'https://example.com',
+        rss: false,
+      },
+      null,
+      2,
+    ),
+    'utf8',
+  );
+
+  const config = await loadSiteConfig({ rootDir });
+
+  assert.deepEqual(config.rss, {
+    enabled: false,
+    title: undefined,
+    description: undefined,
+    author: undefined,
+    maxItems: 20,
+  });
+});
+
 test('loadUserSiteConfig prefers mdorigin.config.ts and exposes plugins', async () => {
   const rootDir = await mkdtemp(path.join(tmpdir(), 'mdorigin-config-ts-'));
   const warnings: string[] = [];

@@ -29,6 +29,7 @@ npm install --save-dev mdorigin
 - Cloudflare Worker bundle output with `mdorigin build cloudflare`
 - external binary deployment flow for Cloudflare Assets + R2
 - markdown and HTML route behavior, including `Accept: text/markdown`
+- built-in `/sitemap.xml` and `/feed.xml` when `siteUrl` is configured
 
 ## Quick commands
 
